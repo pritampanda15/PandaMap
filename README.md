@@ -2,6 +2,8 @@
 
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
+![PandaMap Logo](logo/pandamap-logo.svg)
+
 ## Overview
 
 PandaMap is a lightweight tool for visualizing protein-ligand interactions from PDB files. It generates intuitive 2D interaction diagrams that display both the ligand structure and its interactions with protein residues.
