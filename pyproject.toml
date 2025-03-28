@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandamap"
-version = "1.0.0"
+version = "1.0.1"
 description = "A Python package for visualizing protein-ligand interactions with 2D ligand structure representation"
 readme = "README.md"
 authors = [
-    {name = "Your Name", email = "your.email@example.com"}
+    {name = "Dr. Pritam Kumar Panda", email = "pritam@stanford.edu"}
 ]
 license = {file = "LICENSE"}
 classifiers = [
