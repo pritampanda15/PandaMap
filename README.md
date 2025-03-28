@@ -1,4 +1,4 @@
-# PandaMap
+# PandaMap: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation. 
 
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
