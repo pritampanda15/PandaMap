@@ -2,7 +2,9 @@
 
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
-![PandaMap Logo](logo/pandamap-logo.svg)
+<p align="center">
+  <img src="logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
+</p>
 
 ## Overview
 
