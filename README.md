@@ -63,7 +63,7 @@ mapper.visualize(output_file="interactions.png")
 If you use PandaMap in your research, please cite:
 
 ```
-Pritam Kumar Panda. (2025). **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation. GitHub repository. https://github.com/pritampanda15/PandaMap
+Pritam Kumar Panda. (2025). Protein AND ligAnd interaction MAPper: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation. GitHub repository. https://github.com/pritampanda15/PandaMap
 ```
 
 ## License
