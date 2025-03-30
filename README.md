@@ -11,6 +11,7 @@
 PandaMap is a lightweight tool for visualizing protein-ligand interactions from PDB files. It generates intuitive 2D interaction diagrams that display both the ligand structure and its interactions with protein residues.
 
 Key features:
+- Multiple structure format support e.g., pdb, mmcif, cif, pdbqt
 - Visualization of protein-ligand interactions with minimal dependencies
 - 2D representation of ligand structure without requiring RDKit
 - Detection of multiple interaction types (hydrogen bonds, π-stacking, hydrophobic)
@@ -30,12 +31,37 @@ pip install pandamap
 - BioPython
 
 ## Basic Usage
+```bash
+usage: pandamap [-h] [--output OUTPUT] [--ligand LIGAND] [--dpi DPI]
+                [--title TITLE] [--version]
+                structure_file
+
+PandaMap: Visualize protein-ligand interactions from structure files
+
+positional arguments:
+  structure_file        Path to structure file (PDB, mmCIF/CIF, or PDBQT
+                        format)
+
+options:
+  -h, --help            show this help message and exit
+  --output OUTPUT, -o OUTPUT
+                        Output image file path
+  --ligand LIGAND, -l LIGAND
+                        Specific ligand residue name to analyze
+  --dpi DPI             Image resolution (default: 300 dpi)
+  --title TITLE, -t TITLE
+                        Custom title for the visualization
+  --version, -v         Show version information
+
+```
 
 ### Command Line Interface
 
 ```bash
 # Basic usage
 pandamap protein_ligand.pdb --output interactions.png
+pandamap complex.cif --output cif_interaction.png
+
 
 # Specify a particular ligand by residue name
 pandamap protein_ligand.pdb --ligand LIG

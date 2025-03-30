@@ -7,7 +7,9 @@ protein-ligand interactions with 2D ligand structure representation.
 import os
 import math
 from collections import defaultdict
-
+import tempfile
+import subprocess
+from Bio.PDB import PDBParser, MMCIFParser
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, FancyArrowPatch, Wedge, Rectangle, Polygon
@@ -36,6 +38,80 @@ except ImportError:
             return _aa_index[residue]
         else:
             return "X"  # Unknown amino acid
+
+
+
+    def parse_pdbqt(pdbqt_file):
+        """
+        Convert PDBQT to PDB format by stripping the charge and atom type information.
+        Returns a temporary file path to the converted PDB.
+        """
+        # Create a temporary file for the PDB output
+        temp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
+        temp_pdb_path = temp_pdb.name
+        temp_pdb.close()
+        
+        # Read the PDBQT file and write a modified version without charges and types
+        with open(pdbqt_file, 'r') as f_pdbqt, open(temp_pdb_path, 'w') as f_pdb:
+            for line in f_pdbqt:
+                if line.startswith(('ATOM', 'HETATM')):
+                    # Keep the PDB format portion, remove the PDBQT-specific part
+                    # PDB format: columns 1-66 are standard PDB format
+                    # PDBQT adds charge and atom type in columns 67+
+                    f_pdb.write(line[:66] + '\n')
+                elif not line.startswith(('REMARK', 'MODEL', 'ENDMDL', 'TORSDOF')):
+                    # Copy most other lines except PDBQT-specific ones
+                    f_pdb.write(line)
+        
+        return temp_pdb_path
+
+class MultiFormatParser:
+    """
+    Parser class that can handle multiple molecular file formats.
+    Supports: PDB, mmCIF/CIF, PDBQT
+    """
+    def __init__(self):
+        self.pdb_parser = PDBParser(QUIET=True)
+        self.mmcif_parser = MMCIFParser(QUIET=True)
+    
+    def parse_structure(self, file_path):
+        """
+        Parse a molecular structure file and return a BioPython structure object.
+        Automatically detects file format based on extension.
+        
+        Parameters:
+        -----------
+        file_path : str
+            Path to the structure file
+            
+        Returns:
+        --------
+        structure : Bio.PDB.Structure.Structure
+            BioPython structure object
+        """
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        if file_ext == '.pdb':
+            return self.pdb_parser.get_structure('complex', file_path)
+        
+        elif file_ext in ('.cif', '.mmcif'):
+            return self.mmcif_parser.get_structure('complex', file_path)
+        
+        elif file_ext == '.pdbqt':
+            # Convert PDBQT to PDB format temporarily
+            temp_pdb_path = parse_pdbqt(file_path)
+            structure = self.pdb_parser.get_structure('complex', temp_pdb_path)
+            
+            # Clean up the temporary file
+            try:
+                os.unlink(temp_pdb_path)
+            except:
+                pass  # Ignore cleanup errors
+                
+            return structure
+        
+        else:
+            raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .pdb, .cif, .mmcif, .pdbqt")
 
 class SimpleLigandStructure:
     """
@@ -249,23 +325,23 @@ class HybridProtLigMapper:
     visualizations with a simplified ligand structure.
     """
     
-    def __init__(self, pdb_file, ligand_resname=None):
+    def __init__(self, structure_file, ligand_resname=None):
         """
-        Initialize with a PDB file containing a protein-ligand complex.
+        Initialize with a structure file containing a protein-ligand complex.
         
         Parameters:
         -----------
-        pdb_file : str
-            Path to the PDB file with protein and ligand
+        structure_file : str
+            Path to the structure file (PDB, mmCIF/CIF, or PDBQT format)
         ligand_resname : str, optional
             Specific residue name of the ligand to focus on
         """
-        self.pdb_file = pdb_file
+        self.structure_file = structure_file
         self.ligand_resname = ligand_resname
         
-        # Parse the PDB file
-        self.parser = PDBParser(QUIET=True)
-        self.structure = self.parser.get_structure('complex', pdb_file)
+        # Parse the structure file using the multi-format parser
+        parser = MultiFormatParser()
+        self.structure = parser.parse_structure(structure_file)
         self.model = self.structure[0]
         
         # Separate ligand from protein
@@ -290,7 +366,7 @@ class HybridProtLigMapper:
         
         # Check if we found a ligand
         if not self.ligand_atoms:
-            raise ValueError("No ligand (HETATM) found in the PDB file.")
+            raise ValueError(f"No ligand (HETATM) found in the file: {structure_file}")
         
         # Storage for the interaction data
         self.interactions = {
@@ -310,7 +386,7 @@ class HybridProtLigMapper:
         
         # Create the simple ligand structure
         self.ligand_structure = SimpleLigandStructure(self.ligand_atoms)
-        
+            
     def detect_interactions(self, 
                            h_bond_cutoff=3.5, 
                            pi_stack_cutoff=5.5,
@@ -443,7 +519,7 @@ class HybridProtLigMapper:
         self.solvent_accessible = self.interacting_residues.copy()
     
     def visualize(self, output_file='protein_ligand_interactions.png',
-                  figsize=(12, 12), dpi=300, title=None):
+              figsize=(12, 12), dpi=300, title=None):
         """
         Generate a 2D visualization of protein-ligand interactions
         matching the style of the reference image.
@@ -527,7 +603,7 @@ class HybridProtLigMapper:
                 'color': '#666666',  # Dark gray
                 'linestyle': '--',
                 'linewidth': 1.5,
-                'marker_text': 'C',
+                'marker_text': 'C-π',
                 'marker_color': '#666666',
                 'marker_bg': 'white',
                 'name': 'Carbon-Pi interaction'
@@ -536,7 +612,7 @@ class HybridProtLigMapper:
                 'color': '#9370DB',  # Medium purple
                 'linestyle': '--',
                 'linewidth': 1.5,
-                'marker_text': 'π',
+                'marker_text': 'π-π',
                 'marker_color': '#9370DB',
                 'marker_bg': 'white',
                 'name': 'Pi-Pi stacking'
@@ -570,7 +646,11 @@ class HybridProtLigMapper:
             }
         }
         
-        # Draw interaction lines for each residue
+        # First, create all the interaction lines
+        interaction_lines = []
+        line_by_key = {}
+        
+        # First pass: Create all interaction lines and paths
         for interaction_type, interactions in self.interactions.items():
             if interaction_type not in interaction_styles:
                 continue
@@ -582,84 +662,254 @@ class HybridProtLigMapper:
                 res_id = (res.resname, res.id[1])
                 lig_atom = interaction['ligand_atom']
                 
-                if res_id in residue_positions:
-                    res_pos = residue_positions[res_id]
+                if res_id not in residue_positions:
+                    continue
                     
-                    # Try to use actual ligand atom position if available
-                    if lig_atom.get_id() in atom_positions:
-                        lig_pos = atom_positions[lig_atom.get_id()]
+                res_pos = residue_positions[res_id]
+                
+                # Try to use actual ligand atom position if available
+                if lig_atom.get_id() in atom_positions:
+                    lig_pos = atom_positions[lig_atom.get_id()]
+                else:
+                    # Use point on ligand circle as fallback
+                    dx = res_pos[0] - ligand_pos[0]
+                    dy = res_pos[1] - ligand_pos[1]
+                    angle = math.atan2(dy, dx)
+                    lig_edge_x = ligand_pos[0] + ligand_radius * math.cos(angle)
+                    lig_edge_y = ligand_pos[1] + ligand_radius * math.sin(angle)
+                    lig_pos = (lig_edge_x, lig_edge_y)
+                
+                # Create a unique key for this interaction
+                key = f"{interaction_type}_{res_id[0]}_{res_id[1]}"
+                
+                # Generate a reasonable curvature based on the distance and angle
+                dx = res_pos[0] - lig_pos[0]
+                dy = res_pos[1] - lig_pos[1]
+                distance = math.sqrt(dx*dx + dy*dy)
+                angle = math.atan2(dy, dx)
+                
+                # Scale curvature inversely with distance (larger distance = smaller curvature)
+                # and vary by type to separate different interactions to same residue
+                # Keep curvature much smaller than before to minimize marker distance from line
+                type_factor = {'hydrogen_bonds': 0.7, 'carbon_pi': 0.8, 'pi_pi_stacking': 0.9, 
+                               'donor_pi': 1.0, 'amide_pi': 1.1, 'hydrophobic': 0.6}.get(interaction_type, 1.0)
+                
+                # Calculate curvature - much smaller values for straighter lines
+                base_curvature = 0.08 * (200 / max(distance, 100)) * type_factor
+                
+                # Adjust to avoid overlapping curves
+                # Make some curves go left, some right
+                if hash(key) % 2 == 0:
+                    curvature = base_curvature
+                else:
+                    curvature = -base_curvature
+                
+                # Store the line parameters for later use
+                line_params = {
+                    'lig_pos': lig_pos,
+                    'res_pos': res_pos,
+                    'curvature': curvature,
+                    'style': style,
+                    'interaction_type': interaction_type,
+                    'key': key,
+                    'distance': distance
+                }
+                interaction_lines.append(line_params)
+                line_by_key[key] = line_params
+                
+                # Draw the actual line
+                line = FancyArrowPatch(
+                    lig_pos, res_pos,
+                    connectionstyle=f"arc3,rad={curvature}",
+                    color=style['color'],
+                    linestyle=style['linestyle'],
+                    linewidth=style['linewidth'],
+                    arrowstyle='-',
+                    alpha=0.7,
+                    zorder=4
+                )
+                ax.add_patch(line)
+                
+                # Store the line object for marker positioning
+                line_params['line_obj'] = line
+        
+        # Calculate marker positions along the interaction lines
+        marker_positions = {}
+        marker_objects = []
+        
+        # Sort interactions by type for consistent placement
+        # Place hydrogen bonds first, then pi interactions, then hydrophobic
+        type_order = {'hydrogen_bonds': 0, 'carbon_pi': 1, 'pi_pi_stacking': 2, 
+                      'donor_pi': 3, 'amide_pi': 4, 'hydrophobic': 5}
+        
+        sorted_lines = sorted(interaction_lines, 
+                            key=lambda x: (type_order.get(x['interaction_type'], 999), x['distance']))
+        
+        # Second pass: Place markers along paths
+        for line_params in sorted_lines:
+            lig_pos = line_params['lig_pos']
+            res_pos = line_params['res_pos']
+            curvature = line_params['curvature']
+            style = line_params['style']
+            key = line_params['key']
+            interaction_type = line_params['interaction_type']
+            
+            # Calculate the path of the curved line
+            path_points = []
+            steps = 20
+            for i in range(steps + 1):
+                t = i / steps  # Parameter along the curve (0 to 1)
+                
+                # Quadratic Bezier curve formula for approximating arc
+                control_x = (lig_pos[0] + res_pos[0])/2 + curvature * (res_pos[1] - lig_pos[1]) * 2
+                control_y = (lig_pos[1] + res_pos[1])/2 - curvature * (res_pos[0] - lig_pos[0]) * 2
+                
+                # Calculate point at parameter t
+                x = (1-t)*(1-t)*lig_pos[0] + 2*(1-t)*t*control_x + t*t*res_pos[0]
+                y = (1-t)*(1-t)*lig_pos[1] + 2*(1-t)*t*control_y + t*t*res_pos[1]
+                
+                path_points.append((x, y))
+            
+            # Try different positions along the path until finding one that doesn't overlap
+            # Start with middle and work outward
+            t_values = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7, 0.25, 0.75]
+            
+            marker_placed = False
+            best_position = None
+            best_score = float('-inf')
+            
+            for t in t_values:
+                idx = int(t * steps)
+                pos = path_points[idx]
+                
+                # Calculate distance to existing markers
+                min_dist_to_markers = float('inf')
+                for other_pos in marker_positions.values():
+                    dist = math.sqrt((pos[0] - other_pos[0])**2 + (pos[1] - other_pos[1])**2)
+                    min_dist_to_markers = min(min_dist_to_markers, dist)
+                    
+                # Calculate distance to the line
+                min_dist_to_line = float('inf')
+                for i in range(len(path_points)-1):
+                    x1, y1 = path_points[i]
+                    x2, y2 = path_points[i+1]
+                    
+                    # Distance from point to line segment
+                    px, py = pos
+                    
+                    # Calculate projection
+                    line_length_sq = (x2-x1)**2 + (y2-y1)**2
+                    if line_length_sq == 0:
+                        # Point 1 and 2 are the same
+                        dist_to_segment = math.sqrt((px-x1)**2 + (py-y1)**2)
                     else:
-                        # Determine the point on ligand circle edge as fallback
-                        # Get the angle from center to residue
-                        dx = res_pos[0] - ligand_pos[0]
-                        dy = res_pos[1] - ligand_pos[1]
-                        angle = math.atan2(dy, dx)
+                        # Calculate projection parameter
+                        t_proj = max(0, min(1, ((px-x1)*(x2-x1) + (py-y1)*(y2-y1)) / line_length_sq))
                         
-                        # Calculate point on ligand circle edge
-                        lig_edge_x = ligand_pos[0] + ligand_radius * math.cos(angle)
-                        lig_edge_y = ligand_pos[1] + ligand_radius * math.sin(angle)
-                        lig_pos = (lig_edge_x, lig_edge_y)
+                        # Find closest point on segment
+                        closest_x = x1 + t_proj * (x2-x1)
+                        closest_y = y1 + t_proj * (y2-y1)
+                        
+                        # Distance to that point
+                        dist_to_segment = math.sqrt((px-closest_x)**2 + (py-closest_y)**2)
                     
-                    # Draw curved line from ligand to residue
-                    line = FancyArrowPatch(
-                        lig_pos, res_pos,
-                        connectionstyle="arc3,rad=0.1",
-                        color=style['color'],
-                        linestyle=style['linestyle'],
-                        linewidth=style['linewidth'],
-                        arrowstyle='-',
-                        alpha=0.7,
-                        zorder=4
-                    )
-                    ax.add_patch(line)
-                    
-                    # Add interaction marker (circle with letter)
-                    midpoint_x = (lig_pos[0] + res_pos[0]) / 2
-                    midpoint_y = (lig_pos[1] + res_pos[1]) / 2
-                    
-                    # Draw hexagonal marker like in reference image
-                    n_sides = 6 if 'pi' in interaction_type else 0  # Hexagon for pi interactions
-                    marker_radius = 12
-                    
-                    if n_sides > 0:
-                        # Draw a hexagon for pi interactions
-                        angles = np.linspace(0, 2*np.pi, n_sides+1)[:-1]
-                        hex_vertices = np.array([
-                            [midpoint_x + marker_radius * np.cos(angle),
-                             midpoint_y + marker_radius * np.sin(angle)]
-                            for angle in angles
-                        ])
-                        hex_patch = Polygon(
-                            hex_vertices, 
-                            closed=True,
-                            facecolor=style.get('marker_bg', 'white'),
-                            edgecolor=style['marker_color'],
-                            linewidth=1.5,
-                            alpha=0.9,
-                            zorder=5
-                        )
-                        ax.add_patch(hex_patch)
-                    else:
-                        # Draw circle for other interactions
-                        marker_circle = Circle(
-                            (midpoint_x, midpoint_y), marker_radius,
-                            facecolor=style.get('marker_bg', 'white'),
-                            edgecolor=style['marker_color'],
-                            linewidth=1.5,
-                            alpha=0.9,
-                            zorder=5
-                        )
-                        ax.add_patch(marker_circle)
-                    
-                    # Add interaction symbol
-                    ax.text(
-                        midpoint_x, midpoint_y,
-                        style['marker_text'],
-                        ha='center', va='center',
-                        fontsize=9, color=style['marker_color'],
-                        fontweight='bold',
-                        zorder=6
-                    )
+                    min_dist_to_line = min(min_dist_to_line, dist_to_segment)
+                
+                # Adjust min distance based on marker text length
+                text_length = len(style['marker_text'])
+                min_marker_distance = 28 + text_length * 2.5  # Slightly reduced from earlier
+                
+                # Calculate a score that balances:
+                # 1. Distance from other markers (higher is better)
+                # 2. Proximity to the line (lower is better)
+                # 3. Closeness to middle of the line (t near 0.5 is better)
+                
+                overlap_score = min(min_dist_to_markers / min_marker_distance, 2.0)  # Cap at 2.0
+                line_proximity_score = 10.0 / (min_dist_to_line + 1.0)  # Higher for closer to line
+                middle_preference = 1.0 - abs(t - 0.5) * 0.8  # Higher for positions near middle
+                
+                # If there's a major overlap, heavily penalize
+                if min_dist_to_markers < min_marker_distance * 0.7:
+                    overlap_score = overlap_score * 0.2
+                
+                # Calculate total score - weighted sum
+                total_score = (
+                    overlap_score * 1.0 +      # Avoid overlaps
+                    line_proximity_score * 3.0 + # Strongly prefer positions near the line
+                    middle_preference * 0.5       # Slight preference for middle
+                )
+                
+                # Update best position if score is higher
+                if total_score > best_score:
+                    best_score = total_score
+                    best_position = pos
+            
+            # If no non-overlapping position, use the one with least overlap
+            if not marker_placed and best_position:
+                pass  # Already stored in best_position
+            
+            # If still no position, use midpoint as fallback
+            if not best_position:
+                best_position = path_points[int(len(path_points)/2)]
+            
+            # Store the final position
+            marker_positions[key] = best_position
+            midpoint_x, midpoint_y = best_position
+            
+            # Determine marker shape based on interaction type
+            n_sides = 6 if 'pi' in interaction_type else 0  # Hexagon for pi interactions
+            
+            # Adjust marker radius based on text length (more conservative sizing)
+            text_length = len(style['marker_text'])
+            marker_radius = 9 + (text_length - 1) * 1.5  # Smaller base size + gentler scaling for text length
+            
+            # Draw marker
+            if n_sides > 0:
+                # Draw a hexagon for pi interactions
+                angles = np.linspace(0, 2*np.pi, n_sides+1)[:-1]
+                hex_vertices = np.array([
+                    [midpoint_x + marker_radius * np.cos(angle),
+                     midpoint_y + marker_radius * np.sin(angle)]
+                    for angle in angles
+                ])
+                hex_patch = Polygon(
+                    hex_vertices, 
+                    closed=True,
+                    facecolor=style.get('marker_bg', 'white'),
+                    edgecolor=style['marker_color'],
+                    linewidth=1.5,
+                    alpha=0.9,
+                    zorder=5
+                )
+                ax.add_patch(hex_patch)
+                marker_objects.append(hex_patch)
+            else:
+                # Draw circle for other interactions
+                marker_circle = Circle(
+                    (midpoint_x, midpoint_y), marker_radius,
+                    facecolor=style.get('marker_bg', 'white'),
+                    edgecolor=style['marker_color'],
+                    linewidth=1.5,
+                    alpha=0.9,
+                    zorder=5
+                )
+                ax.add_patch(marker_circle)
+                marker_objects.append(marker_circle)
+            
+            # Add interaction symbol with dynamic font sizing - adjusted for better readability
+            font_size = max(7, 9 - (text_length - 1) * 0.8)  # Gentler reduction in font size
+            
+            # Add a slight outline to the text for better readability when near lines
+            text = ax.text(
+                midpoint_x, midpoint_y,
+                style['marker_text'],
+                ha='center', va='center',
+                fontsize=font_size, color=style['marker_color'],
+                fontweight='bold',
+                zorder=6
+            )
+            text.set_path_effects([path_effects.withStroke(linewidth=1.0, foreground='white')])
+
         
         # Add legend box with title matching reference image
         legend_title = "Interacting structural groups"
@@ -725,7 +975,7 @@ class HybridProtLigMapper:
         if title:
             plt.title(title, fontsize=16)
         else:
-            plt.title(f"Protein-Ligand Interactions: {os.path.basename(self.pdb_file)}", 
+            plt.title(f"Protein-Ligand Interactions: {os.path.basename(self.structure_file)}", 
                      fontsize=16)
         
         # Save figure
@@ -750,7 +1000,7 @@ class HybridProtLigMapper:
         str : Path to the generated visualization file
         """
         if output_file is None:
-            base_name = os.path.splitext(os.path.basename(self.pdb_file))[0]
+            base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
             output_file = f"{base_name}_interactions.png"
         
         # Detect protein-ligand interactions
