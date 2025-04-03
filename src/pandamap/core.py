@@ -11,6 +11,9 @@ import tempfile
 import subprocess
 from Bio.PDB import PDBParser, MMCIFParser
 import numpy as np
+import subprocess
+from Bio.PDB.DSSP import DSSP
+from Bio.PDB import PDBIO
 import matplotlib.pyplot as plt
 from matplotlib.patches import Circle, FancyArrowPatch, Wedge, Rectangle, Polygon
 from matplotlib.lines import Line2D
@@ -518,31 +521,130 @@ class HybridProtLigMapper:
         # In a real implementation, you'd use a proper algorithm
         self.solvent_accessible = self.interacting_residues.copy()
     
-    def visualize(self, output_file='protein_ligand_interactions.png',
-              figsize=(12, 12), dpi=300, title=None):
+    def calculate_dssp_solvent_accessibility(self, dssp_executable='dssp'):
         """
-        Generate a 2D visualization of protein-ligand interactions
-        matching the style of the reference image.
+        Calculate solvent accessibility using DSSP.
+        Requires DSSP executable to be installed and in PATH.
         
         Parameters:
         -----------
-        output_file : str
-            Path where the output image will be saved
-        figsize : tuple
-            Figure size in inches (width, height)
-        dpi : int
-            Resolution in dots per inch
-        title : str, optional
-            Title for the plot
+        dssp_executable : str
+            Path to DSSP executable (default: 'dssp')
+            
+        Returns:
+        --------
+        dict
+            Dictionary mapping (resname, resnum) to relative solvent accessibility (0-1)
+        """
+        self.solvent_accessible = set()
+        
+        try:
+            # Create a temporary PDB file for DSSP input
+            with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tmp_pdb:
+                pdb_io = PDBIO()
+                pdb_io.set_structure(self.structure)
+                pdb_io.save(tmp_pdb.name)
+                
+                # Run DSSP
+                dssp = DSSP(self.model, tmp_pdb.name, dssp=dssp_executable)
+                
+                # Clean up temporary file
+                try:
+                    os.unlink(tmp_pdb.name)
+                except:
+                    pass
+                
+                # Process DSSP results
+                for (chain_id, res_id), dssp_data in dssp.property_dict.items():
+                    resname = dssp_data[0]
+                    resnum = res_id[1]
+                    res_key = (resname, resnum)
+                    
+                    # Get relative solvent accessibility (0-1)
+                    rsa = dssp_data[3]  # Relative accessibility
+                    
+                    # Consider residues with >15% accessibility as solvent accessible
+                    if rsa > 0.15 and res_key in self.interacting_residues:
+                        self.solvent_accessible.add(res_key)
+                        
+        except Exception as e:
+            print(f"Warning: DSSP calculation failed. Falling back to geometric estimation. Error: {str(e)}")
+            self.estimate_solvent_accessibility()
+        
+        return self.solvent_accessible
+    
+    #if dssp is not available in the path
+    def calculate_python_solvent_accessibility(self, probe_radius=1.4):
+        """
+        Simplified solvent accessibility calculation in pure Python.
+        Based on Shrake-Rupley algorithm but with approximations.
+        
+        Parameters:
+        -----------
+        probe_radius : float
+            Radius of solvent probe in Angstroms (default: 1.4)
+        """
+        self.solvent_accessible = set()
+        
+        # First get all protein atoms (including non-interacting ones)
+        all_protein_atoms = []
+        for residue in self.model.get_residues():
+            if residue.id[0] == ' ':  # Standard amino acid
+                for atom in residue:
+                    all_protein_atoms.append(atom)
+        
+        # For each interacting residue, estimate accessibility
+        for res_id in self.interacting_residues:
+            residue = self.protein_residues.get(res_id)
+            if residue is None:
+                continue
+                
+            # Count how many atoms are exposed
+            exposed_atoms = 0
+            total_atoms = 0
+            
+            for atom in residue.get_atoms():
+                total_atoms += 1
+                atom_coord = atom.get_coord()
+                
+                # Check if atom is buried by other protein atoms
+                is_exposed = True
+                for other_atom in all_protein_atoms:
+                    if other_atom.get_parent() == residue:
+                        continue  # Skip atoms in same residue
+                    
+                    distance = np.linalg.norm(atom_coord - other_atom.get_coord())
+                    if distance < (atom.radius + other_atom.radius + probe_radius):
+                        is_exposed = False
+                        break
+                
+                if is_exposed:
+                    exposed_atoms += 1
+            
+            # Consider residue accessible if >25% of its atoms are exposed
+            if total_atoms > 0 and (exposed_atoms / total_atoms) > 0.25:
+                self.solvent_accessible.add(res_id)
+        
+        return self.solvent_accessible
+    
+
+    def visualize(self, output_file='protein_ligand_interactions.png',
+              figsize=(12, 12), dpi=300, title=None):
+        """
+        Generate a complete 2D visualization of protein-ligand interactions with:
+        - Arrows connecting to residue box edges
+        - Properly placed interaction markers
+        - Solvent accessibility indicators
+        - Comprehensive legend
         """
         # Create figure
         fig, ax = plt.subplots(figsize=figsize)
         
-        # Add light blue background for ligand (matching reference)
+        # Add light blue background for ligand
         ligand_radius = 90
         ligand_pos = (0, 0)
         ligand_circle = Circle(ligand_pos, ligand_radius, facecolor='#ADD8E6', 
-                             edgecolor='none', alpha=0.4, zorder=1)
+                            edgecolor='none', alpha=0.4, zorder=1)
         ax.add_patch(ligand_circle)
         
         # Draw the simplified ligand structure
@@ -552,11 +654,12 @@ class HybridProtLigMapper:
         n_residues = len(self.interacting_residues)
         if n_residues == 0:
             print("Warning: No interacting residues detected.")
-            n_residues = 1  # Avoid division by zero
+            n_residues = 1
             
         # Calculate positions for residues
         radius = 250  # Distance from center to residues
         residue_positions = {}
+        rect_width, rect_height = 60, 30  # Residue box dimensions
         
         # Arrange residues in a circle
         for i, res_id in enumerate(sorted(self.interacting_residues)):
@@ -565,92 +668,70 @@ class HybridProtLigMapper:
             y = radius * math.sin(angle)
             residue_positions[res_id] = (x, y)
             
-            # Draw solvent accessibility highlight (light blue circle behind residue)
+            # Draw solvent accessibility highlight
             if res_id in self.solvent_accessible:
                 solvent_circle = Circle((x, y), 40, facecolor='#ADD8E6', 
-                                      edgecolor='none', alpha=0.3, zorder=1)
+                                    edgecolor='none', alpha=0.3, zorder=1)
                 ax.add_patch(solvent_circle)
             
-            # Draw residue node as rectangle with rounded corners like in reference image
-            # For simplicity, we'll use a white rectangle with black border
-            rect_width = 60
-            rect_height = 30
+            # Draw residue node as rectangle
             residue_box = Rectangle((x-rect_width/2, y-rect_height/2), rect_width, rect_height,
-                                  facecolor='white', edgecolor='black', linewidth=1.5,
-                                  zorder=2, alpha=1.0)
+                                facecolor='white', edgecolor='black', linewidth=1.5,
+                                zorder=2, alpha=1.0)
             ax.add_patch(residue_box)
             
-            # Add residue label (NAME NUMBER) like in reference image
+            # Add residue label
             resname, resnum = res_id
             label = f"{resname} {resnum}"
             text = ax.text(x, y, label, ha='center', va='center',
-                          fontsize=11, fontweight='bold', zorder=3)
-            text.set_path_effects([path_effects.withStroke(linewidth=2, 
-                                                         foreground='white')])
-        
-        # Define interaction styles to match the reference image
+                        fontsize=11, fontweight='bold', zorder=3)
+            text.set_path_effects([path_effects.withStroke(linewidth=2, foreground='white')])
+
+        # Define interaction styles
         interaction_styles = {
-            'hydrogen_bonds': {
-                'color': 'green',
-                'linestyle': '-',
-                'linewidth': 1.5,
-                'marker_text': 'H',
-                'marker_color': 'green',
-                'marker_bg': '#E0FFE0',  # Light green bg
-                'name': 'Hydrogen Bond'
-            },
-            'carbon_pi': {
-                'color': '#666666',  # Dark gray
-                'linestyle': '--',
-                'linewidth': 1.5,
-                'marker_text': 'C-π',
-                'marker_color': '#666666',
-                'marker_bg': 'white',
-                'name': 'Carbon-Pi interaction'
-            },
-            'pi_pi_stacking': {
-                'color': '#9370DB',  # Medium purple
-                'linestyle': '--',
-                'linewidth': 1.5,
-                'marker_text': 'π-π',
-                'marker_color': '#9370DB',
-                'marker_bg': 'white',
-                'name': 'Pi-Pi stacking'
-            },
-            'donor_pi': {
-                'color': '#FF69B4',  # Hot pink
-                'linestyle': '--',
-                'linewidth': 1.5,
-                'marker_text': 'D',
-                'marker_color': '#FF69B4',
-                'marker_bg': 'white',
-                'name': 'Donor-Pi interaction'
-            },
-            'amide_pi': {
-                'color': '#A52A2A',  # Brown
-                'linestyle': '--',
-                'linewidth': 1.5,
-                'marker_text': 'A',
-                'marker_color': '#A52A2A',
-                'marker_bg': 'white',
-                'name': 'Amide-Pi interaction'
-            },
-            'hydrophobic': {
-                'color': '#808080',  # Gray
-                'linestyle': ':',
-                'linewidth': 1.0,
-                'marker_text': 'h',
-                'marker_color': '#808080',
-                'marker_bg': 'white',
-                'name': 'Hydrophobic'
-            }
+            'hydrogen_bonds': {'color': 'green', 'linestyle': '-', 'linewidth': 1.5, 
+                            'marker_text': 'H', 'marker_bg': '#E0FFE0', 'name': 'Hydrogen Bond'},
+            'carbon_pi': {'color': '#666666', 'linestyle': '--', 'linewidth': 1.5,
+                        'marker_text': 'C-π', 'marker_bg': 'white', 'name': 'Carbon-Pi'},
+            'pi_pi_stacking': {'color': '#9370DB', 'linestyle': '--', 'linewidth': 1.5,
+                            'marker_text': 'π-π', 'marker_bg': 'white', 'name': 'Pi-Pi'},
+            'donor_pi': {'color': '#FF69B4', 'linestyle': '--', 'linewidth': 1.5,
+                        'marker_text': 'D', 'marker_bg': 'white', 'name': 'Donor-Pi'},
+            'amide_pi': {'color': '#A52A2A', 'linestyle': '--', 'linewidth': 1.5,
+                        'marker_text': 'A', 'marker_bg': 'white', 'name': 'Amide-Pi'},
+            'hydrophobic': {'color': '#808080', 'linestyle': ':', 'linewidth': 1.0,
+                        'marker_text': 'h', 'marker_bg': 'white', 'name': 'Hydrophobic'}
         }
-        
-        # First, create all the interaction lines
+
+        # Function to find box edge intersection
+        def find_box_edge(box_center, target_point, width, height):
+            """Find where a line from box center to target point intersects the box edge"""
+            dx = target_point[0] - box_center[0]
+            dy = target_point[1] - box_center[1]
+            angle = math.atan2(dy, dx)
+            
+            half_width = width/2
+            half_height = height/2
+            
+            if abs(dx) > abs(dy):
+                x_intersect = box_center[0] + (half_width if dx > 0 else -half_width)
+                y_intersect = box_center[1] + (x_intersect - box_center[0]) * dy/dx
+                if abs(y_intersect - box_center[1]) > half_height:
+                    y_intersect = box_center[1] + (half_height if dy > 0 else -half_height)
+                    x_intersect = box_center[0] + (y_intersect - box_center[1]) * dx/dy
+            else:
+                y_intersect = box_center[1] + (half_height if dy > 0 else -half_height)
+                x_intersect = box_center[0] + (y_intersect - box_center[1]) * dx/dy
+                if abs(x_intersect - box_center[0]) > half_width:
+                    x_intersect = box_center[0] + (half_width if dx > 0 else -half_width)
+                    y_intersect = box_center[1] + (x_intersect - box_center[0]) * dy/dx
+                    
+            return (x_intersect, y_intersect)
+
+        # Store interaction lines for marker placement
         interaction_lines = []
-        line_by_key = {}
         
-        # First pass: Create all interaction lines and paths
+        # Draw interaction lines with arrows at box edges
         for interaction_type, interactions in self.interactions.items():
             if interaction_type not in interaction_styles:
                 continue
@@ -667,296 +748,153 @@ class HybridProtLigMapper:
                     
                 res_pos = residue_positions[res_id]
                 
-                # Try to use actual ligand atom position if available
+                # Get ligand atom position
                 if lig_atom.get_id() in atom_positions:
                     lig_pos = atom_positions[lig_atom.get_id()]
                 else:
-                    # Use point on ligand circle as fallback
                     dx = res_pos[0] - ligand_pos[0]
                     dy = res_pos[1] - ligand_pos[1]
                     angle = math.atan2(dy, dx)
-                    lig_edge_x = ligand_pos[0] + ligand_radius * math.cos(angle)
-                    lig_edge_y = ligand_pos[1] + ligand_radius * math.sin(angle)
-                    lig_pos = (lig_edge_x, lig_edge_y)
+                    lig_pos = (ligand_pos[0] + ligand_radius * math.cos(angle),
+                            ligand_pos[1] + ligand_radius * math.sin(angle))
                 
-                # Create a unique key for this interaction
-                key = f"{interaction_type}_{res_id[0]}_{res_id[1]}"
+                # Find box edge intersection
+                box_edge_pos = find_box_edge(res_pos, lig_pos, rect_width, rect_height)
                 
-                # Generate a reasonable curvature based on the distance and angle
+                # Calculate curvature
                 dx = res_pos[0] - lig_pos[0]
                 dy = res_pos[1] - lig_pos[1]
                 distance = math.sqrt(dx*dx + dy*dy)
-                angle = math.atan2(dy, dx)
+                curvature = 0.08 * (200 / max(distance, 100))
                 
-                # Scale curvature inversely with distance (larger distance = smaller curvature)
-                # and vary by type to separate different interactions to same residue
-                # Keep curvature much smaller than before to minimize marker distance from line
-                type_factor = {'hydrogen_bonds': 0.7, 'carbon_pi': 0.8, 'pi_pi_stacking': 0.9, 
-                               'donor_pi': 1.0, 'amide_pi': 1.1, 'hydrophobic': 0.6}.get(interaction_type, 1.0)
-                
-                # Calculate curvature - much smaller values for straighter lines
-                base_curvature = 0.08 * (200 / max(distance, 100)) * type_factor
-                
-                # Adjust to avoid overlapping curves
-                # Make some curves go left, some right
-                if hash(key) % 2 == 0:
-                    curvature = base_curvature
-                else:
-                    curvature = -base_curvature
-                
-                # Store the line parameters for later use
+                # Store line parameters
                 line_params = {
-                    'lig_pos': lig_pos,
-                    'res_pos': res_pos,
+                    'start_pos': box_edge_pos,
+                    'end_pos': lig_pos,
                     'curvature': curvature,
                     'style': style,
                     'interaction_type': interaction_type,
-                    'key': key,
+                    'key': f"{interaction_type}_{res_id[0]}_{res_id[1]}",
                     'distance': distance
                 }
                 interaction_lines.append(line_params)
-                line_by_key[key] = line_params
                 
-                # Draw the actual line
-                line = FancyArrowPatch(
-                    lig_pos, res_pos,
+                # Draw arrow
+                arrow = FancyArrowPatch(
+                    box_edge_pos, lig_pos,
                     connectionstyle=f"arc3,rad={curvature}",
                     color=style['color'],
                     linestyle=style['linestyle'],
                     linewidth=style['linewidth'],
-                    arrowstyle='-',
+                    arrowstyle='-|>',
+                    mutation_scale=10,
                     alpha=0.7,
                     zorder=4
                 )
-                ax.add_patch(line)
-                
-                # Store the line object for marker positioning
-                line_params['line_obj'] = line
-        
-        # Calculate marker positions along the interaction lines
+                ax.add_patch(arrow)
+
+        # Place markers along interaction lines
         marker_positions = {}
-        marker_objects = []
-        
-        # Sort interactions by type for consistent placement
-        # Place hydrogen bonds first, then pi interactions, then hydrophobic
         type_order = {'hydrogen_bonds': 0, 'carbon_pi': 1, 'pi_pi_stacking': 2, 
-                      'donor_pi': 3, 'amide_pi': 4, 'hydrophobic': 5}
+                    'donor_pi': 3, 'amide_pi': 4, 'hydrophobic': 5}
         
-        sorted_lines = sorted(interaction_lines, 
-                            key=lambda x: (type_order.get(x['interaction_type'], 999), x['distance']))
+        sorted_lines = sorted(interaction_lines,
+                            key=lambda x: (type_order.get(x['interaction_type'], x['distance'])))
         
-        # Second pass: Place markers along paths
         for line_params in sorted_lines:
-            lig_pos = line_params['lig_pos']
-            res_pos = line_params['res_pos']
+            start_pos = line_params['start_pos']
+            end_pos = line_params['end_pos']
             curvature = line_params['curvature']
             style = line_params['style']
             key = line_params['key']
-            interaction_type = line_params['interaction_type']
             
-            # Calculate the path of the curved line
+            # Calculate points along the curved path
             path_points = []
             steps = 20
             for i in range(steps + 1):
-                t = i / steps  # Parameter along the curve (0 to 1)
-                
-                # Quadratic Bezier curve formula for approximating arc
-                control_x = (lig_pos[0] + res_pos[0])/2 + curvature * (res_pos[1] - lig_pos[1]) * 2
-                control_y = (lig_pos[1] + res_pos[1])/2 - curvature * (res_pos[0] - lig_pos[0]) * 2
-                
-                # Calculate point at parameter t
-                x = (1-t)*(1-t)*lig_pos[0] + 2*(1-t)*t*control_x + t*t*res_pos[0]
-                y = (1-t)*(1-t)*lig_pos[1] + 2*(1-t)*t*control_y + t*t*res_pos[1]
-                
+                t = i / steps
+                control_x = (start_pos[0] + end_pos[0])/2 + curvature * (end_pos[1] - start_pos[1]) * 2
+                control_y = (start_pos[1] + end_pos[1])/2 - curvature * (end_pos[0] - start_pos[0]) * 2
+                x = (1-t)*(1-t)*start_pos[0] + 2*(1-t)*t*control_x + t*t*end_pos[0]
+                y = (1-t)*(1-t)*start_pos[1] + 2*(1-t)*t*control_y + t*t*end_pos[1]
                 path_points.append((x, y))
             
-            # Try different positions along the path until finding one that doesn't overlap
-            # Start with middle and work outward
-            t_values = [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7, 0.25, 0.75]
-            
-            marker_placed = False
+            # Find best marker position
             best_position = None
             best_score = float('-inf')
             
-            for t in t_values:
+            for t in [0.5, 0.45, 0.55, 0.4, 0.6, 0.35, 0.65, 0.3, 0.7, 0.25, 0.75]:
                 idx = int(t * steps)
                 pos = path_points[idx]
                 
                 # Calculate distance to existing markers
-                min_dist_to_markers = float('inf')
-                for other_pos in marker_positions.values():
-                    dist = math.sqrt((pos[0] - other_pos[0])**2 + (pos[1] - other_pos[1])**2)
-                    min_dist_to_markers = min(min_dist_to_markers, dist)
-                    
-                # Calculate distance to the line
-                min_dist_to_line = float('inf')
-                for i in range(len(path_points)-1):
-                    x1, y1 = path_points[i]
-                    x2, y2 = path_points[i+1]
-                    
-                    # Distance from point to line segment
-                    px, py = pos
-                    
-                    # Calculate projection
-                    line_length_sq = (x2-x1)**2 + (y2-y1)**2
-                    if line_length_sq == 0:
-                        # Point 1 and 2 are the same
-                        dist_to_segment = math.sqrt((px-x1)**2 + (py-y1)**2)
-                    else:
-                        # Calculate projection parameter
-                        t_proj = max(0, min(1, ((px-x1)*(x2-x1) + (py-y1)*(y2-y1)) / line_length_sq))
-                        
-                        # Find closest point on segment
-                        closest_x = x1 + t_proj * (x2-x1)
-                        closest_y = y1 + t_proj * (y2-y1)
-                        
-                        # Distance to that point
-                        dist_to_segment = math.sqrt((px-closest_x)**2 + (py-closest_y)**2)
-                    
-                    min_dist_to_line = min(min_dist_to_line, dist_to_segment)
+                if marker_positions:  # Only if there are existing markers
+                    min_dist = min(math.sqrt((pos[0]-p[0])**2 + (pos[1]-p[1])**2) 
+                                for p in marker_positions.values())
+                else:
+                    min_dist = float('inf')
                 
-                # Adjust min distance based on marker text length
-                text_length = len(style['marker_text'])
-                min_marker_distance = 28 + text_length * 2.5  # Slightly reduced from earlier
+                text_len = len(style['marker_text'])
+                min_req_dist = 25 + text_len * 2
+                score = min(min_dist / min_req_dist, 2.0) + (1.0 - abs(t - 0.5))
                 
-                # Calculate a score that balances:
-                # 1. Distance from other markers (higher is better)
-                # 2. Proximity to the line (lower is better)
-                # 3. Closeness to middle of the line (t near 0.5 is better)
-                
-                overlap_score = min(min_dist_to_markers / min_marker_distance, 2.0)  # Cap at 2.0
-                line_proximity_score = 10.0 / (min_dist_to_line + 1.0)  # Higher for closer to line
-                middle_preference = 1.0 - abs(t - 0.5) * 0.8  # Higher for positions near middle
-                
-                # If there's a major overlap, heavily penalize
-                if min_dist_to_markers < min_marker_distance * 0.7:
-                    overlap_score = overlap_score * 0.2
-                
-                # Calculate total score - weighted sum
-                total_score = (
-                    overlap_score * 1.0 +      # Avoid overlaps
-                    line_proximity_score * 3.0 + # Strongly prefer positions near the line
-                    middle_preference * 0.5       # Slight preference for middle
-                )
-                
-                # Update best position if score is higher
-                if total_score > best_score:
-                    best_score = total_score
+                if score > best_score:
+                    best_score = score
                     best_position = pos
             
-            # If no non-overlapping position, use the one with least overlap
-            if not marker_placed and best_position:
-                pass  # Already stored in best_position
+            if best_position is None:
+                best_position = path_points[len(path_points)//2]
             
-            # If still no position, use midpoint as fallback
-            if not best_position:
-                best_position = path_points[int(len(path_points)/2)]
-            
-            # Store the final position
             marker_positions[key] = best_position
-            midpoint_x, midpoint_y = best_position
+            x, y = best_position
             
-            # Determine marker shape based on interaction type
-            n_sides = 6 if 'pi' in interaction_type else 0  # Hexagon for pi interactions
-            
-            # Adjust marker radius based on text length (more conservative sizing)
-            text_length = len(style['marker_text'])
-            marker_radius = 9 + (text_length - 1) * 1.5  # Smaller base size + gentler scaling for text length
-            
-            # Draw marker
-            if n_sides > 0:
-                # Draw a hexagon for pi interactions
-                angles = np.linspace(0, 2*np.pi, n_sides+1)[:-1]
-                hex_vertices = np.array([
-                    [midpoint_x + marker_radius * np.cos(angle),
-                     midpoint_y + marker_radius * np.sin(angle)]
-                    for angle in angles
-                ])
-                hex_patch = Polygon(
-                    hex_vertices, 
-                    closed=True,
-                    facecolor=style.get('marker_bg', 'white'),
-                    edgecolor=style['marker_color'],
-                    linewidth=1.5,
-                    alpha=0.9,
-                    zorder=5
-                )
-                ax.add_patch(hex_patch)
-                marker_objects.append(hex_patch)
+            # Draw marker shape
+            marker_radius = 9 + (len(style['marker_text']) - 1) * 1.5
+            if 'pi' in line_params['interaction_type']:
+                angles = np.linspace(0, 2*np.pi, 7)[:-1]
+                vertices = [(x + marker_radius * math.cos(a), y + marker_radius * math.sin(a)) 
+                        for a in angles]
+                marker = Polygon(vertices, closed=True, facecolor=style['marker_bg'],
+                            edgecolor=style['color'], linewidth=1.5, zorder=5)
             else:
-                # Draw circle for other interactions
-                marker_circle = Circle(
-                    (midpoint_x, midpoint_y), marker_radius,
-                    facecolor=style.get('marker_bg', 'white'),
-                    edgecolor=style['marker_color'],
-                    linewidth=1.5,
-                    alpha=0.9,
-                    zorder=5
-                )
-                ax.add_patch(marker_circle)
-                marker_objects.append(marker_circle)
+                marker = Circle((x, y), marker_radius, facecolor=style['marker_bg'],
+                            edgecolor=style['color'], linewidth=1.5, zorder=5)
+            ax.add_patch(marker)
             
-            # Add interaction symbol with dynamic font sizing - adjusted for better readability
-            font_size = max(7, 9 - (text_length - 1) * 0.8)  # Gentler reduction in font size
-            
-            # Add a slight outline to the text for better readability when near lines
-            text = ax.text(
-                midpoint_x, midpoint_y,
-                style['marker_text'],
-                ha='center', va='center',
-                fontsize=font_size, color=style['marker_color'],
-                fontweight='bold',
-                zorder=6
-            )
-            text.set_path_effects([path_effects.withStroke(linewidth=1.0, foreground='white')])
+            # Add marker text
+            text = ax.text(x, y, style['marker_text'], ha='center', va='center',
+                        fontsize=max(7, 9 - (len(style['marker_text']) - 1) * 0.8),
+                        color=style['color'], fontweight='bold', zorder=6)
+            text.set_path_effects([path_effects.withStroke(linewidth=1, foreground='white')])
 
+        # Create legend
+        legend_elements = [
+            Rectangle((0, 0), 1, 1, facecolor='white', edgecolor='black',
+                    label='Interacting structural groups')
+        ]
         
-        # Add legend box with title matching reference image
-        legend_title = "Interacting structural groups"
-        legend_elements = []
-        
-        # Add a "RES 1" element for residue representation
-        residue_patch = Rectangle((0, 0), 1, 1, facecolor='white', 
-                                 edgecolor='black', label='Interacting structural groups')
-        legend_elements.append(residue_patch)
-        
-        # Interaction type markers for legend
+        # Add interaction type markers to legend
         for int_type, style in interaction_styles.items():
-            # Only include interaction types that are present
             if self.interactions[int_type]:
-                if int_type == 'hydrogen_bonds':
-                    # Special handling for H-bonds to match reference
-                    line = Line2D([0], [0], color=style['color'],
-                                 linestyle=style['linestyle'], linewidth=style['linewidth'],
-                                 marker='o', markerfacecolor=style.get('marker_bg', 'white'), 
-                                 markeredgecolor=style['color'],
-                                 markersize=8, label=style['name'])
-                elif 'pi' in int_type:
-                    # Hexagonal markers for pi interactions
-                    line = Line2D([0], [0], color=style['color'],
-                                 linestyle=style['linestyle'], linewidth=style['linewidth'],
-                                 marker='h', markerfacecolor=style.get('marker_bg', 'white'), 
-                                 markeredgecolor=style['color'],
-                                 markersize=8, label=style['name'])
-                else:
-                    # Circular markers for other interactions
-                    line = Line2D([0], [0], color=style['color'],
-                                 linestyle=style['linestyle'], linewidth=style['linewidth'],
-                                 marker='o', markerfacecolor=style.get('marker_bg', 'white'), 
-                                 markeredgecolor=style['color'],
-                                 markersize=8, label=style['name'])
-                legend_elements.append(line)
+                marker = 'h' if 'pi' in int_type else 'o'
+                legend_elements.append(
+                    Line2D([0], [0], color=style['color'], linestyle=style['linestyle'],
+                        linewidth=style['linewidth'], marker=marker,
+                        markerfacecolor=style['marker_bg'], markeredgecolor=style['color'],
+                        markersize=8, label=style['name'])
+                )
         
         # Add solvent accessibility indicator
         if self.solvent_accessible:
-            solvent_patch = Rectangle((0, 0), 1, 1, facecolor='#ADD8E6', 
-                                     alpha=0.3, edgecolor=None, label='Solvent accessible')
-            legend_elements.append(solvent_patch)
+            legend_elements.append(
+                Rectangle((0, 0), 1, 1, facecolor='#ADD8E6', alpha=0.3,
+                        edgecolor=None, label='Solvent accessible')
+            )
         
-        # Create legend box in top right corner like reference image
+        # Draw legend
         legend = ax.legend(
             handles=legend_elements,
-            title=legend_title,
+            title="Interacting structural groups",
             loc='upper right',
             frameon=True,
             framealpha=0.7,
@@ -975,8 +913,8 @@ class HybridProtLigMapper:
         if title:
             plt.title(title, fontsize=16)
         else:
-            plt.title(f"Protein-Ligand Interactions: {os.path.basename(self.structure_file)}", 
-                     fontsize=16)
+            base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
+            plt.title(f"Protein-Ligand Interactions: {base_name}", fontsize=16)
         
         # Save figure
         plt.tight_layout()
@@ -986,18 +924,16 @@ class HybridProtLigMapper:
         print(f"Interaction diagram saved to {output_file}")
         return output_file
     
-    def run_analysis(self, output_file=None):
+    def run_analysis(self, output_file=None, use_dssp=True):
         """
         Run the complete analysis pipeline.
         
         Parameters:
         -----------
         output_file : str, optional
-            Path where the output image will be saved. If None, a default name will be generated.
-            
-        Returns:
-        --------
-        str : Path to the generated visualization file
+            Path where the output image will be saved.
+        use_dssp : bool
+            Whether to use DSSP for solvent accessibility (default: True)
         """
         if output_file is None:
             base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
@@ -1007,9 +943,16 @@ class HybridProtLigMapper:
         print("Detecting interactions...")
         self.detect_interactions()
         
-        # Estimate solvent accessibility
-        print("Estimating solvent accessibility...")
-        self.estimate_solvent_accessibility()
+        # Calculate solvent accessibility
+        print("Calculating solvent accessibility...")
+        if use_dssp:
+            try:
+                self.calculate_dssp_solvent_accessibility()
+            except:
+                print("DSSP failed, falling back to geometric estimation")
+                self.estimate_solvent_accessibility()
+        else:
+            self.calculate_python_solvent_accessibility()
         
         # Generate visualization
         print("Generating visualization...")

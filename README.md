@@ -25,7 +25,12 @@ pip install pandamap
 ```
 
 ## Dependencies
-
+- dssp #It can be installed externally
+```bash
+brew install dssp #mac users
+sudo apt-get install dssp #linux users
+Windows: Download from https://swift.cmbi.umcn.nl/gv/dssp/ 
+```
 - NumPy
 - Matplotlib
 - BioPython
@@ -83,7 +88,12 @@ mapper.detect_interactions()
 mapper.estimate_solvent_accessibility()
 mapper.visualize(output_file="interactions.png")
 ```
+# Using external DSSP (recommended)
+mapper = HybridProtLigMapper("protein_ligand.pdb")
+mapper.run_analysis(use_dssp=True)
 
+# Using pure Python implementation
+mapper.run_analysis(use_dssp=False)
 ## Example Output
 
 ![PandaMap](test/complex_interactions.png)
