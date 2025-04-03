@@ -2,7 +2,7 @@ name: Publish Python Package to PyPI
 
 on:
   release:
-    types: [created]
+    types: [updated]
   workflow_dispatch:  # Allow manual triggering for testing
 
 permissions:
