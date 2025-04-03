@@ -134,9 +134,9 @@ report = detector.generate_report(
 )
 ```
 
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/PAH_1.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1els_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/HEM.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1m17_interactions.png)
 
 # Text Report
 ```
