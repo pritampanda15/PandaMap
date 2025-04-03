@@ -15,6 +15,8 @@ import subprocess
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB import PDBIO
 import matplotlib.pyplot as plt
+import matplotlib.colors
+from matplotlib.colors import to_rgb
 from matplotlib.patches import Circle, FancyArrowPatch, Wedge, Rectangle, Polygon
 from matplotlib.lines import Line2D
 import matplotlib.patheffects as path_effects
