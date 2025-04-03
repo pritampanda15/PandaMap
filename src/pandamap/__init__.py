@@ -5,7 +5,7 @@ A Python package for visualizing protein-ligand interactions
 with 2D ligand structure representation and minimal external dependencies.
 """
 
-__version__ = "2.0.1"
+__version__ = "2.1"
 
 from .core import SimpleLigandStructure, HybridProtLigMapper
 
