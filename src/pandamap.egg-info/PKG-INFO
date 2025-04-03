@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: pandamap
-Version: 2.0.1
+Version: 2.1
 Summary: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 Author-email: "Dr. Pritam Kumar Panda" <pritam@stanford.edu>
 License: MIT License
@@ -140,7 +140,10 @@ mapper.run_analysis(use_dssp=True)
 mapper.run_analysis(use_dssp=False)
 ## Example Output
 
-![PandaMap](test/new-int.png)
+![PandaMap](test/PAH_1.png)
+![PandaMap](test/complex_interactions.png)
+![PandaMap](test/HEM.png)
+
 
 ## Citation
 
