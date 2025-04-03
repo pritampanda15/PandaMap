@@ -5,6 +5,7 @@ protein-ligand interactions with 2D ligand structure representation.
 """
 
 import os
+import sys
 import math
 from collections import defaultdict
 import tempfile
@@ -20,6 +21,8 @@ from matplotlib.colors import to_rgb
 from matplotlib.patches import Circle, FancyArrowPatch, Wedge, Rectangle, Polygon
 from matplotlib.lines import Line2D
 import matplotlib.patheffects as path_effects
+from .improved_interaction_detection import add_interaction_detection_methods
+
 
 # BioPython imports
 from Bio.PDB import PDBParser, NeighborSearch
@@ -503,6 +506,7 @@ class SimpleLigandStructure:
                     ])
         
         return atom_positions
+    
     def adjust_2d_coordinates_for_better_3d(self, coords_2d, atom_ids, rotation_angle=30):
         """
         Apply a slight rotation and perspective to the 2D coordinates
@@ -735,38 +739,22 @@ class HybridProtLigMapper:
         self.ligand_structure = SimpleLigandStructure(self.ligand_atoms)
             
     def detect_interactions(self, 
-                          h_bond_cutoff=3.5, 
-                          pi_stack_cutoff=5.5,
-                          hydrophobic_cutoff=4.0,
-                          ionic_cutoff=4.0,
-                          halogen_bond_cutoff=3.5,
-                          metal_coord_cutoff=2.8,
-                          covalent_cutoff=2.1):  # NEW: Covalent bond cutoff
+                      h_bond_cutoff=3.5, 
+                      pi_stack_cutoff=5.5,
+                      hydrophobic_cutoff=4.0,
+                      ionic_cutoff=4.0,
+                      halogen_bond_cutoff=3.5,
+                      metal_coord_cutoff=2.8,
+                      covalent_cutoff=2.1):  # NEW: Covalent bond cutoff
+        print("*** Using IMPROVED detection with stricter filtering ***")
         """
-        Detect all interactions between protein and ligand.
-        
-        Parameters:
-        -----------
-        h_bond_cutoff : float
-            Distance cutoff for hydrogen bonds in Angstroms
-        pi_stack_cutoff : float
-            Distance cutoff for pi-stacking interactions in Angstroms
-        hydrophobic_cutoff : float
-            Distance cutoff for hydrophobic interactions in Angstroms
-        ionic_cutoff : float
-            Distance cutoff for ionic interactions in Angstroms
-        halogen_bond_cutoff : float
-            Distance cutoff for halogen bonds in Angstroms
-        metal_coord_cutoff : float
-            Distance cutoff for metal coordination in Angstroms
-        covalent_cutoff : float
-            Distance cutoff for covalent bonds in Angstroms
+        Detect all interactions between protein and ligand with PLIP-like thresholds.
         """
         # Use neighbor search for efficiency
         ns = NeighborSearch(self.protein_atoms)
         max_cutoff = max(h_bond_cutoff, pi_stack_cutoff, hydrophobic_cutoff, 
-                       ionic_cutoff, halogen_bond_cutoff, metal_coord_cutoff,
-                       covalent_cutoff)
+                    ionic_cutoff, halogen_bond_cutoff, metal_coord_cutoff,
+                    covalent_cutoff)
         
         # Define amino acid categories
         aromatic_residues = {'PHE', 'TYR', 'TRP', 'HIS'}
@@ -777,13 +765,31 @@ class HybridProtLigMapper:
         amide_residues = {'ASN', 'GLN'}
         hydrophobic_residues = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PHE', 'TRP', 'PRO', 'TYR'}
         
-        # Helper function to determine if atom can be halogen bond acceptor
+        # Storage for the interaction data
+        self.interactions = {
+            'hydrogen_bonds': [],
+            'carbon_pi': [],
+            'pi_pi_stacking': [],
+            'donor_pi': [],
+            'amide_pi': [],
+            'hydrophobic': [],
+            'ionic': [],           # Ionic interactions
+            'halogen_bonds': [],   # Halogen bonds
+            'cation_pi': [],       # Cation-pi interactions
+            'metal_coordination': [], # Metal coordination
+            'salt_bridge': [],     # Salt bridges
+            'covalent': []         # Covalent bonds
+        }
+        
+        # Helper functions
         def is_halogen_acceptor(atom):
             return atom.element in ['O', 'N', 'S'] or (atom.element == 'C' and atom.name in ['CE1', 'CD2'])
         
-        # Helper function to determine if atom can be metal coordinator
         def is_metal_coordinator(atom):
             return atom.element in ['O', 'N', 'S'] or atom.name in ['SD', 'OD1', 'OD2', 'OE1', 'OE2', 'NE2', 'ND1']
+        
+        # Initialize temporary storage for all interactions
+        all_interactions = {key: [] for key in self.interactions.keys()}
         
         # Check each ligand atom for interactions
         for lig_atom in self.ligand_atoms:
@@ -801,107 +807,84 @@ class HybridProtLigMapper:
                 prot_res = prot_atom.get_parent()
                 distance = lig_atom - prot_atom
                 
+                # Skip if distance is too small (likely a clash or error)
+                if distance < 1.5:
+                    continue
+                    
                 # Store interacting residue for later visualization
                 res_id = (prot_res.resname, prot_res.id[1])
                 self.interacting_residues.add(res_id)
                 
-                # Determine interaction types based on distance and atom/residue types
-                
                 # 1. Hydrogen bonds - N and O atoms within cutoff
                 if distance <= h_bond_cutoff:
-                    if lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
+                    if (prot_res.resname in h_bond_donors or prot_res.resname in h_bond_acceptors) and \
+                    lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['hydrogen_bonds'].append(interaction_info)
-                        
-                        # Determine directionality (hydrogen bond can be in both directions)
-                        interaction_key = (res_id, 'hydrogen_bonds')
-                        is_donor_prot = prot_res.resname in h_bond_donors and prot_atom.element == 'N'
-                        is_acceptor_prot = prot_res.resname in h_bond_acceptors and prot_atom.element in ['O', 'N']
-                        is_donor_lig = lig_atom.element == 'N'
-                        is_acceptor_lig = lig_atom.element in ['O', 'N']
-                        
-                        if (is_donor_prot and is_acceptor_lig) and (is_donor_lig and is_acceptor_prot):
-                            self.interaction_direction[interaction_key] = 'bidirectional'
-                        elif is_donor_prot and is_acceptor_lig:
-                            self.interaction_direction[interaction_key] = 'protein_to_ligand'
-                        elif is_donor_lig and is_acceptor_prot:
-                            self.interaction_direction[interaction_key] = 'ligand_to_protein'
-                        else:
-                            # Default if can't determine
-                            self.interaction_direction[interaction_key] = 'bidirectional'
+                        all_interactions['hydrogen_bonds'].append(interaction_info)
                 
-                # 2. Pi-stacking interactions - aromatic residues
-                if distance <= pi_stack_cutoff and prot_res.resname in aromatic_residues:
-                    if lig_atom.element == 'C' and prot_atom.element == 'C':
+                # 2. Pi-stacking - only between aromatic residues and aromatic ligand parts
+                if distance <= pi_stack_cutoff:
+                    if prot_res.resname in aromatic_residues and is_lig_aromatic and \
+                    lig_atom.element == 'C' and prot_atom.element == 'C':
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['pi_pi_stacking'].append(interaction_info)
-                        # Pi-stacking is bidirectional
-                        self.interaction_direction[(res_id, 'pi_pi_stacking')] = 'bidirectional'
+                        all_interactions['pi_pi_stacking'].append(interaction_info)
                 
-                # 3. Carbon-Pi interactions
-                if distance <= pi_stack_cutoff and prot_res.resname in aromatic_residues:
-                    if lig_atom.element == 'C':
+                # 3. Carbon-Pi - between carbon atoms and aromatic systems
+                if distance <= pi_stack_cutoff:
+                    if prot_res.resname in aromatic_residues and lig_atom.element == 'C':
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['carbon_pi'].append(interaction_info)
-                        # Carbon-Pi is typically ligand to protein
-                        self.interaction_direction[(res_id, 'carbon_pi')] = 'ligand_to_protein'
+                        all_interactions['carbon_pi'].append(interaction_info)
                 
-                # 4. Donor-Pi interactions - negatively charged residues
-                if distance <= pi_stack_cutoff and prot_res.resname in neg_charged:
-                    if lig_atom.element == 'C':
+                # 4. Donor-Pi - negatively charged residues with pi systems
+                if distance <= pi_stack_cutoff:
+                    if prot_res.resname in neg_charged and is_lig_aromatic:
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['donor_pi'].append(interaction_info)
-                        # Donor-Pi is typically protein to ligand
-                        self.interaction_direction[(res_id, 'donor_pi')] = 'protein_to_ligand'
+                        all_interactions['donor_pi'].append(interaction_info)
                 
-                # 5. Amide-Pi interactions
-                if distance <= pi_stack_cutoff and prot_res.resname in amide_residues:
-                    if lig_atom.element == 'C':
+                # 5. Amide-Pi - amide groups with pi systems
+                if distance <= pi_stack_cutoff:
+                    if prot_res.resname in amide_residues and is_lig_aromatic:
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['amide_pi'].append(interaction_info)
-                        # Amide-Pi can be bidirectional
-                        self.interaction_direction[(res_id, 'amide_pi')] = 'bidirectional'
+                        all_interactions['amide_pi'].append(interaction_info)
                 
-                # 6. Hydrophobic interactions
+                # 6. Hydrophobic interactions - carbon atoms in hydrophobic residues
                 if distance <= hydrophobic_cutoff:
-                    if (prot_res.resname in hydrophobic_residues and 
-                        lig_atom.element == 'C' and prot_atom.element == 'C'):
+                    if prot_res.resname in hydrophobic_residues and \
+                    lig_atom.element == 'C' and prot_atom.element == 'C':
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['hydrophobic'].append(interaction_info)
-                        # Hydrophobic interactions are typically bidirectional
-                        self.interaction_direction[(res_id, 'hydrophobic')] = 'bidirectional'
+                        all_interactions['hydrophobic'].append(interaction_info)
                 
-                # 7. NEW: Ionic interactions - charged residues
+                # 7. Ionic/salt bridge interactions - charged residues and groups
                 if distance <= ionic_cutoff:
                     is_prot_pos = prot_res.resname in pos_charged and prot_atom.element == 'N'
                     is_prot_neg = prot_res.resname in neg_charged and prot_atom.element == 'O'
@@ -913,83 +896,44 @@ class HybridProtLigMapper:
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['ionic'].append(interaction_info)
-                        
-                        # Determine directionality for ionic interaction
-                        if is_prot_pos and is_lig_neg_charged:
-                            self.interaction_direction[(res_id, 'ionic')] = 'protein_to_ligand'
-                        else:
-                            self.interaction_direction[(res_id, 'ionic')] = 'ligand_to_protein'
+                        all_interactions['ionic'].append(interaction_info)
+                        all_interactions['salt_bridge'].append(interaction_info)  # Salt bridges are a type of ionic interaction
                 
-                # 8. NEW: Cation-Pi interactions - positive charged residues with aromatic
+                # 8. Cation-Pi - positive charged residues with aromatic systems
                 if distance <= pi_stack_cutoff:
-                    is_prot_cation = prot_res.resname in pos_charged and prot_atom.element == 'N'
-                    
-                    if is_prot_cation and is_lig_aromatic:
+                    if (prot_res.resname in pos_charged and is_lig_aromatic) or \
+                    (prot_res.resname in aromatic_residues and is_lig_pos_charged):
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance
                         }
-                        self.interactions['cation_pi'].append(interaction_info)
-                        # Cation-Pi is typically protein to ligand in this case
-                        self.interaction_direction[(res_id, 'cation_pi')] = 'protein_to_ligand'
-                    
-                    # Check for aromatic protein with cationic ligand 
-                    elif prot_res.resname in aromatic_residues and prot_atom.element == 'C' and is_lig_pos_charged:
-                        interaction_info = {
-                            'ligand_atom': lig_atom,
-                            'protein_atom': prot_atom,
-                            'protein_residue': prot_res,
-                            'distance': distance
-                        }
-                        self.interactions['cation_pi'].append(interaction_info)
-                        # Cation-Pi is ligand to protein in this case
-                        self.interaction_direction[(res_id, 'cation_pi')] = 'ligand_to_protein'
+                        all_interactions['cation_pi'].append(interaction_info)
                 
-                # 10. NEW: Covalent bond detection
+                # 9. Covalent bonds - very close interactions with specific atom types
                 if distance <= covalent_cutoff:
-                    # Define possible covalent bond pairs
-                    covalent_pairs = [
-                        # Common covalent bond pairs
-                        ('C', 'S'),  # Cys-ligand
-                        ('S', 'C'),  # Ligand-Cys
-                        ('S', 'S'),  # Disulfide
-                        ('N', 'C'),  # Amine-carbonyl
-                        ('O', 'P'),  # Phosphate
-                        ('N', 'P'),  # Nitrogen-phosphate
-                        ('O', 'S'),  # Oxygen-sulfur
-                        ('C', 'N'),  # Carbon-nitrogen
-                        ('C', 'O')   # Carbon-oxygen
-                    ]
-                    
-                    # Check if atoms could form a covalent bond
-                    if (lig_atom.element, prot_atom.element) in covalent_pairs:
-                        # Check specific residues for known covalent bond types
-                        if (prot_res.resname == 'CYS' and prot_atom.name == 'SG') or \
-                           (prot_res.resname == 'SER' and prot_atom.name == 'OG') or \
-                           (prot_res.resname == 'LYS' and prot_atom.name == 'NZ') or \
-                           (prot_res.resname == 'HIS' and prot_atom.name in ['ND1', 'NE2']):
-                            
-                            interaction_info = {
-                                'ligand_atom': lig_atom,
-                                'protein_atom': prot_atom,
-                                'protein_residue': prot_res,
-                                'distance': distance
-                            }
-                            self.interactions['covalent'].append(interaction_info)
-                            # Covalent bonds are truly bidirectional
-                            self.interaction_direction[(res_id, 'covalent')] = 'bidirectional'
+                    # Only include likely covalent bonds involving specific residues and atom types
+                    if ((prot_res.resname == 'CYS' and prot_atom.name == 'SG') or 
+                        (prot_res.resname == 'SER' and prot_atom.name == 'OG') or
+                        (prot_res.resname == 'LYS' and prot_atom.name == 'NZ') or
+                        (prot_res.resname == 'HIS' and prot_atom.name in ['ND1', 'NE2'])):
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance
+                        }
+                        all_interactions['covalent'].append(interaction_info)
         
-        # Check for halogen bonds (special case)
+        # Handle halogen bonds separately
         for halogen_atom in self.halogen_atoms:
             nearby_atoms = ns.search(halogen_atom.get_coord(), halogen_bond_cutoff)
             for prot_atom in nearby_atoms:
                 prot_res = prot_atom.get_parent()
                 distance = halogen_atom - prot_atom
                 
-                if distance <= halogen_bond_cutoff and is_halogen_acceptor(prot_atom):
+                if 1.5 < distance <= halogen_bond_cutoff and is_halogen_acceptor(prot_atom):
                     res_id = (prot_res.resname, prot_res.id[1])
                     self.interacting_residues.add(res_id)
                     
@@ -999,70 +943,38 @@ class HybridProtLigMapper:
                         'protein_residue': prot_res,
                         'distance': distance
                     }
-                    self.interactions['halogen_bonds'].append(interaction_info)
-                    # Halogen bonds are typically from ligand to protein
-                    self.interaction_direction[(res_id, 'halogen_bonds')] = 'ligand_to_protein'
+                    all_interactions['halogen_bonds'].append(interaction_info)
         
-        # Check for metal coordination (special case)
+        # Handle metal coordination
         for metal_atom in self.metal_atoms:
-            # First look for protein atoms that might coordinate with metal
-            metal_coord_cutoff_squared = metal_coord_cutoff * metal_coord_cutoff
             for prot_atom in self.protein_atoms:
                 prot_res = prot_atom.get_parent()
                 distance_squared = sum((a-b)**2 for a, b in zip(metal_atom.get_coord(), prot_atom.get_coord()))
                 
-                if distance_squared <= metal_coord_cutoff_squared and is_metal_coordinator(prot_atom):
+                if distance_squared <= metal_coord_cutoff**2 and is_metal_coordinator(prot_atom):
+                    distance = math.sqrt(distance_squared)
                     res_id = (prot_res.resname, prot_res.id[1])
                     self.interacting_residues.add(res_id)
                     
                     interaction_info = {
-                        'ligand_atom': metal_atom,  # Using metal as "ligand" for consistency
+                        'ligand_atom': metal_atom,
                         'protein_atom': prot_atom,
                         'protein_residue': prot_res,
-                        'distance': math.sqrt(distance_squared)
+                        'distance': distance
                     }
-                    self.interactions['metal_coordination'].append(interaction_info)
-                    # Metal coordination can be considered bidirectional
-                    self.interaction_direction[(res_id, 'metal_coordination')] = 'bidirectional'
-            
-            # Then look for ligand atoms that might coordinate with metal
-            for lig_atom in self.ligand_atoms:
-                distance_squared = sum((a-b)**2 for a, b in zip(metal_atom.get_coord(), lig_atom.get_coord()))
-                
-                if distance_squared <= metal_coord_cutoff_squared and lig_atom.element in ['O', 'N', 'S']:
-                    # Create a "pseudo-residue" for the metal
-                    metal_res_id = (metal_atom.get_parent().resname, metal_atom.get_parent().id[1])
-                    self.interacting_residues.add(metal_res_id)
-                    
-                    # Store the metal's residue in protein_residues for visualization
-                    self.protein_residues[metal_res_id] = metal_atom.get_parent()
-                    
-                    interaction_info = {
-                        'ligand_atom': lig_atom,
-                        'protein_atom': metal_atom,
-                        'protein_residue': metal_atom.get_parent(),
-                        'distance': math.sqrt(distance_squared)
-                    }
-                    self.interactions['metal_coordination'].append(interaction_info)
-                    # Metal coordination with ligand
-                    self.interaction_direction[(metal_res_id, 'metal_coordination')] = 'bidirectional'
+                    all_interactions['metal_coordination'].append(interaction_info)
         
-        # Deduplicate interactions by residue for cleaner visualization
-        # Keep only one interaction of each type per residue
-        for interaction_type in self.interactions:
-            by_residue = defaultdict(list)
-            for interaction in self.interactions[interaction_type]:
-                res_id = (interaction['protein_residue'].resname, 
-                          interaction['protein_residue'].id[1])
-                by_residue[res_id].append(interaction)
+        # Filter redundant interactions to get one per residue
+        for itype, interactions in all_interactions.items():
+            # Group by residue ID
+            by_residue = {}
+            for interaction in interactions:
+                res_id = (interaction['protein_residue'].resname, interaction['protein_residue'].id[1])
+                if res_id not in by_residue or by_residue[res_id]['distance'] > interaction['distance']:
+                    by_residue[res_id] = interaction
             
-            # Keep only the closest interaction for each residue and type
-            closest_interactions = []
-            for res_id, res_interactions in by_residue.items():
-                closest = min(res_interactions, key=lambda x: x['distance'])
-                closest_interactions.append(closest)
-            
-            self.interactions[interaction_type] = closest_interactions
+            # Add only the best (closest) interaction for each residue
+            self.interactions[itype] = list(by_residue.values())
     
     def estimate_solvent_accessibility(self):
         """
@@ -1177,6 +1089,7 @@ class HybridProtLigMapper:
         
         print(f"Found {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
         return self.solvent_accessible
+    
     def calculate_dssp_solvent_accessibility(self, dssp_executable='dssp'):
         """
         Calculate solvent accessibility using DSSP.
@@ -1686,7 +1599,49 @@ class HybridProtLigMapper:
         print(f"Interaction diagram saved to {output_file}")
         return output_file
     
-    def run_analysis(self, output_file=None, use_dssp=True, show_3d_cues=True):
+    def filter_interactions_directly(self):
+        """Emergency filter to remove chemically implausible interactions."""
+        
+        # Define which residues can participate in which interaction types
+        aromatic_residues = {'PHE', 'TYR', 'TRP', 'HIS'}
+        charged_residues = {'ASP', 'GLU', 'LYS', 'ARG', 'HIS'}
+        neg_charged = {'ASP', 'GLU'}
+        pos_charged = {'LYS', 'ARG', 'HIS'}
+        
+        # Filter pi-stacking - require at least one aromatic residue
+        self.interactions['pi_pi_stacking'] = [
+            i for i in self.interactions['pi_pi_stacking']
+            if i['protein_residue'].resname in aromatic_residues and i['distance'] < 5.5
+        ]
+        
+        # Filter ionic/salt bridge - require charged residues
+        self.interactions['ionic'] = [
+            i for i in self.interactions['ionic']
+            if i['protein_residue'].resname in charged_residues and i['distance'] < 4.0
+        ]
+        self.interactions['salt_bridge'] = [
+            i for i in self.interactions['salt_bridge']
+            if i['protein_residue'].resname in charged_residues and i['distance'] < 4.0
+        ]
+        
+        # Filter covalent bonds - require very close distance
+        self.interactions['covalent'] = [
+            i for i in self.interactions['covalent']
+            if i['distance'] < 2.1
+        ]
+        
+        # Filter amide-pi - require amide residues
+        self.interactions['amide_pi'] = [
+            i for i in self.interactions['amide_pi']
+            if i['protein_residue'].resname in {'ASN', 'GLN'} and i['distance'] < 5.5
+        ]
+        
+        # Filter donor-pi - require negatively charged residues
+        self.interactions['donor_pi'] = [
+            i for i in self.interactions['donor_pi']
+            if i['protein_residue'].resname in neg_charged and i['distance'] < 5.5
+        ]
+    def run_analysis(self, output_file=None, use_dssp=True, generate_report=False, report_file=None):
         """
         Run the complete analysis pipeline.
         
@@ -1696,8 +1651,11 @@ class HybridProtLigMapper:
             Path where the output image will be saved.
         use_dssp : bool
             Whether to use DSSP for solvent accessibility (default: True)
-        show_3d_cues : bool
-            Whether to show 3D depth cues in ligand visualization (default: True)
+        generate_report : bool
+            Whether to generate a PLIP-like text report (default: False)
+        report_file : str, optional
+            Path where the report will be saved. If None but generate_report is True,
+            a default path will be used.
         """
         if output_file is None:
             base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
@@ -1707,30 +1665,42 @@ class HybridProtLigMapper:
         print("Detecting interactions...")
         self.detect_interactions()
         
+        print(f"Before filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
+        #self.filter_interactions_directly()
+        print(f"After filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
+        
         # Calculate solvent accessibility
         print("Calculating solvent accessibility...")
         if use_dssp:
             try:
-                print("Attempting to use DSSP for solvent accessibility...")
                 self.calculate_dssp_solvent_accessibility()
-                # Verify we got reasonable results
-                if len(self.solvent_accessible) < max(2, len(self.interacting_residues) // 4):
-                    print("DSSP produced too few solvent-accessible residues, falling back to Python estimation")
-                    self.calculate_python_solvent_accessibility()
-            except Exception as e:
-                print(f"DSSP failed: {str(e)}, falling back to Python estimation")
-                self.calculate_python_solvent_accessibility()
+            except:
+                print("DSSP failed, falling back to geometric estimation")
+                self.estimate_solvent_accessibility()
         else:
             self.calculate_python_solvent_accessibility()
-            
-        # Make sure we have some solvent accessibility marked (for visualization purposes)
-        if not self.solvent_accessible:
-            print("Warning: No solvent-accessible residues identified. Adding some for visualization.")
-            # Mark at least 30% of residues as solvent-accessible to ensure visibility
-            residues_to_mark = max(1, int(len(self.interacting_residues) * 0.3))
-            for res_id in list(self.interacting_residues)[:residues_to_mark]:
-                self.solvent_accessible.add(res_id)
         
         # Generate visualization
         print("Generating visualization...")
-        return self.visualize(output_file=output_file, show_3d_cues=show_3d_cues)
+        viz_file = self.visualize(output_file=output_file)
+        
+        # Generate text report if requested
+        if generate_report:
+            if report_file is None:
+                base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
+                report_file = f"{base_name}_interactions_report.txt"
+            
+            print("Generating interaction report...")
+            try:
+                if hasattr(self, 'generate_interaction_report'):
+                    self.generate_interaction_report(output_file=report_file)
+                else:
+                    print("Warning: Report generation not available, skipping.")
+            except Exception as e:
+                print(f"Error generating report: {str(e)}")
+        
+        return viz_file
+    
+# Defined improved interaction detction method
+
+HybridProtLigMapper = add_interaction_detection_methods (HybridProtLigMapper)

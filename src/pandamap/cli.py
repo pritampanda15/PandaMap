@@ -20,6 +20,11 @@ def main():
     parser.add_argument('--dpi', type=int, default=300, help='Image resolution (default: 300 dpi)')
     parser.add_argument('--title', '-t', help='Custom title for the visualization')
     parser.add_argument('--version', '-v', action='store_true', help='Show version information')
+    parser.add_argument('--report', '-r', action='store_true', 
+                       help='Generate text report')
+    parser.add_argument('--report-file', 
+                       help='Output file for the text report (default: based on structure filename)')
+    
     
     args = parser.parse_args()
     
@@ -44,11 +49,17 @@ def main():
             return 1
     
     try:
-        # Initialize and run the analysis
         mapper = HybridProtLigMapper(args.structure_file, ligand_resname=args.ligand)
-        output_file = mapper.run_analysis(output_file=args.output)
+        output_file = mapper.run_analysis(
+            output_file=args.output,
+            generate_report=args.report,
+            report_file=args.report_file
+        )
         
         print(f"Analysis complete. Visualization saved to: {output_file}")
+        if args.report:
+            report_file = args.report_file or f"{os.path.splitext(output_file)[0]}_report.txt"
+            print(f"Interaction report saved to: {report_file}")
         return 0
         
     except Exception as e:

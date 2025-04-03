@@ -1,0 +1,52 @@
+=============================================================================
+PandaMap Interaction Report
+=============================================================================
+
+Ligand: PAH:A:439
+Name: PAH
+Type: LIGAND
+
+------------------------------
+
+Interacting Chains: A
+Interacting Residues: 12
+
+------------------------------
+
+Interaction Summary:
+  Hydrogen Bonds: 9
+  Carbon-π Interactions: 1
+  Ionic Interactions: 2
+  Salt Bridges: 2
+
+------------------------------
+
+Hydrogen Bonds:
+  1. GLU168A  -- 2.66Å -- PAH
+  2. ASP246A  -- 2.60Å -- PAH
+  3. GLN167A  -- 3.10Å -- PAH
+  4. ASP320A  -- 3.46Å -- PAH
+  5. LYS396A  -- 3.05Å -- PAH
+  6. SER375A  -- 2.82Å -- PAH
+  7. SER39A  -- 3.06Å -- PAH
+  8. ARG374A  -- 2.98Å -- PAH
+  9. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Carbon-π Interactions:
+  1. HIS373A  -- 4.29Å -- PAH
+
+------------------------------
+
+Ionic Interactions:
+  1. ARG374A  -- 2.98Å -- PAH
+  2. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Salt Bridges:
+  1. ARG374A  -- 2.98Å -- PAH
+  2. LYS345A  -- 3.21Å -- PAH
+
+=============================================================================

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandamap"
-version = "3.5"
+version = "3.6"
 description = "A Python package for visualizing protein-ligand interactions with 2D ligand structure representation"
 readme = "README.md"
 authors = [
@@ -23,6 +23,7 @@ dependencies = [
     "numpy>=1.20.0",
     "matplotlib>=3.4.0",
     "biopython>=1.79",
+    "requests>=2.25.0",
 ]
 requires-python = ">=3.7"
 

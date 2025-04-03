@@ -38,8 +38,10 @@ Windows: Download from https://swift.cmbi.umcn.nl/gv/dssp/
 ## Basic Usage
 ```bash
 usage: pandamap [-h] [--output OUTPUT] [--ligand LIGAND] [--dpi DPI]
-                [--title TITLE] [--version]
+                [--title TITLE] [--version] [--report]
+                [--report-file REPORT_FILE]
                 structure_file
+
 
 PandaMap: Visualize protein-ligand interactions from structure files
 
@@ -57,6 +59,10 @@ options:
   --title TITLE, -t TITLE
                         Custom title for the visualization
   --version, -v         Show version information
+  --report, -r          Generate text report
+  --report-file REPORT_FILE
+                        Output file for the text report (default: based on
+                        structure filename)
 
 ```
 
@@ -70,6 +76,11 @@ pandamap complex.cif --output cif_interaction.png
 
 # Specify a particular ligand by residue name
 pandamap protein_ligand.pdb --ligand LIG
+
+#Add report
+pandamap complex.pdb --report-file complex.txt --report  --lig PFL
+pandamap 4jmz.pdb --ligand HEM --report-file HEM.txt --report
+pandamap 1m17.pdb --ligand AQ4 --report-file 1m17.txt --report
 ```
 
 ### Python API
@@ -96,14 +107,94 @@ mapper.run_analysis(use_dssp=True)
 mapper.run_analysis(use_dssp=False)
 ## Example Output
 
+# Generate report
+
+```python
+from improved_interaction_detection import ImprovedInteractionDetection
+
+# After you've created and run your mapper
+mapper = HybridProtLigMapper(...)
+mapper.run_analysis()
+
+# Apply improved filtering as a post-processing step
+detector = ImprovedInteractionDetection()
+filtered_interactions = detector.refine_interactions(mapper.interactions)
+
+# Generate a report
+report = detector.generate_report(
+    {
+        'hetid': mapper.ligand_residue.resname,
+        'chain': mapper.ligand_residue.parent.id,
+        'position': mapper.ligand_residue.id[1],
+        'longname': mapper.ligand_residue.resname,
+        'type': 'LIGAND'
+    },
+    filtered_interactions,
+    "interaction_report.txt"
+)
+```
 
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/PAH_1.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/HEM.png)
 
+# Text Report
+```
+=============================================================================
+PandaMap Interaction Report
+=============================================================================
 
+Ligand: AQ4:A:999
+Name: AQ4
+Type: LIGAND
 
+------------------------------
 
+Interacting Chains: A
+Interacting Residues: 11
+
+------------------------------
+
+Interaction Summary:
+  Hydrophobic Interactions: 6
+  π-π Stacking: 1
+  Carbon-π Interactions: 1
+  Donor-π Interactions: 2
+  Amide-π Interactions: 1
+
+------------------------------
+
+Hydrophobic Interactions:
+  1. LEU764A  -- 3.43Å -- AQ4
+  2. LEU820A  -- 3.52Å -- AQ4
+  3. LEU694A  -- 3.56Å -- AQ4
+  4. MET769A  -- 3.78Å -- AQ4
+  5. LEU768A  -- 3.75Å -- AQ4
+  6. ALA719A  -- 3.31Å -- AQ4
+
+------------------------------
+
+π-π Stacking:
+  1. PHE771A  -- 4.54Å -- AQ4
+
+------------------------------
+
+Carbon-π Interactions:
+  1. PHE771A  -- 4.28Å -- AQ4
+
+------------------------------
+
+Donor-π Interactions:
+  1. GLU738A  -- 3.81Å -- AQ4
+  2. ASP831A  -- 3.11Å -- AQ4
+
+------------------------------
+
+Amide-π Interactions:
+  1. GLN767A  -- 3.15Å -- AQ4
+
+=============================================================================
+```
 ## Citation
 
 If you use PandaMap in your research, please cite:

@@ -5,6 +5,7 @@ setup.py
 src/pandamap/__init__.py
 src/pandamap/cli.py
 src/pandamap/core.py
+src/pandamap/improved_interaction_detection.py
 src/pandamap.egg-info/PKG-INFO
 src/pandamap.egg-info/SOURCES.txt
 src/pandamap.egg-info/dependency_links.txt
