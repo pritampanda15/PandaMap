@@ -96,7 +96,10 @@ mapper.run_analysis(use_dssp=True)
 mapper.run_analysis(use_dssp=False)
 ## Example Output
 
-![PandaMap](test/new-int.png)
+![PandaMap](test/PAH_1.png)
+![PandaMap](test/complex_interactions.png)
+![PandaMap](test/HEM.png)
+
 
 ## Citation
 
