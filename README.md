@@ -3,7 +3,7 @@
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
 <p align="center">
-  <img src="logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
+  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
 </p>
 
 ## Overview
@@ -96,9 +96,12 @@ mapper.run_analysis(use_dssp=True)
 mapper.run_analysis(use_dssp=False)
 ## Example Output
 
-![PandaMap](test/PAH_1.png)
-![PandaMap](test/complex_interactions.png)
-![PandaMap](test/HEM.png)
+
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/PAH_1.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/HEM.png)
+
+
 
 
 ## Citation
