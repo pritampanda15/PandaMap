@@ -1,35 +1,13 @@
 Metadata-Version: 2.4
 Name: pandamap
-Version: 2.1
+Version: 3.0
 Summary: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 Author-email: "Dr. Pritam Kumar Panda" <pritam@stanford.edu>
-License: MIT License
-        
-        Copyright (c) 2025 Pritam Kumar Panda
-        
-        Permission is hereby granted, free of charge, to any person obtaining a copy
-        of this software and associated documentation files (the "Software"), to deal
-        in the Software without restriction, including without limitation the rights
-        to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-        copies of the Software, and to permit persons to whom the Software is
-        furnished to do so, subject to the following conditions:
-        
-        The above copyright notice and this permission notice shall be included in all
-        copies or substantial portions of the Software.
-        
-        THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-        IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-        FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-        AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-        LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-        OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-        SOFTWARE.
-        
+License-Expression: MIT
 Project-URL: Homepage, https://github.com/yourusername/pandamap
 Project-URL: Bug Tracker, https://github.com/yourusername/pandamap/issues
 Keywords: bioinformatics,protein-ligand,interactions,visualization,drug-design
 Classifier: Programming Language :: Python :: 3
-Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Topic :: Scientific/Engineering :: Bio-Informatics
 Classifier: Topic :: Scientific/Engineering :: Chemistry
@@ -47,7 +25,7 @@ Dynamic: license-file
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
 <p align="center">
-  <img src="logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
+  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
 </p>
 
 ## Overview
@@ -140,9 +118,12 @@ mapper.run_analysis(use_dssp=True)
 mapper.run_analysis(use_dssp=False)
 ## Example Output
 
-![PandaMap](test/PAH_1.png)
-![PandaMap](test/complex_interactions.png)
-![PandaMap](test/HEM.png)
+
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/PAH_1.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/HEM.png)
+
+
 
 
 ## Citation

@@ -10,10 +10,9 @@ readme = "README.md"
 authors = [
     {name = "Dr. Pritam Kumar Panda", email = "pritam@stanford.edu"}
 ]
-license = {file = "LICENSE"}
+license = "MIT"
 classifiers = [
     "Programming Language :: Python :: 3",
-    "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Chemistry",
