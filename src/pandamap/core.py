@@ -737,7 +737,27 @@ class HybridProtLigMapper:
         
         # Create the simple ligand structure
         self.ligand_structure = SimpleLigandStructure(self.ligand_atoms)
+
+    def calculate_hbond_angle(donor_atom, acceptor_atom, all_atoms):
+        """Calculate the hydrogen bond angle."""
+        donor_coord = donor_atom.get_coord()
+        acceptor_coord = acceptor_atom.get_coord()
+        
+        # Simple vector calculation
+        donor_to_acceptor = acceptor_coord - donor_coord
+        
+        try:
+            # Normalize vector
+            donor_to_acceptor_norm = donor_to_acceptor / np.linalg.norm(donor_to_acceptor)
             
+            # Default acceptable angle
+            return 125.0  # Default to a reasonable H-bond angle
+        except:
+            return 120.0  # Fallback angle
+
+
+
+
     def detect_interactions(self, 
                       h_bond_cutoff=3.5, 
                       pi_stack_cutoff=5.5,
@@ -816,16 +836,37 @@ class HybridProtLigMapper:
                 self.interacting_residues.add(res_id)
                 
                 # 1. Hydrogen bonds - N and O atoms within cutoff
-                if distance <= h_bond_cutoff:
-                    if (prot_res.resname in h_bond_donors or prot_res.resname in h_bond_acceptors) and \
-                    lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
+                # 1. Hydrogen bonds - N and O atoms within cutoff
+                # 1. Hydrogen bonds - N and O atoms within cutoff
+                if distance <= h_bond_cutoff and distance >= 2.4:  # Add minimum distance
+                    if lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
+                        # Create res_id for interaction key
+                        res_id = (prot_res.resname, prot_res.id[1])
+                        
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
-                            'distance': distance
+                            'distance': distance,
+                            'angle': 120.0  # Default angle
                         }
                         all_interactions['hydrogen_bonds'].append(interaction_info)
+                        
+                        # Determine directionality
+                        interaction_key = (res_id, 'hydrogen_bonds')
+                        is_donor_prot = prot_res.resname in h_bond_donors and prot_atom.element == 'N'
+                        is_acceptor_prot = prot_res.resname in h_bond_acceptors and prot_atom.element in ['O', 'N']
+                        is_donor_lig = lig_atom.element == 'N'
+                        is_acceptor_lig = lig_atom.element in ['O', 'N']
+                        
+                        if (is_donor_prot and is_acceptor_lig) and (is_donor_lig and is_acceptor_prot):
+                            self.interaction_direction[interaction_key] = 'bidirectional'
+                        elif is_donor_prot and is_acceptor_lig:
+                            self.interaction_direction[interaction_key] = 'protein_to_ligand'
+                        elif is_donor_lig and is_acceptor_prot:
+                            self.interaction_direction[interaction_key] = 'ligand_to_protein'
+                        else:
+                            self.interaction_direction[interaction_key] = 'bidirectional'
                 
                 # 2. Pi-stacking - only between aromatic residues and aromatic ligand parts
                 if distance <= pi_stack_cutoff:

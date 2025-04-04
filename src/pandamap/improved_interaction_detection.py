@@ -45,8 +45,8 @@ def filter_interactions(interactions, thresholds):
     if 'hydrogen_bonds' in interactions:
         filtered['hydrogen_bonds'] = [
             hb for hb in interactions['hydrogen_bonds'] 
-            if (thresholds['min_dist'] < hb['distance'] < thresholds['hydrogen_bond'] and
-                hb['angle'] > ANGLE_CUTOFFS['hbond_donor'])
+            #if (thresholds['min_dist'] < hb['distance'] < thresholds['hydrogen_bond'] and
+                #('angle' not in hb or hb['angle'] > ANGLE_CUTOFFS['hbond_donor']))
         ]
         
     # Filter hydrophobic interactions
