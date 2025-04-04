@@ -13,7 +13,7 @@ import threading
 from .core import SimpleLigandStructure, HybridProtLigMapper
 
 __all__ = ["SimpleLigandStructure", "HybridProtLigMapper"]
-__version__ = "3.6"  # Keep this as fallback if importlib fails
+__version__ = "3.7"  # Keep this as fallback if importlib fails
 
 # --- Auto-update checker (non-blocking) ---
 def _check_for_updates():
