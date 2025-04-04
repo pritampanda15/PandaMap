@@ -110,7 +110,36 @@ def filter_interactions(interactions, thresholds):
             if (thresholds['min_dist'] < wb['distance_aw'] < thresholds['water_bridge'] and
                 thresholds['min_dist'] < wb['distance_dw'] < thresholds['water_bridge'])
         ]
-        
+    
+    # Filter alkyl-pi interactions
+    if 'alkyl_pi' in interactions:
+        filtered['alkyl_pi'] = [
+            ap for ap in interactions['alkyl_pi']
+            if thresholds['min_dist'] < ap['distance'] < thresholds['pi_stacking']
+        ]
+    
+    # Filter pi-cation interactions
+    if 'pi_cation' in interactions:
+        filtered['pi_cation'] = [
+            pc for pc in interactions['pi_cation']
+            if thresholds['min_dist'] < pc['distance'] < thresholds['pi_cation'] and
+            pc['offset'] < OFFSET_CUTOFFS['pi_cation']
+        ]
+    
+    # Filter attractive charge interactions
+    if 'attractive_charge' in interactions:
+        filtered['attractive_charge'] = [
+            ac for ac in interactions['attractive_charge']
+            if thresholds['min_dist'] < ac['distance'] < thresholds['salt_bridge']
+        ]
+    
+    # Filter repulsion interactions
+    if 'repulsion' in interactions:
+        filtered['repulsion'] = [
+            r for r in interactions['repulsion']
+            if thresholds['min_dist'] < r['distance'] < thresholds['salt_bridge'] * 1.5
+        ]
+    
     return filtered
 
 def refine_hydrophobic_interactions(interactions):
@@ -187,10 +216,14 @@ def generate_plip_report(ligand_info, interactions, output_file=None):
         'amide_pi': "Amide-π Interactions",
         'halogen_bonds': "Halogen Bonds",
         'water_bridges': "Water Bridges",
-        'metal_complexes': "Metal Complexes",
+        'metal_coordination': "Metal Coordination",  # CHANGED from metal_complexes
         'ionic': "Ionic Interactions",
         'salt_bridge': "Salt Bridges",
-        'covalent': "Covalent Bonds"
+        'covalent': "Covalent Bonds",
+        'alkyl_pi': "Alkyl-π Interactions", # ADDED new interaction types
+        'attractive_charge': "Attractive Charge",
+        'pi_cation': "π-Cation Interactions",
+        'repulsion': "Repulsion"
     }
     
     report.append("\n------------------------------\n")
@@ -507,7 +540,7 @@ def add_interaction_detection_methods(cls):
             # Create simple fallback report
             simple_report = [
                 "=============================================================================",
-                "PandaMap Interaction Report (simplified due to error)",
+                "PandaMap Interaction Report",
                 "=============================================================================",
                 "",
                 f"Ligand: {ligand_info['hetid']}:{ligand_info['chain']}:{ligand_info['position']}",
@@ -527,6 +560,154 @@ def add_interaction_detection_methods(cls):
                     
             return '\n'.join(simple_report)
     
+    
+    def generate_enhanced_interaction_report(self, output_file=None):
+        """Generate a comprehensive, well-organized interaction report with categorized sections."""
+        
+        if not output_file:
+            base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
+            output_file = f"{base_name}_detailed_interactions.txt"
+        
+        # Prepare ligand info
+        ligand_info = {
+            'hetid': getattr(self.ligand_residue, 'resname', 'UNK'),
+            'chain': 'X',
+            'position': 0,
+            'longname': getattr(self.ligand_residue, 'resname', 'Unknown'),
+            'type': 'LIGAND',
+            'interacting_chains': [],
+            'interacting_res': []
+        }
+        
+        # Try to get chain and position
+        try:
+            if hasattr(self.ligand_residue, 'parent') and self.ligand_residue.parent:
+                ligand_info['chain'] = self.ligand_residue.parent.id
+        except:
+            pass
+        
+        try:
+            if hasattr(self.ligand_residue, 'id') and isinstance(self.ligand_residue.id, tuple):
+                ligand_info['position'] = self.ligand_residue.id[1]
+        except:
+            pass
+        
+        # Collect unique chains and residues
+        chains = set()
+        residues = set()
+        
+        for itype, interactions in self.interactions.items():
+            for interaction in interactions:
+                if 'protein_residue' in interaction:
+                    res = interaction['protein_residue']
+                    if hasattr(res, 'get_parent') and callable(res.get_parent):
+                        parent = res.get_parent()
+                        if parent and hasattr(parent, 'id'):
+                            chains.add(parent.id)
+                    if hasattr(res, 'id') and isinstance(res.id, tuple) and len(res.id) > 1:
+                        residues.add(f"{res.resname}{res.id[1]}")
+        
+        ligand_info['interacting_chains'] = list(chains)
+        ligand_info['interacting_res'] = list(residues)
+        
+        # Start building the report
+        report = []
+        report.append("=============================================================================")
+        report.append(f"PandaMap Interaction Report")
+        report.append("=============================================================================")
+        report.append("")
+        report.append(f"Ligand: {ligand_info['hetid']}:{ligand_info['chain']}:{ligand_info['position']}")
+        report.append(f"File: {os.path.basename(self.structure_file)}")
+        report.append("")
+        
+        # Summary statistics
+        total_interactions = sum(len(ints) for ints in self.interactions.values())
+        report.append(f"Total interactions detected: {total_interactions}")
+        report.append(f"Interacting residues: {len(residues)}")
+        report.append(f"Solvent accessible residues: {len(self.solvent_accessible)}")
+        report.append("")
+        
+        # Group interactions by category
+        categories = {
+            "Electrostatic Interactions": ['hydrogen_bonds', 'ionic', 'salt_bridge', 'attractive_charge', 'repulsion'],
+            "π-System Interactions": ['pi_pi_stacking', 'pi_cation', 'donor_pi', 'carbon_pi', 'amide_pi', 'alkyl_pi'],
+            "Hydrophobic Interactions": ['hydrophobic'],
+            "Metal Interactions": ['metal_coordination'],
+            "Other Interactions": ['halogen_bonds', 'water_bridges', 'covalent']
+        }
+        
+        # Print interaction summary by category
+        report.append("INTERACTION SUMMARY BY CATEGORY")
+        report.append("------------------------------")
+        
+        for category, itypes in categories.items():
+            category_count = sum(len(self.interactions.get(it, [])) for it in itypes)
+            if category_count > 0:
+                report.append(f"{category}: {category_count}")
+                # List specific types and counts
+                for it in itypes:
+                    if it in self.interactions and len(self.interactions[it]) > 0:
+                        type_name = it.replace('_', ' ').title()
+                        report.append(f"  - {type_name}: {len(self.interactions[it])}")
+        
+        report.append("")
+        report.append("DETAILED INTERACTIONS")
+        report.append("------------------------------")
+        
+        # Show detailed interactions for each category
+        for category, itypes in categories.items():
+            category_count = sum(len(self.interactions.get(it, [])) for it in itypes)
+            if category_count > 0:
+                report.append(f"\n{category}:")
+                
+                for it in itypes:
+                    interactions = self.interactions.get(it, [])
+                    if interactions:
+                        type_name = it.replace('_', ' ').title()
+                        report.append(f"\n  {type_name}:")
+                        
+                        for i, interaction in enumerate(interactions, 1):
+                            res_info = "Unknown"
+                            distance = "?.??"
+                            
+                            if 'protein_residue' in interaction:
+                                res = interaction['protein_residue']
+                                if hasattr(res, 'resname') and hasattr(res, 'id'):
+                                    res_info = f"{res.resname}{res.id[1]}"
+                                    if hasattr(res, 'get_parent') and callable(res.get_parent):
+                                        parent = res.get_parent()
+                                        if parent and hasattr(parent, 'id'):
+                                            res_info = f"{res.resname}{res.id[1]}{parent.id}"
+                            
+                            if 'distance' in interaction:
+                                distance = f"{interaction['distance']:.2f}Å"
+                            
+                            # Add solvent accessibility info
+                            accessibility = ""
+                            if 'protein_residue' in interaction:
+                                res = interaction['protein_residue']
+                                if hasattr(res, 'resname') and hasattr(res, 'id'):
+                                    res_id = (res.resname, res.id[1])
+                                    if res_id in self.solvent_accessible:
+                                        accessibility = " (solvent accessible)"
+                            
+                            report.append(f"    {i}. {res_info} -- {distance} -- {ligand_info['hetid']}{accessibility}")
+        
+        # Add solvent accessibility section
+        if self.solvent_accessible:
+            report.append("\nSOLVENT ACCESSIBLE RESIDUES")
+            report.append("------------------------------")
+            for i, res_id in enumerate(sorted(self.solvent_accessible), 1):
+                resname, resnum = res_id
+                report.append(f"  {i}. {resname}{resnum}")
+        
+        # Write report to file
+        report_text = "\n".join(report)
+        with open(output_file, 'w') as f:
+            f.write(report_text)
+        
+        print(f"Enhanced interaction report saved to: {output_file}")
+        return report_text
     # Add methods to the class
     setattr(cls, 'detect_interactions_improved', detect_interactions_improved)
     setattr(cls, 'generate_interaction_report', generate_interaction_report)

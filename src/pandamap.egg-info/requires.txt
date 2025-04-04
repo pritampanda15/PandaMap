@@ -2,3 +2,6 @@ numpy>=1.20.0
 matplotlib>=3.4.0
 biopython>=1.79
 requests>=2.25.0
+
+[fancy]
+rich>=13.0

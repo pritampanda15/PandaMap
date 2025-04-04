@@ -1,0 +1,113 @@
+=============================================================================
+PandaMap Interaction Report
+=============================================================================
+
+Ligand: HEM:A:301
+Name: HEM
+Type: LIGAND
+
+------------------------------
+
+Interacting Chains: A
+Interacting Residues: 25
+
+------------------------------
+
+Interaction Summary:
+  Hydrogen Bonds: 7
+  Hydrophobic Interactions: 9
+  π-π Stacking: 7
+  Carbon-π Interactions: 7
+  Donor-π Interactions: 2
+  Amide-π Interactions: 1
+  Covalent Bonds: 1
+  Alkyl-π Interactions: 12
+  π-Cation Interactions: 4
+
+------------------------------
+
+Hydrogen Bonds:
+  1. HIS181A  -- 2.68Å -- HEM
+  2. SER185A  -- 2.65Å -- HEM
+  3. ASN184A  -- 3.00Å -- HEM
+  4. LYS179A  -- 3.04Å -- HEM
+  5. HIS175A  -- 2.90Å -- HEM
+  6. ARG48A  -- 3.38Å -- HEM
+  7. TRP51A  -- 3.16Å -- HEM
+
+------------------------------
+
+Hydrophobic Interactions:
+  1. LEU230A  -- 3.59Å -- HEM
+  2. TRP51A  -- 3.30Å -- HEM
+  3. ALA174A  -- 3.43Å -- HEM
+  4. TYR187A  -- 3.98Å -- HEM
+  5. PRO145A  -- 3.58Å -- HEM
+  6. ALA147A  -- 3.58Å -- HEM
+  7. PHE158A  -- 3.94Å -- HEM
+  8. LEU171A  -- 3.85Å -- HEM
+  9. PRO44A  -- 4.00Å -- HEM
+
+------------------------------
+
+π-π Stacking:
+  1. HIS175A  -- 3.51Å -- HEM
+  2. PHE158A  -- 3.94Å -- HEM
+  3. TRP51A  -- 3.30Å -- HEM
+  4. TYR187A  -- 3.98Å -- HEM
+  5. HIS181A  -- 3.94Å -- HEM
+  6. PHE264A  -- 4.02Å -- HEM
+  7. PHE260A  -- 4.10Å -- HEM
+
+------------------------------
+
+Carbon-π Interactions:
+  1. HIS175A  -- 3.51Å -- HEM
+  2. PHE158A  -- 3.94Å -- HEM
+  3. TRP51A  -- 3.13Å -- HEM
+  4. TYR187A  -- 3.98Å -- HEM
+  5. HIS181A  -- 3.49Å -- HEM
+  6. PHE264A  -- 4.02Å -- HEM
+  7. PHE260A  -- 4.10Å -- HEM
+
+------------------------------
+
+Donor-π Interactions:
+  1. ASP146A  -- 3.38Å -- HEM
+  2. ASP37A  -- 5.09Å -- HEM
+
+------------------------------
+
+Amide-π Interactions:
+  1. ASN184A  -- 3.70Å -- HEM
+
+------------------------------
+
+Covalent Bonds:
+  1. HIS175A  -- 2.09Å -- HEM
+
+------------------------------
+
+Alkyl-π Interactions:
+  1. LEU230A  -- 3.59Å -- HEM
+  2. ALA147A  -- 3.58Å -- HEM
+  3. MET172A  -- 4.21Å -- HEM
+  4. PRO145A  -- 3.58Å -- HEM
+  5. VAL47A  -- 4.01Å -- HEM
+  6. ALA174A  -- 3.43Å -- HEM
+  7. VAL154A  -- 4.34Å -- HEM
+  8. LEU171A  -- 3.85Å -- HEM
+  9. LEU267A  -- 4.83Å -- HEM
+  10. LEU177A  -- 4.20Å -- HEM
+  11. PRO44A  -- 4.00Å -- HEM
+  12. VAL45A  -- 4.34Å -- HEM
+
+------------------------------
+
+π-Cation Interactions:
+  1. HIS175A (protein_cation) -- 3.56Å -- HEM
+  2. ARG48A (protein_cation) -- 3.31Å -- HEM
+  3. HIS181A (protein_cation) -- 3.49Å -- HEM
+  4. LYS179A (protein_cation) -- 4.10Å -- HEM
+
+=============================================================================

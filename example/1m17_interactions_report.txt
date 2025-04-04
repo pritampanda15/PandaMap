@@ -1,0 +1,87 @@
+=============================================================================
+PandaMap Interaction Report
+=============================================================================
+
+Ligand: AQ4:A:999
+Name: AQ4
+Type: LIGAND
+
+------------------------------
+
+Interacting Chains: A
+Interacting Residues: 18
+
+------------------------------
+
+Interaction Summary:
+  Hydrogen Bonds: 4
+  Hydrophobic Interactions: 6
+  π-π Stacking: 1
+  Carbon-π Interactions: 1
+  Donor-π Interactions: 2
+  Amide-π Interactions: 1
+  Alkyl-π Interactions: 13
+  π-Cation Interactions: 1
+
+------------------------------
+
+Hydrogen Bonds:
+  1. LEU694A  -- 3.27Å -- AQ4
+  2. PRO770A  -- 3.21Å -- AQ4
+  3. GLY772A  -- 3.24Å -- AQ4
+  4. MET769A  -- 2.70Å -- AQ4
+
+------------------------------
+
+Hydrophobic Interactions:
+  1. LEU764A  -- 3.43Å -- AQ4
+  2. LEU820A  -- 3.52Å -- AQ4
+  3. LEU694A  -- 3.56Å -- AQ4
+  4. MET769A  -- 3.78Å -- AQ4
+  5. LEU768A  -- 3.75Å -- AQ4
+  6. ALA719A  -- 3.31Å -- AQ4
+
+------------------------------
+
+π-π Stacking:
+  1. PHE771A  -- 4.54Å -- AQ4
+
+------------------------------
+
+Carbon-π Interactions:
+  1. PHE771A  -- 4.28Å -- AQ4
+
+------------------------------
+
+Donor-π Interactions:
+  1. GLU738A  -- 3.81Å -- AQ4
+  2. ASP831A  -- 3.11Å -- AQ4
+
+------------------------------
+
+Amide-π Interactions:
+  1. GLN767A  -- 3.15Å -- AQ4
+
+------------------------------
+
+Alkyl-π Interactions:
+  1. ILE765A  -- 4.63Å -- AQ4
+  2. ALA719A  -- 3.31Å -- AQ4
+  3. LEU764A  -- 3.43Å -- AQ4
+  4. ILE720A  -- 5.38Å -- AQ4
+  5. MET742A  -- 4.79Å -- AQ4
+  6. LEU753A  -- 5.26Å -- AQ4
+  7. VAL702A  -- 4.38Å -- AQ4
+  8. LEU820A  -- 3.52Å -- AQ4
+  9. LEU694A  -- 3.56Å -- AQ4
+  10. MET769A  -- 3.78Å -- AQ4
+  11. LEU768A  -- 3.75Å -- AQ4
+  12. PRO770A  -- 4.98Å -- AQ4
+  13. PHE771A  -- 4.28Å -- AQ4
+
+------------------------------
+
+π-Cation Interactions:
+  1. LYS721A (protein_cation) -- 3.70Å -- AQ4
+
+=============================================================================

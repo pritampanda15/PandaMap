@@ -1,0 +1,85 @@
+=============================================================================
+PandaMap Interaction Report
+=============================================================================
+
+Ligand: PAH:A:439
+Name: PAH
+Type: LIGAND
+
+------------------------------
+
+Interacting Chains: A
+Interacting Residues: 13
+
+------------------------------
+
+Interaction Summary:
+  Hydrogen Bonds: 10
+  Carbon-π Interactions: 1
+  Metal Coordination: 4
+  Ionic Interactions: 2
+  Salt Bridges: 2
+  Alkyl-π Interactions: 1
+  Attractive Charge: 2
+  Repulsion: 5
+
+------------------------------
+
+Hydrogen Bonds:
+  1. GLU168A  -- 2.66Å -- PAH
+  2. ASP246A  -- 2.60Å -- PAH
+  3. GLN167A  -- 3.10Å -- PAH
+  4. ASP320A  -- 3.46Å -- PAH
+  5. LYS396A  -- 3.05Å -- PAH
+  6. SER375A  -- 2.82Å -- PAH
+  7. SER39A  -- 3.06Å -- PAH
+  8. ARG374A  -- 2.98Å -- PAH
+  9. GLY37A  -- 3.36Å -- PAH
+  10. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Carbon-π Interactions:
+  1. HIS373A  -- 4.29Å -- PAH
+
+------------------------------
+
+Metal Coordination:
+  1. ASP246A  -- 2.24Å -- PAH
+  2. GLU295A  -- 2.24Å -- PAH
+  3. ASP320A  -- 2.19Å -- PAH
+  4. GLY37A  -- 2.12Å -- PAH
+
+------------------------------
+
+Ionic Interactions:
+  1. ARG374A  -- 2.98Å -- PAH
+  2. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Salt Bridges:
+  1. ARG374A  -- 2.98Å -- PAH
+  2. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Alkyl-π Interactions:
+  1. HIS373A  -- 5.27Å -- PAH
+
+------------------------------
+
+Attractive Charge:
+  1. ARG374A  -- 2.98Å -- PAH
+  2. LYS345A  -- 3.21Å -- PAH
+
+------------------------------
+
+Repulsion:
+  1. ASP320A  -- 3.46Å -- PAH
+  2. GLU168A  -- 3.10Å -- PAH
+  3. ASP246A  -- 2.60Å -- PAH
+  4. GLU295A  -- 3.95Å -- PAH
+  5. GLU211A  -- 4.34Å -- PAH
+
+=============================================================================

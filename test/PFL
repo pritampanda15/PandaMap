@@ -9,22 +9,16 @@ Type: LIGAND
 ------------------------------
 
 Interacting Chains: D, C
-Interacting Residues: 11
+Interacting Residues: 7
 
 ------------------------------
 
 Interaction Summary:
-  Hydrogen Bonds: 1
   Hydrophobic Interactions: 4
   π-π Stacking: 1
   Carbon-π Interactions: 1
   Donor-π Interactions: 1
   Amide-π Interactions: 2
-
-------------------------------
-
-Hydrogen Bonds:
-  1. ILE228D  -- 2.75Å -- PFL
 
 ------------------------------
 

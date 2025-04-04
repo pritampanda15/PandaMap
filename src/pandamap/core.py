@@ -15,6 +15,9 @@ import numpy as np
 import subprocess
 from Bio.PDB.DSSP import DSSP
 from Bio.PDB import PDBIO
+# Set matplotlib backend to 'Agg' BEFORE importing pyplot
+import matplotlib
+matplotlib.use('Agg')  # This must come before any pyplot import
 import matplotlib.pyplot as plt
 import matplotlib.colors
 from matplotlib.colors import to_rgb
@@ -29,7 +32,7 @@ from Bio.PDB import PDBParser, NeighborSearch
 
 # Define three_to_one conversion manually if import isn't available
 try:
-    from Bio.PDB.Polypeptide import three_to_one
+    from Bio.PDB.Polypeptide import three_to_one 
 except ImportError:
     # Define the conversion dictionary manually
     _aa_index = {
@@ -710,7 +713,7 @@ class HybridProtLigMapper:
         if not self.ligand_atoms:
             raise ValueError(f"No ligand (HETATM) found in the file: {structure_file}")
         
-        # Storage for the interaction data
+        # Storage for the interaction data - UPDATED with new interaction types
         self.interactions = {
             'hydrogen_bonds': [],
             'carbon_pi': [],
@@ -723,7 +726,11 @@ class HybridProtLigMapper:
             'cation_pi': [],       # Cation-pi interactions
             'metal_coordination': [], # Metal coordination
             'salt_bridge': [],     # Salt bridges
-            'covalent': []         # NEW: Covalent bonds
+            'covalent': [],        # Covalent bonds
+            'alkyl_pi': [],        # NEW: Alkyl-Pi interactions
+            'attractive_charge': [], # NEW: Attractive charge interactions
+            'pi_cation': [],         # NEW: Pi-cation interactions
+            'repulsion': []         # NEW: Repulsion interactions
         }
         
         # Will store residues that interact with the ligand
@@ -759,13 +766,13 @@ class HybridProtLigMapper:
 
 
     def detect_interactions(self, 
-                      h_bond_cutoff=3.5, 
-                      pi_stack_cutoff=5.5,
-                      hydrophobic_cutoff=4.0,
-                      ionic_cutoff=4.0,
-                      halogen_bond_cutoff=3.5,
-                      metal_coord_cutoff=2.8,
-                      covalent_cutoff=2.1):  # NEW: Covalent bond cutoff
+                  h_bond_cutoff=3.5, 
+                  pi_stack_cutoff=5.5,
+                  hydrophobic_cutoff=4.0,
+                  ionic_cutoff=4.0,
+                  halogen_bond_cutoff=3.5,
+                  metal_coord_cutoff=2.8,
+                  covalent_cutoff=2.1):
         print("*** Using IMPROVED detection with stricter filtering ***")
         """
         Detect all interactions between protein and ligand with PLIP-like thresholds.
@@ -784,8 +791,9 @@ class HybridProtLigMapper:
         pos_charged = {'ARG', 'LYS', 'HIS'}
         amide_residues = {'ASN', 'GLN'}
         hydrophobic_residues = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PHE', 'TRP', 'PRO', 'TYR'}
+        alkyl_residues = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PRO'}
         
-        # Storage for the interaction data
+        # Storage for the interaction data - make sure this includes the new types!
         self.interactions = {
             'hydrogen_bonds': [],
             'carbon_pi': [],
@@ -793,12 +801,16 @@ class HybridProtLigMapper:
             'donor_pi': [],
             'amide_pi': [],
             'hydrophobic': [],
-            'ionic': [],           # Ionic interactions
-            'halogen_bonds': [],   # Halogen bonds
-            'cation_pi': [],       # Cation-pi interactions
-            'metal_coordination': [], # Metal coordination
-            'salt_bridge': [],     # Salt bridges
-            'covalent': []         # Covalent bonds
+            'ionic': [],
+            'halogen_bonds': [],
+            'cation_pi': [],
+            'metal_coordination': [],
+            'salt_bridge': [],
+            'covalent': [],
+            'alkyl_pi': [],
+            'attractive_charge': [],
+            'pi_cation': [],
+            'repulsion': []
         }
         
         # Helper functions
@@ -869,6 +881,77 @@ class HybridProtLigMapper:
                             self.interaction_direction[interaction_key] = 'bidirectional'
                 
                 # 2. Pi-stacking - only between aromatic residues and aromatic ligand parts
+                
+                if distance <= pi_stack_cutoff:
+                    is_prot_pos_charged = prot_res.resname in pos_charged and prot_atom.element in ['N']
+                    is_lig_aromatic_ring = is_lig_aromatic and lig_atom.element == 'C'
+                    
+                    if is_prot_pos_charged and is_lig_aromatic_ring:
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance,
+                            'type': 'protein_cation'
+                        }
+                        all_interactions['pi_cation'].append(interaction_info)
+    
+                # 2. Alkyl-Pi interactions - between alkyl groups and aromatic systems
+                if distance <= pi_stack_cutoff:
+                    # Check for alkyl groups in protein interacting with aromatic ligand
+                    is_prot_alkyl = prot_res.resname in alkyl_residues and prot_atom.element == 'C'
+                    
+                    if is_prot_alkyl and is_lig_aromatic:
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance
+                        }
+                        all_interactions['alkyl_pi'].append(interaction_info)
+            
+                    # Check for aromatic groups in protein interacting with alkyl in ligand
+                    is_prot_aromatic = prot_res.resname in aromatic_residues and prot_atom.element == 'C'
+                    is_lig_alkyl = lig_atom.element == 'C' and not is_lig_aromatic
+        
+                if is_prot_aromatic and is_lig_alkyl:
+                    interaction_info = {
+                        'ligand_atom': lig_atom,
+                        'protein_atom': prot_atom,
+                        'protein_residue': prot_res,
+                        'distance': distance
+                    }
+                    all_interactions['alkyl_pi'].append(interaction_info)
+    
+                # 3. Attractive charge interactions - between oppositely charged groups
+                if distance <= ionic_cutoff:
+                    is_prot_pos = prot_res.resname in pos_charged and prot_atom.element == 'N'
+                    is_prot_neg = prot_res.resname in neg_charged and prot_atom.element == 'O'
+                    
+                    if (is_prot_pos and is_lig_neg_charged) or (is_prot_neg and is_lig_pos_charged):
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance
+                        }
+                        all_interactions['attractive_charge'].append(interaction_info)
+    
+                # 4. Repulsion interactions - between likely same-charged groups
+                if distance <= ionic_cutoff * 1.5:  # Larger cutoff for repulsion
+                    # Define charges for protein residue explicitly
+                    is_prot_pos_charged = prot_res.resname in pos_charged and prot_atom.element in ['N']
+                    is_prot_neg_charged = prot_res.resname in neg_charged and prot_atom.element in ['O']
+                    
+                    if (is_prot_pos_charged and is_lig_pos_charged) or (is_prot_neg_charged and is_lig_neg_charged):
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance
+                        }
+                        all_interactions['repulsion'].append(interaction_info)
+                
                 if distance <= pi_stack_cutoff:
                     if prot_res.resname in aromatic_residues and is_lig_aromatic and \
                     lig_atom.element == 'C' and prot_atom.element == 'C':
@@ -1017,118 +1100,291 @@ class HybridProtLigMapper:
             # Add only the best (closest) interaction for each residue
             self.interactions[itype] = list(by_residue.values())
     
-    def estimate_solvent_accessibility(self):
+    def calculate_realistic_solvent_accessibility(self, probe_radius=1.4, exposure_threshold=0.25, max_percent=0.5):
         """
-        Improved estimation of which residues might be solvent accessible.
-        This provides a more reasonable estimation when DSSP is not available.
+        Realistic solvent accessibility calculation with proper constraints on number of accessible residues.
+        
+        Parameters:
+        -----------
+        probe_radius : float
+            Radius of solvent probe in Angstroms (default: 1.4)
+        exposure_threshold : float
+            Threshold ratio for considering a residue solvent accessible (default: 0.25)
+        max_percent : float
+            Maximum percentage of interacting residues that can be solvent accessible (default: 0.5)
         """
-        print("Using improved geometric solvent accessibility estimation...")
+        print("Using realistic solvent accessibility calculation...")
         self.solvent_accessible = set()
         
-        # Get all protein residues that interact with the ligand
-        interacting_residue_objects = {}
-        for res_id in self.interacting_residues:
-            if res_id in self.protein_residues:
-                interacting_residue_objects[res_id] = self.protein_residues[res_id]
-        
-        # Define which residues are typically solvent-exposed 
-        # (based on hydrophilicity/hydrophobicity)
-        likely_solvent_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 
-                                 'HIS', 'SER', 'THR', 'TYR', 'GLY'}
+        # Define which residues are typically surface-exposed
+        likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
         likely_buried = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PHE', 'TRP', 'CYS', 'PRO'}
         
-        # Simple geometric approach
-        for res_id, residue in interacting_residue_objects.items():
-            resname, resnum = res_id
+        # First get all protein atoms (including non-interacting ones)
+        all_protein_atoms = []
+        for residue in self.model.get_residues():
+            if residue.id[0] == ' ':  # Standard amino acid
+                for atom in residue:
+                    all_protein_atoms.append(atom)
+        
+        print(f"Total protein atoms: {len(all_protein_atoms)}")
+        print(f"Interacting residues to check: {len(self.interacting_residues)}")
+        
+        # Calculate protein center
+        protein_center = np.zeros(3)
+        for atom in all_protein_atoms:
+            protein_center += atom.get_coord()
+        protein_center /= len(all_protein_atoms) if all_protein_atoms else 1
+        
+        # Store exposure scores for all residues to sort later
+        exposure_scores = {}
+        
+        # For each interacting residue, estimate accessibility
+        for res_id in self.interacting_residues:
+            residue = self.protein_residues.get(res_id)
+            if residue is None:
+                continue
             
-            # Check if the residue is on the "outside" of the protein
-            is_exposed = False
+            # Calculate residue center
+            residue_center = np.zeros(3)
+            residue_atoms = list(residue.get_atoms())
+            for atom in residue_atoms:
+                residue_center += atom.get_coord()
+            residue_center /= len(residue_atoms) if residue_atoms else 1
             
-            # 1. Compute residue center
-            center = np.zeros(3)
-            atom_count = 0
-            for atom in residue.get_atoms():
-                center += atom.get_coord()
-                atom_count += 1
+            # Calculate vector from protein center to residue center
+            direction = residue_center - protein_center
+            direction_length = np.linalg.norm(direction)
+            if direction_length > 0:
+                direction = direction / direction_length
             
-            if atom_count > 0:
-                center /= atom_count
+            # Count exposed atoms
+            exposed_atoms = 0
+            total_atoms = len(residue_atoms)
+            
+            for atom in residue_atoms:
+                atom_coord = atom.get_coord()
                 
-                # 2. Compute vector from protein center to residue center
-                protein_center = np.zeros(3)
-                protein_atom_count = 0
-                for prot_atom in self.protein_atoms:
-                    protein_center += prot_atom.get_coord()
-                    protein_atom_count += 1
+                # Check if atom is on the protein surface
+                is_exposed = True
+                nearby_atom_count = 0
                 
-                if protein_atom_count > 0:
-                    protein_center /= protein_atom_count
+                for other_atom in all_protein_atoms:
+                    if other_atom.get_parent() == residue:
+                        continue  # Skip atoms in same residue
                     
-                    # Vector from protein center to residue
-                    direction = center - protein_center
-                    direction_length = np.linalg.norm(direction)
+                    distance = np.linalg.norm(atom_coord - other_atom.get_coord())
                     
-                    if direction_length > 0:
-                        # Normalize
-                        direction = direction / direction_length
-                        
-                        # 3. Check if this direction is relatively unobstructed
-                        obstruction_count = 0
-                        for prot_atom in self.protein_atoms:
-                            if prot_atom.get_parent() == residue:
-                                continue  # Skip atoms in same residue
-                                
-                            atom_vec = prot_atom.get_coord() - center
-                            atom_dist = np.linalg.norm(atom_vec)
-                            
-                            # Skip if too far
-                            if atom_dist > 10.0:
-                                continue
-                                
-                            # Check if this atom is in the outward direction
-                            if atom_dist > 0:
-                                atom_vec = atom_vec / atom_dist  # Normalize
-                                dot_product = np.dot(direction, atom_vec)
-                                
-                                # If atom is in outward direction (angle < 90°)
-                                if dot_product > 0:
-                                    obstruction_count += 1
-                        
-                        # If fewer than 5 atoms obstruct the outward path, consider it exposed
-                        if obstruction_count < 5:
-                            is_exposed = True
+                    # Simple distance threshold for exposure
+                    if distance < 3.0:
+                        nearby_atom_count += 1
+                    
+                    # If more than 8 atoms are nearby (instead of 12), consider it buried
+                    if nearby_atom_count > 8:
+                        is_exposed = False
+                        break
+                
+                if is_exposed:
+                    exposed_atoms += 1
             
-            # 4. Check if residue has exposed face based on amino acid type
-            # Hydrophilic residues have higher chance of being exposed
-            if resname in likely_solvent_exposed:
-                exposure_bias = 0.7  # Higher chance of exposure
-            elif resname in likely_buried:
-                exposure_bias = 0.3  # Lower chance of exposure
+            # Calculate exposure ratio
+            exposure_ratio = exposed_atoms / total_atoms if total_atoms > 0 else 0
+            
+            # Calculate more strict surface bias
+            if residue.resname in likely_exposed:
+                surface_bias = 1.5  # More bias for typically exposed residues
+            elif residue.resname in likely_buried:
+                surface_bias = 0.6  # Much lower bias for typically buried residues
             else:
-                exposure_bias = 0.5  # Neutral
+                surface_bias = 1.0
+                
+            # Calculate distance from surface bias
+            # Residues further from center are more likely exposed
+            distance_from_center_ratio = min(direction_length / 15.0, 1.0)
             
-            # 5. Make final decision
-            if is_exposed or (np.random.rand() < exposure_bias and obstruction_count < 8):
+            # Combined score for exposure - more weight on actual exposure ratio
+            exposure_score = (exposure_ratio * 2.0 + surface_bias + distance_from_center_ratio) / 4.0
+            
+            # Store score for later ranking
+            exposure_scores[res_id] = exposure_score
+            
+            # Only add highest scoring residues directly
+            if exposure_score > exposure_threshold:
+                print(f"Marking {res_id} as solvent accessible (score: {exposure_score:.2f})")
                 self.solvent_accessible.add(res_id)
         
-        # Ensure a reasonable number of solvent-accessible residues are identified
-        # (at least 30% of interacting residues should be solvent-accessible)
-        min_exposed = max(1, int(len(self.interacting_residues) * 0.3))
+        # Calculate constraints on number of solvent accessible residues
+        min_expected = max(1, int(len(self.interacting_residues) * 0.1))  # At least 10%
+        max_expected = min(int(len(self.interacting_residues) * max_percent), 
+                        len(self.interacting_residues) - 1)  # At most max_percent, never all
         
-        if len(self.solvent_accessible) < min_exposed:
-            # If too few are identified, add more based on exposure bias
-            remaining = list(self.interacting_residues - self.solvent_accessible)
-            remaining.sort(key=lambda x: 0.8 if x[0] in likely_solvent_exposed else 
-                                   (0.2 if x[0] in likely_buried else 0.5), 
-                          reverse=True)
+        print(f"Constraints: min={min_expected}, max={max_expected} solvent accessible residues")
+        
+        # Add more residues if below minimum
+        if len(self.solvent_accessible) < min_expected:
+            print(f"Too few solvent-accessible residues detected ({len(self.solvent_accessible)}), "
+                f"adding more based on scores...")
             
-            # Add residues until we reach the minimum
-            for res_id in remaining:
-                if len(self.solvent_accessible) >= min_exposed:
+            # Sort remaining residues by their exposure scores
+            remaining = sorted(
+                [(r, exposure_scores.get(r, 0.0)) for r in self.interacting_residues if r not in self.solvent_accessible],
+                key=lambda x: x[1],  # Sort by score
+                reverse=True  # Highest scores first
+            )
+            
+            # Add only up to the minimum required
+            for res_id, score in remaining:
+                if len(self.solvent_accessible) >= min_expected:
                     break
+                print(f"Adding {res_id} as solvent accessible based on ranking (score: {score:.2f})")
                 self.solvent_accessible.add(res_id)
         
-        print(f"Found {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
+        # Remove residues if above maximum
+        if len(self.solvent_accessible) > max_expected:
+            print(f"Too many solvent-accessible residues detected ({len(self.solvent_accessible)}), "
+                f"removing lowest scoring ones...")
+            
+            # Sort current accessible residues by score, ascending
+            to_evaluate = sorted(
+                [(r, exposure_scores.get(r, 0.0)) for r in self.solvent_accessible],
+                key=lambda x: x[1]  # Sort by score
+            )
+            
+            # Remove lowest scoring residues until we're within limits
+            residues_to_remove = len(self.solvent_accessible) - max_expected
+            for i in range(residues_to_remove):
+                if i < len(to_evaluate):
+                    res_id, score = to_evaluate[i]
+                    print(f"Removing {res_id} from solvent accessible (score: {score:.2f})")
+                    self.solvent_accessible.remove(res_id)
+        
+        print(f"Final result: {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
+        if self.solvent_accessible:
+            print(f"Solvent accessible residues: {sorted(self.solvent_accessible)}")
+        return self.solvent_accessible
+
+    def calculate_enhanced_solvent_accessibility(self, probe_radius=1.4, exposure_threshold=0.15):
+        """
+        Enhanced solvent accessibility calculation with better debugging and less stringent criteria.
+        
+        Parameters:
+        -----------
+        probe_radius : float
+            Radius of solvent probe in Angstroms (default: 1.4)
+        exposure_threshold : float
+            Threshold ratio for considering a residue solvent accessible (default: 0.15)
+        """
+        print("Using enhanced solvent accessibility calculation...")
+        self.solvent_accessible = set()
+        
+        # Define which residues are typically surface-exposed
+        likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
+        
+        # First get all protein atoms (including non-interacting ones)
+        all_protein_atoms = []
+        for residue in self.model.get_residues():
+            if residue.id[0] == ' ':  # Standard amino acid
+                for atom in residue:
+                    all_protein_atoms.append(atom)
+        
+        print(f"Total protein atoms: {len(all_protein_atoms)}")
+        print(f"Interacting residues to check: {len(self.interacting_residues)}")
+        
+        # Calculate protein center
+        protein_center = np.zeros(3)
+        for atom in all_protein_atoms:
+            protein_center += atom.get_coord()
+        protein_center /= len(all_protein_atoms) if all_protein_atoms else 1
+        
+        # For each interacting residue, estimate accessibility
+        for res_id in self.interacting_residues:
+            residue = self.protein_residues.get(res_id)
+            if residue is None:
+                continue
+            
+            # Calculate residue center
+            residue_center = np.zeros(3)
+            residue_atoms = list(residue.get_atoms())
+            for atom in residue_atoms:
+                residue_center += atom.get_coord()
+            residue_center /= len(residue_atoms) if residue_atoms else 1
+            
+            # Calculate vector from protein center to residue center
+            direction = residue_center - protein_center
+            direction_length = np.linalg.norm(direction)
+            if direction_length > 0:
+                direction = direction / direction_length
+            
+            # Count exposed atoms
+            exposed_atoms = 0
+            total_atoms = len(residue_atoms)
+            
+            for atom in residue_atoms:
+                atom_coord = atom.get_coord()
+                
+                # Check if atom is on the protein surface
+                is_exposed = True
+                nearby_atom_count = 0
+                
+                for other_atom in all_protein_atoms:
+                    if other_atom.get_parent() == residue:
+                        continue  # Skip atoms in same residue
+                    
+                    distance = np.linalg.norm(atom_coord - other_atom.get_coord())
+                    
+                    # Simple distance threshold for exposure
+                    if distance < 3.0:
+                        nearby_atom_count += 1
+                    
+                    # If more than 12 atoms are nearby, consider it buried
+                    if nearby_atom_count > 12:
+                        is_exposed = False
+                        break
+                
+                if is_exposed:
+                    exposed_atoms += 1
+            
+            # Calculate exposure ratio and make decision
+            exposure_ratio = exposed_atoms / total_atoms if total_atoms > 0 else 0
+            
+            # Three criteria for solvent accessibility:
+            # 1. Reasonable exposure ratio
+            # 2. Residue type typically found on protein surface
+            # 3. Residue closer to protein surface than center
+            
+            surface_bias = 1.2 if residue.resname in likely_exposed else 0.8
+            distance_from_center_ratio = direction_length / 10.0  # Normalize to ~0-1 scale
+            
+            # Combined score for exposure
+            exposure_score = exposure_ratio * surface_bias * min(1.5, distance_from_center_ratio)
+            
+            if exposure_score > exposure_threshold:
+                print(f"Marking {res_id} as solvent accessible (score: {exposure_score:.2f})")
+                self.solvent_accessible.add(res_id)
+        
+        # Make sure we have a reasonable number of solvent-accessible residues
+        min_expected = max(2, int(len(self.interacting_residues) * 0.15))
+        
+        if len(self.solvent_accessible) < min_expected:
+            print(f"Too few solvent-accessible residues detected ({len(self.solvent_accessible)}), "
+                f"adding more based on residue type...")
+            
+            # Add more based on residue type
+            remaining = sorted(
+                [r for r in self.interacting_residues if r not in self.solvent_accessible],
+                key=lambda r: 2 if r[0] in likely_exposed else 1,
+                reverse=True
+            )
+            
+            for res_id in remaining:
+                if len(self.solvent_accessible) >= min_expected:
+                    break
+                print(f"Adding {res_id} as solvent accessible based on residue type")
+                self.solvent_accessible.add(res_id)
+        
+        print(f"Final result: {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
+        if self.solvent_accessible:
+            print(f"Solvent accessible residues: {sorted(self.solvent_accessible)}")
         return self.solvent_accessible
     
     def calculate_dssp_solvent_accessibility(self, dssp_executable='dssp'):
@@ -1174,7 +1430,7 @@ class HybridProtLigMapper:
                     rsa = dssp_data[3]  # Relative accessibility
                     
                     # Consider residues with >15% accessibility as solvent accessible
-                    if rsa > 0.15 and res_key in self.interacting_residues:
+                    if rsa > 0.25 and res_key in self.interacting_residues:
                         self.solvent_accessible.add(res_key)
                         
         except Exception as e:
@@ -1260,20 +1516,250 @@ class HybridProtLigMapper:
         
         print(f"Found {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
         return self.solvent_accessible
-    
+    # Future enhancements for solvent accessibility calculation
 
-    def visualize(self, output_file='protein_ligand_interactions.png',
-              figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
+# 1. Add SASA (Solvent Accessible Surface Area) calculation using Shrake-Rupley algorithm
+    def calculate_sasa(self, probe_radius=1.4, n_sphere_points=100):
         """
-        Generate a complete 2D visualization of protein-ligand interactions with:
-        - Bidirectional arrows connecting residues and ligand
-        - Properly placed interaction markers
-        - Solvent accessibility indicators
-        - Comprehensive legend
-        - Enhanced 3D representation of ligand when enabled
+        Calculate solvent accessible surface area using Shrake-Rupley algorithm.
+        
+        Parameters:
+        -----------
+        probe_radius : float
+            Radius of solvent probe in Angstroms (default: 1.4)
+        n_sphere_points : int
+            Number of points on the sphere for the algorithm (default: 100)
+            
+        Returns:
+        --------
+        dict
+            Dictionary mapping residue IDs to their SASA values
+        """
+        print("Calculating Solvent Accessible Surface Areas...")
+        
+        # Step 1: Generate points on a unit sphere (Fibonacci sphere method)
+        points = []
+        phi = (1 + math.sqrt(5)) / 2  # Golden ratio
+        
+        for i in range(n_sphere_points):
+            y = 1 - (i / float(n_sphere_points - 1)) * 2
+            radius = math.sqrt(1 - y*y)
+            
+            theta = 2 * math.pi * i / phi
+            x = math.cos(theta) * radius
+            z = math.sin(theta) * radius
+            
+            points.append(np.array([x, y, z]))
+        
+        # Step 2: Calculate SASA for each residue
+        residue_sasa = {}
+        
+        for res_id in self.interacting_residues:
+            residue = self.protein_residues.get(res_id)
+            if residue is None:
+                continue
+            
+            total_area = 0
+            for atom in residue.get_atoms():
+                # Get atom radius based on element
+                element = atom.element
+                if element == 'H':
+                    radius = 1.2
+                elif element == 'C':
+                    radius = 1.7
+                elif element == 'N':
+                    radius = 1.55
+                elif element == 'O':
+                    radius = 1.52
+                elif element == 'S':
+                    radius = 1.8
+                else:
+                    radius = 1.7  # Default
+                
+                # Add probe radius to atom radius
+                expanded_radius = radius + probe_radius
+                atom_coord = atom.get_coord()
+                
+                # Place points on the expanded sphere around the atom
+                sphere_points = [atom_coord + p * expanded_radius for p in points]
+                
+                # Count points not within any other atom
+                accessible_points = 0
+                for point in sphere_points:
+                    is_accessible = True
+                    
+                    for other_atom in self.protein_atoms:
+                        # Skip the current atom and atoms in the same residue
+                        if other_atom == atom or other_atom.get_parent() == residue:
+                            continue
+                        
+                        other_coord = other_atom.get_coord()
+                        distance = np.linalg.norm(point - other_coord)
+                        
+                        # Get radius of other atom
+                        other_element = other_atom.element
+                        if other_element == 'H':
+                            other_radius = 1.2
+                        elif other_element == 'C':
+                            other_radius = 1.7
+                        elif other_element == 'N':
+                            other_radius = 1.55
+                        elif other_element == 'O':
+                            other_radius = 1.52
+                        elif other_element == 'S':
+                            other_radius = 1.8
+                        else:
+                            other_radius = 1.7
+                        
+                        # Check if point is within other atom
+                        if distance < other_radius + probe_radius:
+                            is_accessible = False
+                            break
+                    
+                    if is_accessible:
+                        accessible_points += 1
+                
+                # Calculate area of this atom
+                point_ratio = accessible_points / len(sphere_points)
+                atom_area = 4 * math.pi * expanded_radius**2 * point_ratio
+                total_area += atom_area
+            
+            # Store total SASA for this residue
+            residue_sasa[res_id] = total_area
+        
+        # Step 3: Determine solvent accessibility based on SASA thresholds
+        # (Typically: >20Å² for small residues, >40Å² for large residues)
+        self.solvent_accessible = set()
+        for res_id, sasa in residue_sasa.items():
+            resname = res_id[0]
+            
+            # Define threshold based on residue size
+            if resname in {'GLY', 'ALA', 'SER', 'CYS', 'THR'}:
+                threshold = 20  # Small residues
+            elif resname in {'ARG', 'LYS', 'TRP', 'TYR', 'PHE'}:
+                threshold = 40  # Large residues
+            else:
+                threshold = 30  # Medium residues
+            
+            # Mark as solvent accessible if above threshold
+            if sasa >= threshold:
+                self.solvent_accessible.add(res_id)
+        
+        # Return SASA values for reference
+        return residue_sasa
+
+    # 2. Integration with FreeSASA or other external tools
+    def calculate_external_sasa(self, executable_path=None):
+                """
+                Calculate solvent accessibility using external tools like FreeSASA.
+                Requires FreeSASA or similar SASA calculation tool.
+                
+                Parameters:
+                -----------
+                executable_path : str, optional
+                    Path to FreeSASA executable (if None, assumes it's in PATH)
+                
+                Returns:
+                --------
+                set
+                    Set of solvent accessible residue IDs
+                """
+                if executable_path is None:
+                    executable_path = "freesasa"  # assume in PATH
+                
+                try:
+                    import tempfile
+                    import subprocess
+                    from Bio.PDB.PDBIO import PDBIO
+                    
+                    # Create temp file for PDB
+                    with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tmp_pdb:
+                        pdb_path = tmp_pdb.name
+                        # Write structure to PDB
+                        io = PDBIO()
+                        io.set_structure(self.structure)
+                        io.save(pdb_path)
+                    
+                    # Run FreeSASA
+                    cmd = [executable_path, "--format=rsa", pdb_path]
+                    result = subprocess.run(cmd, capture_output=True, text=True)
+                    
+                    # Parse the RSA output
+                    self.solvent_accessible = set()
+                    
+                    for line in result.stdout.split('\n'):
+                        if line.startswith("RES"):
+                            parts = line.split()
+                            if len(parts) >= 5:
+                                resname = parts[1]
+                                resnum = int(parts[2])
+                                rel_sasa = float(parts[4])
+                                
+                                # If relative SASA > 20%, consider as accessible
+                                if rel_sasa > 20.0:
+                                    res_id = (resname, resnum)
+                                    if res_id in self.interacting_residues:
+                                        self.solvent_accessible.add(res_id)
+                    
+                    # Cleanup
+                    try:
+                        os.unlink(pdb_path)
+                    except:
+                        pass
+                        
+                except Exception as e:
+                    print(f"Error using external SASA tool: {str(e)}")
+                    print("Falling back to geometric method")
+                    self.calculate_realistic_solvent_accessibility()
+                
+                return self.solvent_accessible    
+
+    def visualize(self, output_file='protein_ligand_interactions.png',figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
+        """
+        Generate a complete 2D visualization of protein-ligand interactions.
         """
         # Create figure
         fig, ax = plt.subplots(figsize=figsize)
+        
+        # Debug check for solvent accessibility
+        print("\n=== VISUALIZATION DEBUG ===")
+        print(f"Total interacting residues: {len(self.interacting_residues)}")
+        print(f"Solvent accessible residues: {len(self.solvent_accessible)}")
+        
+        if self.solvent_accessible:
+            print("Solvent accessible residues:")
+            for res_id in sorted(self.solvent_accessible):
+                print(f"  - {res_id}")
+        else:
+            print("WARNING: No solvent accessible residues detected!")
+        
+        # Force reasonable solvent accessibility if all residues are marked or none are marked
+        if len(self.solvent_accessible) == len(self.interacting_residues):
+            print("WARNING: All residues are marked as solvent accessible!")
+            print("This is likely incorrect. Removing some residues from solvent_accessible set...")
+            
+            # If all residues are marked, keep only about 40% 
+            # Focus on residues that are typically exposed
+            likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
+            keep_residues = []
+            
+            for res_id in self.interacting_residues:
+                if res_id[0] in likely_exposed:
+                    keep_residues.append(res_id)
+                    
+            # If we don't have enough exposed residues, add some hydrophobic ones near the surface
+            max_to_keep = max(2, int(len(self.interacting_residues) * 0.4))
+            if len(keep_residues) < max_to_keep:
+                for res_id in self.interacting_residues:
+                    if res_id not in keep_residues and len(keep_residues) < max_to_keep:
+                        keep_residues.append(res_id)
+            
+            # Replace the solvent_accessible set with our filtered version
+            self.solvent_accessible = set(keep_residues[:max_to_keep])
+            
+            print(f"After filtering: {len(self.solvent_accessible)} solvent accessible residues")
+            for res_id in sorted(self.solvent_accessible):
+                print(f"  - {res_id}")
         
         # Add light blue background for ligand
         ligand_radius = 90
@@ -1299,8 +1785,7 @@ class HybridProtLigMapper:
         rect_width, rect_height = 60, 30  # Residue box dimensions
         
         # For debugging
-        print(f"Total interacting residues: {n_residues}")
-        print(f"Solvent accessible residues: {len(self.solvent_accessible)}")
+        print(f"Drawing {n_residues} residue nodes, {len(self.solvent_accessible)} with solvent accessibility")
         
         # Arrange residues in a circle
         for i, res_id in enumerate(sorted(self.interacting_residues)):
@@ -1309,12 +1794,14 @@ class HybridProtLigMapper:
             y = radius * math.sin(angle)
             residue_positions[res_id] = (x, y)
             
-            # Draw solvent accessibility highlight with more visibility
+            # Draw solvent accessibility highlight with more visibility - ONLY for solvent accessible residues!
             if res_id in self.solvent_accessible:
                 print(f"Drawing solvent accessibility circle for {res_id}")
                 solvent_circle = Circle((x, y), 40, facecolor='#ADD8E6', 
                                     edgecolor='#87CEEB', alpha=0.5, zorder=1)
                 ax.add_patch(solvent_circle)
+            else:
+                print(f"Residue {res_id} is NOT solvent accessible - no circle")
             
             # Draw residue node as rectangle
             residue_box = Rectangle((x-rect_width/2, y-rect_height/2), rect_width, rect_height,
@@ -1328,6 +1815,7 @@ class HybridProtLigMapper:
             text = ax.text(x, y, label, ha='center', va='center',
                         fontsize=11, fontweight='bold', zorder=3)
             text.set_path_effects([path_effects.withStroke(linewidth=2, foreground='white')])
+
 
         # Define interaction styles
         interaction_styles = {
@@ -1343,20 +1831,29 @@ class HybridProtLigMapper:
                         'marker_text': 'A', 'marker_bg': 'white', 'name': 'Amide-Pi'},
             'hydrophobic': {'color': '#808080', 'linestyle': ':', 'linewidth': 1.0,
                         'marker_text': 'h', 'marker_bg': 'white', 'name': 'Hydrophobic'},
-            # Interaction styles
             'ionic': {'color': '#FF4500', 'linestyle': '-', 'linewidth': 1.5,
                     'marker_text': 'I', 'marker_bg': '#FFE4E1', 'name': 'Ionic'},
             'halogen_bonds': {'color': '#00CED1', 'linestyle': '-', 'linewidth': 1.5,
-                           'marker_text': 'X', 'marker_bg': '#E0FFFF', 'name': 'Halogen Bond'},
+                        'marker_text': 'X', 'marker_bg': '#E0FFFF', 'name': 'Halogen Bond'},
             'cation_pi': {'color': '#FF00FF', 'linestyle': '--', 'linewidth': 1.5,
-                       'marker_text': 'C+π', 'marker_bg': 'white', 'name': 'Cation-Pi'},
+                    'marker_text': 'C+π', 'marker_bg': 'white', 'name': 'Cation-Pi'},
             'metal_coordination': {'color': '#FFD700', 'linestyle': '-', 'linewidth': 1.5,
-                               'marker_text': 'M', 'marker_bg': '#FFFACD', 'name': 'Metal Coordination'},
+                            'marker_text': 'M', 'marker_bg': '#FFFACD', 'name': 'Metal Coordination'},
             'salt_bridge': {'color': '#FF6347', 'linestyle': '-', 'linewidth': 1.5,
-                         'marker_text': 'S', 'marker_bg': '#FFEFD5', 'name': 'Salt Bridge'},
+                        'marker_text': 'S', 'marker_bg': '#FFEFD5', 'name': 'Salt Bridge'},
             'covalent': {'color': '#000000', 'linestyle': '-', 'linewidth': 2.0,
-                      'marker_text': 'COV', 'marker_bg': '#FFFFFF', 'name': 'Covalent Bond'}
+                    'marker_text': 'COV', 'marker_bg': '#FFFFFF', 'name': 'Covalent Bond'},
+            # NEW interaction styles
+            'alkyl_pi': {'color': '#4682B4', 'linestyle': '--', 'linewidth': 1.5,
+                    'marker_text': 'A-π', 'marker_bg': 'white', 'name': 'Alkyl-Pi'},
+            'attractive_charge': {'color': '#1E90FF', 'linestyle': '-', 'linewidth': 1.5,
+                            'marker_text': 'A+', 'marker_bg': '#E6E6FA', 'name': 'Attractive Charge'},
+            'pi_cation': {'color': '#FF00FF', 'linestyle': '--', 'linewidth': 1.5,
+                    'marker_text': 'π-C+', 'marker_bg': 'white', 'name': 'Pi-Cation'},
+            'repulsion': {'color': '#DC143C', 'linestyle': '-', 'linewidth': 1.5,
+                    'marker_text': 'R', 'marker_bg': '#FFC0CB', 'name': 'Repulsion'}
         }
+    
 
         # Function to find box edge intersection
         def find_box_edge(box_center, target_point, width, height):
@@ -1640,9 +2137,9 @@ class HybridProtLigMapper:
         print(f"Interaction diagram saved to {output_file}")
         return output_file
     
+    
     def filter_interactions_directly(self):
         """Emergency filter to remove chemically implausible interactions."""
-        
         # Define which residues can participate in which interaction types
         aromatic_residues = {'PHE', 'TYR', 'TRP', 'HIS'}
         charged_residues = {'ASP', 'GLU', 'LYS', 'ARG', 'HIS'}
@@ -1704,22 +2201,41 @@ class HybridProtLigMapper:
         
         # Detect protein-ligand interactions
         print("Detecting interactions...")
-        self.detect_interactions()
+        self.detect_interactions() 
         
         print(f"Before filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
-        #self.filter_interactions_directly()
-        print(f"After filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
         
         # Calculate solvent accessibility
         print("Calculating solvent accessibility...")
-        if use_dssp:
-            try:
+        try:
+            if use_dssp:
+                # Try DSSP first
+                print("Trying DSSP method first...")
                 self.calculate_dssp_solvent_accessibility()
-            except:
-                print("DSSP failed, falling back to geometric estimation")
-                self.estimate_solvent_accessibility()
-        else:
-            self.calculate_python_solvent_accessibility()
+                
+                # Check if DSSP found too many solvent accessible residues
+                if len(self.solvent_accessible) > len(self.interacting_residues) * 0.5:
+                    print("DSSP found too many solvent accessible residues, using realistic method")
+                    self.calculate_realistic_solvent_accessibility()
+                # Check if DSSP found too few or no solvent accessible residues
+                elif len(self.solvent_accessible) < 2:
+                    print("DSSP didn't find enough solvent accessible residues, using realistic method")
+                    self.calculate_realistic_solvent_accessibility()
+            else:
+                # Use our realistic method
+                self.calculate_realistic_solvent_accessibility()
+        except Exception as e:
+            print(f"Error calculating solvent accessibility: {str(e)}")
+            print("Falling back to realistic method")
+            self.calculate_realistic_solvent_accessibility(exposure_threshold=0.2)
+        
+        # Make sure we don't have all residues marked as solvent accessible
+        if len(self.solvent_accessible) == len(self.interacting_residues):
+            print("WARNING: All residues marked as solvent accessible - this is likely incorrect")
+            print("Applying stricter filtering")
+            
+            # Keep only 40% max of interacting residues as solvent accessible
+            self.calculate_realistic_solvent_accessibility(exposure_threshold=0.3, max_percent=0.4)
         
         # Generate visualization
         print("Generating visualization...")
@@ -1742,6 +2258,4 @@ class HybridProtLigMapper:
         
         return viz_file
     
-# Defined improved interaction detction method
-
 HybridProtLigMapper = add_interaction_detection_methods (HybridProtLigMapper)

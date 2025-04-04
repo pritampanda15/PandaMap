@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pandamap"
-version = "3.7"
+version = "4.0.0"
 description = "A Python package for visualizing protein-ligand interactions with 2D ligand structure representation"
 readme = "README.md"
 authors = [
@@ -27,9 +27,12 @@ dependencies = [
 ]
 requires-python = ">=3.7"
 
+[project.optional-dependencies]
+fancy = ["rich>=13.0"]
+
 [project.urls]
-"Homepage" = "https://github.com/yourusername/pandamap"
-"Bug Tracker" = "https://github.com/yourusername/pandamap/issues"
+"Homepage" = "https://github.com/pritampanda15/pandamap"
+"Bug Tracker" = "https://github.com/pritampanda15/pandamap/issues"
 
 [project.scripts]
 pandamap = "pandamap.cli:main"
@@ -37,3 +40,4 @@ pandamap = "pandamap.cli:main"
 [tool.long_description]
 long-description = "file:README.md"
 long-description-content-type = "text/markdown"
+

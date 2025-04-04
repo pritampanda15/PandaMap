@@ -13,34 +13,46 @@ import threading
 from .core import SimpleLigandStructure, HybridProtLigMapper
 
 __all__ = ["SimpleLigandStructure", "HybridProtLigMapper"]
-__version__ = "3.7"  # Keep this as fallback if importlib fails
+__version__ = "4.0.0"  # Keep this as fallback if importlib fails
 
 # --- Auto-update checker (non-blocking) ---
 def _check_for_updates():
-    """Check PyPI for newer versions without blocking imports."""
+    """Check PyPI for newer versions and notify user with red box."""
     try:
-        import requests  # Lazy import to avoid adding dependency unless needed
-        
-        package_name = "pandamap"  # PyPI package name (adjust if different)
-        current_version = version(package_name)  # Gets installed version
-        
-        # Fetch latest version from PyPI
+        import requests  # Lazy import
+        import importlib.util
+        import shutil
+
+        package_name = "pandamap"
+        current_version = version(package_name)
+
         response = requests.get(
             f"https://pypi.org/pypi/{package_name}/json",
-            timeout=2  # Fail quickly if PyPI is slow/unreachable
+            timeout=2
         )
         latest_version = response.json()["info"]["version"]
-        
+
         if current_version != latest_version:
-            warnings.warn(
-                f"PandaMap {latest_version} is available (you have {current_version}). "
-                f"Run `pip install --upgrade {package_name}` to update.\n"
-                "To disable this check, set env var PANDAMAP_NO_UPDATE_CHECK=1.",
-                UserWarning,
-                stacklevel=2
+            message = (
+                f"\n🚨 [bold red]PandaMap {latest_version} is available![/bold red] "
+                f"[dim](you have {current_version})[/dim]\n\n"
+                f"[yellow]Update with:[/yellow] [green]pip install --upgrade {package_name}[/green]\n"
+                f"[dim]To disable update checks, set: PANDAMAP_NO_UPDATE_CHECK=1[/dim]\n"
             )
+
+            # Use rich if available and stdout is a terminal
+            if shutil.which("rich"):
+                try:
+                    from rich.console import Console
+                    console = Console()
+                    console.print(message)
+                except ImportError:
+                    warnings.warn(message, UserWarning, stacklevel=2)
+            else:
+                warnings.warn(message, UserWarning, stacklevel=2)
+
     except Exception:
-        pass  # Silently fail on any error (network, PyPI down, etc.)
+        pass  # Don't crash anything if this fails
 
 # Run check only if not disabled
 if not __import__('os').getenv("PANDAMAP_NO_UPDATE_CHECK"):
