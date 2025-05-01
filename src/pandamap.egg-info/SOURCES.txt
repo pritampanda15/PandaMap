@@ -2,11 +2,12 @@ LICENSE
 README.md
 pyproject.toml
 setup.py
+src/pandamap/3d_backup.py
 src/pandamap/__init__.py
 src/pandamap/cli.py
 src/pandamap/core.py
+src/pandamap/create_3d_view.py
 src/pandamap/improved_interaction_detection.py
-src/pandamap/visualization_3d.py
 src/pandamap.egg-info/PKG-INFO
 src/pandamap.egg-info/SOURCES.txt
 src/pandamap.egg-info/dependency_links.txt

@@ -157,6 +157,10 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
   <div id='controls'>
     <button onclick='viewer.zoomTo(); viewer.render();'>Reset View</button>
     <button onclick="exportImage();">Export PNG</button>
+    <button onclick='clearSelection();'>Clear Selection</button>
+    <button onclick='viewer.setStyle({{hetflag: true}}, {{stick: {{colorscheme: "elementColors", radius: 0.3}}}}); viewer.zoomTo({{hetflag: true}}); viewer.render();'>Show Ligand</button>
+
+
   </div>
   <script>
     var viewer;
@@ -182,17 +186,26 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
       showTooltip(data.label, data.center);
     }}
 
-    function exportImage() {{
+    function clearSelection() {{
+        if (labelHandle) viewer.removeLabel(labelHandle);
+        labelHandle = null;
         viewer.render();
-        viewer.pngURI(function(uri) {{
-            var link = document.createElement('a');
-            link.download = 'panda_map_export.png';
-            link.href = uri;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        }});
     }}
+
+    function selectLigand(resname) {{
+        viewer.setStyle({{hetflag: true, resn: resname}}, {{stick: {{colorscheme: 'elementColors', radius: 0.3}}}});
+        viewer.zoomTo({{hetflag: true, resn: resname}});
+        viewer.render();
+    }}
+
+    function exportImage() {{
+        viewer.getCanvas().toBlob(function(blob) {{
+            var link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'pandamap_visualization.png';
+            link.click();
+        }});
+        }}
 
     $(document).ready(function() {{
       viewer = $3Dmol.createViewer($('#container'), {{backgroundColor: 'white'}});
