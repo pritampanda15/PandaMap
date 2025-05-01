@@ -34,8 +34,8 @@ full = ["rich>=13.0", "py3Dmol"]
 
 
 [project.urls]
-"Homepage" = "https://github.com/pritampanda15/pandamap"
-"Bug Tracker" = "https://github.com/pritampanda15/pandamap/issues"
+"Homepage" = "https://github.com/pritampanda15/PandaMap"
+"Bug Tracker" = "https://github.com/pritampanda15/PandaMap/issues"
 
 [project.scripts]
 pandamap = "pandamap.cli:main"
