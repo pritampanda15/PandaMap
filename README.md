@@ -2,11 +2,32 @@
 
 **P**rotein **AND** lig**A**nd interaction **MAP**per: A Python package for visualizing protein-ligand interactions with 2D ligand structure representation
 
-[![PyPI version](https://badge.fury.io/py/pandamap.svg)](https://badge.fury.io/py/pandamap)
-[![Development Status](https://img.shields.io/pypi/status/pandamap.svg)](https://pypi.org/project/pandamap/)
-[![License](https://img.shields.io/pypi/l/pandamap.svg)](https://github.com/pritampanda15/pandamap/blob/main/LICENSE)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
+</p>
+<p align="center">
+  <a href="https://pypi.org/project/pandamap/">
+    <img src="https://img.shields.io/pypi/v/pandamap.svg" alt="PyPI Version">
+  </a>
+  <a href="https://github.com/pritampanda15/PandaMap/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/pritampanda15/PandaMap" alt="License">
+  </a>
+  <a href="https://github.com/pritampanda15/PandaMap/stargazers">
+    <img src="https://img.shields.io/github/stars/pritampanda15/PandaMap?style=social" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/pritampanda15/PandaMap/issues">
+    <img src="https://img.shields.io/github/issues/pritampanda15/PandaMap" alt="GitHub Issues">
+  </a>
+  <a href="https://github.com/pritampanda15/PandaMap/network/members">
+    <img src="https://img.shields.io/github/forks/pritampanda15/PandaMap?style=social" alt="GitHub Forks">
+  </a>
+  <a href="https://pepy.tech/project/PandaMap">
+    <img src="https://static.pepy.tech/badge/PandaMap" alt="Downloads">
+  </a>
+</p>
 
-**Version 4.0.0: First Official Stable Release**
+
+**Version 4.1.0: With 3D HTML rendering**
 
 PandaMap is a Python package for visualizing protein-ligand interactions with enhanced detection methods.
 
@@ -24,6 +45,9 @@ PandaMap is a Python package for visualizing protein-ligand interactions with en
 - Realistic solvent accessibility calculation
 - Support for multiple input formats (PDB, CIF, PDBQT)
 - Detailed interaction reports
+- 3D Maps with rendering
+👉 [Click here for a live interactive 3D example](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_3d_visualization.html)
+
 
 ## Installation
 
@@ -31,39 +55,17 @@ PandaMap is a Python package for visualizing protein-ligand interactions with en
 pip install pandamap
 ```
 
-## Stability Notice
+## Optional Features
 
-Starting with version 4.0.0, PandaMap is now in stable release status. We follow semantic versioning and maintain backward compatibility within the 4.x series.
+- **Rich CLI Output** (colored update messages):  
+  `pip install pandamap[fancy]`
 
-## PandaMap 4.0.0: Official Stable Release
+- **3D HTML Visualization Support** (via py3Dmol):  
+  `pip install pandamap[viz]`
 
-This version marks the first official stable release of PandaMap. After extensive development and refinement through earlier versions, PandaMap 4.0.0 provides a complete, stable API for visualizing protein-ligand interactions.
+- **All Features**:  
+  `pip install pandamap[full]`
 
-<p align="center">
-  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
-</p>
-
-## Overview
-
-PandaMap is a lightweight tool for visualizing protein-ligand interactions from PDB files. It generates intuitive 2D interaction diagrams that display both the ligand structure and its interactions with protein residues.
-
-Key features:
-- Multiple structure format support e.g., pdb, mmcif, cif, pdbqt
-- Visualization of protein-ligand interactions with minimal dependencies
-- 2D representation of ligand structure without requiring RDKit
-- Detection of multiple interaction types (hydrogen bonds, π-stacking, hydrophobic)
-- Command-line interface for quick analysis
-- Python API for integration into computational workflows
-
-## Installation
-
-```bash
-pip install pandamap
-```
-OR
-```bash
-pip install pandamap[fancy]
-```
 ## Dependencies
 - dssp #It can be installed externally
 ```bash
@@ -77,108 +79,151 @@ Windows: Download from https://swift.cmbi.umcn.nl/gv/dssp/
 
 ## Basic Usage
 ```bash
-usage: pandamap [-h] [--output OUTPUT] [--ligand LIGAND] [--dpi DPI]
-                [--title TITLE] [--version] [--report]
-                [--report-file REPORT_FILE]
-                structure_file
+pandamap -h
 
+usage: pandamap [-h] [--output OUTPUT] [--ligand LIGAND] [--dpi DPI] [--title TITLE] [--version] [--report] [--report-file REPORT_FILE] [--3d] [--3d-output OUTPUT_3D] [--no-surface] [--width WIDTH] [--height HEIGHT] [--no-3d-cues] structure_file
 
 PandaMap: Visualize protein-ligand interactions from structure files
 
 positional arguments:
-  structure_file        Path to structure file (PDB, mmCIF/CIF, or PDBQT
-                        format)
+  structure_file        Path to structure file (PDB, mmCIF/CIF, or PDBQT format)
 
 options:
   -h, --help            show this help message and exit
-  --output OUTPUT, -o OUTPUT
-                        Output image file path
-  --ligand LIGAND, -l LIGAND
-                        Specific ligand residue name to analyze
+  --output, -o OUTPUT   Output image file path
+  --ligand, -l LIGAND   Specific ligand residue name to analyze
   --dpi DPI             Image resolution (default: 300 dpi)
-  --title TITLE, -t TITLE
-                        Custom title for the visualization
+  --title, -t TITLE     Custom title for the visualization
   --version, -v         Show version information
   --report, -r          Generate text report
   --report-file REPORT_FILE
-                        Output file for the text report (default: based on
-                        structure filename)
+                        Output file for the text report (default: based on structure filename)
+  --3d                  Generate an interactive 3D visualization of protein-ligand interactions
+  --3d-output OUTPUT_3D
+                        Output file path for 3D visualization (default: based on input filename)
+  --no-surface          Do not show protein surface in 3D visualization
+  --width WIDTH         Width of 3D visualization in pixels (default: 800)
+  --height HEIGHT       Height of 3D visualization in pixels (default: 600)
+  --no-3d-cues          Disable 3D cues in 2D visualization
 
 ```
 
 ### Command Line Interface
 
 ```bash
-# Basic usage
+## 🐼 PandaMap — Protein AND ligAnd interaction MAPper
+
+Visualize protein-ligand interactions in both **2D image format** and **interactive 3D HTML** with optional reports.
+
+---
+
+### 🚀 Command-Line Usage
+
+```bash
+# Basic 2D interaction map
 pandamap protein_ligand.pdb --output interactions.png
-pandamap complex.cif --output cif_interaction.png
 
+# With specific ligand
+pandamap complex.cif --ligand LIG --output cif_interaction.png
 
-# Specify a particular ligand by residue name
-pandamap protein_ligand.pdb --ligand LIG
+# Generate text report
+pandamap 4jmz.pdb --ligand HEM --report --report-file HEM.txt
+pandamap 1m17.pdb --ligand AQ4 --report --report-file 1m17.txt
 
-#Add report
-pandamap complex.pdb --report-file complex.txt --report  --lig PFL
-pandamap 4jmz.pdb --ligand HEM --report-file HEM.txt --report
-pandamap 1m17.pdb --ligand AQ4 --report-file 1m17.txt --report
+# Full analysis: image + report
+pandamap complex.pdb --ligand PFL --output complex.png --report --report-file complex.txt
 ```
 
-### Python API
+---
+
+### 🌐 3D Visualization (Interactive HTML)
+
+```bash
+# Basic 3D HTML map
+pandamap protein_ligand.pdb --3d
+
+# Save HTML to custom file
+pandamap complex.pdb --ligand LIG --3d --3d-output interaction.html
+
+# Full combo: 2D image + 3D HTML + report
+pandamap structure.pdb --ligand LIG --output map.png --3d --3d-output map.html --report --report-file map.txt
+
+# Customize 3D size
+pandamap structure.pdb --3d --width 1024 --height 768 --no-surface
+```
+
+---
+
+### 🧪 Python API
 
 ```python
 from pandamap import HybridProtLigMapper
 
-# Initialize with PDB file
+# Basic initialization
 mapper = HybridProtLigMapper("protein_ligand.pdb", ligand_resname="LIG")
 
-# Run analysis and generate visualization
-output_file = mapper.run_analysis(output_file="interactions.png")
+# Run full workflow and generate 2D image
+mapper.run_analysis()
+mapper.visualize(output_file="interactions.png")
 
-# Or run steps separately
-mapper.detect_interactions()
-mapper.estimate_solvent_accessibility()
-mapper.visualize(output_file="interactions.png")
+# Generate interactive 3D HTML
+from visualization_3d import create_pandamap_3d_viz
+create_pandamap_3d_viz(mapper, output_file="interactions.html")
 ```
-# Using external DSSP (recommended)
-mapper.visualize(output_file="interactions.png")
-```
-mapper = HybridProtLigMapper("protein_ligand.pdb")
+
+---
+
+### 🧬 DSSP Integration (solvent-accessibility)
+
+```python
+# Use DSSP for accurate surface exposure detection
 mapper.run_analysis(use_dssp=True)
-mapper.visualize(output_file="interactions.png")
-```
-# Using pure Python implementation
-mapper.visualize(output_file="interactions.png")
-```
-mapper.run_analysis(use_dssp=False)
-mapper.visualize(output_file="interactions.png")
+mapper.visualize(output_file="with_dssp.png")
 ```
 
-# Generate report
+Or fallback to Python-only:
+```python
+mapper.run_analysis(use_dssp=False)
+mapper.visualize(output_file="pure_python.png")
+```
+
+---
+
+### 📄 Report Generation (Improved Filtered Interactions)
 
 ```python
 from improved_interaction_detection import ImprovedInteractionDetection
 
-# After you've created and run your mapper
-mapper = HybridProtLigMapper(...)
+mapper = HybridProtLigMapper("protein.pdb", ligand_resname="LIG")
 mapper.run_analysis()
 
-# Apply improved filtering as a post-processing step
+# Optional: refine results
 detector = ImprovedInteractionDetection()
-filtered_interactions = detector.refine_interactions(mapper.interactions)
+filtered = detector.refine_interactions(mapper.interactions)
 
-# Generate a report
-report = detector.generate_report(
-    {
+# Write to report
+detector.generate_report(
+    ligand_metadata={
         'hetid': mapper.ligand_residue.resname,
         'chain': mapper.ligand_residue.parent.id,
         'position': mapper.ligand_residue.id[1],
         'longname': mapper.ligand_residue.resname,
-        'type': 'LIGAND'
+        'type': 'LIGAND',
     },
-    filtered_interactions,
-    "interaction_report.txt"
+    interaction_data=filtered,
+    output_file="filtered_report.txt"
 )
 ```
+
+---
+
+### 🆘 Help & Version
+
+```bash
+pandamap -h
+pandamap --version
+```
+---
 
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1els_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
@@ -273,58 +318,6 @@ Repulsion:
 
 =============================================================================
 ```
-
-## PandaMap 4.0.0: Official Stable Release
-
-This version marks the first official stable release of PandaMap. After extensive development and refinement through earlier versions, PandaMap 4.0.0 provides a complete, stable API for visualizing protein-ligand interactions.
-
-## Version History
-
-## Development Phases
-
-PandaMap has gone through several development phases:
-
-- **Versions 1.x - 3.7.x** (Initial Development): These early versions represented the development phase of PandaMap, with evolving APIs and features.
-
-- **Version 4.0.0** (First Official Stable Release): This release marks the transition to a stable, production-ready package with a commitment to API stability and semantic versioning.
-
-
-### Stability Guarantees
-
-- **API Stability**: The core API will remain backwards compatible throughout the 4.x series
-- **Semantic Versioning**: We now strictly follow semantic versioning:
-  - Patch releases (4.0.x): Bug fixes only
-  - Minor releases (4.x.0): New features, no breaking changes
-  - Major releases (x.0.0): May contain breaking changes
-- **Deprecation Policy**: Features will not be removed without being deprecated in at least one minor release
-
-
-# Changelog
-
-All notable changes to PandaMap will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-## [4.0.0] - 2025-04-04
-
-### Stability Notice
-**This is the first official stable release of PandaMap.** After multiple development versions, we're now committing to API stability and following semantic versioning strictly.
-
-### Added
-- Complete and stable API for protein-ligand interaction visualization
-- New interaction types:
-  - Alkyl-Pi interactions
-  - Attractive charge interactions
-  - Pi-cation interactions
-  - Repulsion interactions
-- Improved solvent accessibility calculation with more realistic results
-- Enhanced metal coordination detection and reporting
-
-### Fixed
-- Corrected solvent accessibility detection to show partial rather than complete accessibility
-- Fixed missing metal ion interactions in text reports
-- Comprehensive code cleanup and stability improvements
 
 ## Citation
 

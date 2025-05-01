@@ -18,7 +18,7 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
-keywords = ["bioinformatics", "protein-ligand", "interactions", "visualization", "drug-design"]
+keywords = ["bioinformatics", "protein-ligand", "interactions", "visualization", "drug-design", "3Dmol", "rich", "docking"]
 dependencies = [
     "numpy>=1.20.0",
     "matplotlib>=3.4.0",
@@ -29,6 +29,9 @@ requires-python = ">=3.7"
 
 [project.optional-dependencies]
 fancy = ["rich>=13.0"]
+viz = ["py3Dmol"]  # For 3Dmol.js HTML generation
+full = ["rich>=13.0", "py3Dmol"]
+
 
 [project.urls]
 "Homepage" = "https://github.com/pritampanda15/pandamap"
