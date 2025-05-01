@@ -47,7 +47,7 @@ PandaMap is a Python package for visualizing protein-ligand interactions with en
 - Detailed interaction reports
 - 3D Maps with rendering
 👉 [Click here for a live interactive 3D example](https://github.com/pritampanda15/PandaMap/blob/main/test/complex_3d_visualization.html)
-
+![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/pandamap_3d_visualization.png)
 
 
 ## Installation
