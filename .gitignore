@@ -7,6 +7,8 @@ __pycache__/
 .pyc
 __pycache__
 .claude/
+.claude_cache/
+.claude
 
 # C extensions
 *.so
