@@ -6,6 +6,7 @@ __pycache__/
 .DS_Store
 .pyc
 __pycache__
+.claude/
 
 # C extensions
 *.so
