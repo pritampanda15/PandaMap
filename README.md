@@ -319,7 +319,7 @@ If you use PandaMap in your research, please cite:
 ```
 Pritam Kumar Panda. (2025). PandaMap: A Python Package for Comprehensive
 Visualization of Protein–Ligand Interaction Networks and Empirical Binding
-Affinity Estimation. Boring Science LLC.
+Affinity Estimation. Stanford University, CA, USA
 https://github.com/pritampanda15/PandaMap
 ```
 
