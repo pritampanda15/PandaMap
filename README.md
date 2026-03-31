@@ -256,7 +256,6 @@ All cutoffs are validated against PLIP and published crystallographic surveys:
 
 ### 2D Interaction Diagram
 
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1els_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1m17_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/4jmz_interactions.png)
