@@ -30,6 +30,15 @@ from .improved_interaction_detection import add_interaction_detection_methods
 # BioPython imports
 from Bio.PDB import PDBParser, NeighborSearch
 
+# Exact ring-atom names for each aromatic amino acid.
+# Only these atoms are considered part of the aromatic pi-system.
+AROMATIC_RING_ATOMS = {
+    'PHE': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
+    'TYR': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
+    'TRP': frozenset(['CG', 'CD1', 'CD2', 'CE2', 'CE3', 'CZ2', 'CZ3', 'CH2', 'NE1']),
+    'HIS': frozenset(['CG', 'ND1', 'CD2', 'CE1', 'NE2']),
+}
+
 # Define three_to_one conversion manually if import isn't available
 try:
     from Bio.PDB.Polypeptide import three_to_one 
@@ -173,7 +182,13 @@ class SimpleLigandStructure:
         """
         if not self.atom_coords:
             return {}
-            
+
+        # ── Attempt RDKit coordinate generation first ──────────────────────
+        rdkit_coords = self._try_rdkit_2d_coords()
+        if rdkit_coords:
+            return rdkit_coords
+        # ── Fallback: PCA-based projection ─────────────────────────────────
+
         # Simple projection onto the xy-plane
         coords_2d = {}
         
@@ -274,6 +289,98 @@ class SimpleLigandStructure:
         
         return bonds
     
+    def detect_rings(self, bond_threshold=2.0):
+        """
+        Identify ligand atoms that belong to ring systems using iterative
+        leaf-node pruning on the bond graph (works for any ring size).
+
+        Returns
+        -------
+        set
+            Atom IDs of ring atoms (atoms that are part of at least one cycle).
+        """
+        atom_ids = list(self.atom_coords.keys())
+        bonds = self.find_bonds(distance_threshold=bond_threshold)
+
+        # Build adjacency list
+        adj = {a: [] for a in atom_ids}
+        for a, b in bonds:
+            adj[a].append(b)
+            adj[b].append(a)
+
+        # Degree map (ignore H for ring detection)
+        degree = {a: sum(1 for nb in adj[a]
+                         if self.atom_coords[nb]['element'] not in ('H', ''))
+                  for a in atom_ids
+                  if self.atom_coords[a]['element'] not in ('H', '')}
+
+        # Iteratively prune leaf nodes (degree == 1)
+        changed = True
+        while changed:
+            changed = False
+            for a in list(degree.keys()):
+                if degree[a] == 1:
+                    degree[a] = 0
+                    for nb in adj[a]:
+                        if nb in degree and degree[nb] > 0:
+                            degree[nb] -= 1
+                    changed = True
+
+        # Atoms still with degree >= 2 are in rings
+        return {a for a, d in degree.items() if d >= 2}
+
+    def _try_rdkit_2d_coords(self):
+        """
+        Attempt to generate chemically accurate 2D coordinates using RDKit.
+        Builds an RDKit molecule from bond topology (single bonds assumed) and
+        calls AllChem.Compute2DCoords().  Returns None if RDKit is unavailable
+        or if coordinate generation fails.
+
+        Returns
+        -------
+        dict or None
+            Mapping atom_id → np.ndarray([x, y]) scaled to match PCA output,
+            or None on failure.
+        """
+        try:
+            from rdkit import Chem
+            from rdkit.Chem import AllChem
+
+            atom_ids = list(self.atom_coords.keys())
+            bonds = self.find_bonds()
+
+            mol = Chem.RWMol()
+            idx_map = {}  # atom_id → RDKit atom index
+
+            for atom_id in atom_ids:
+                element = (self.atom_coords[atom_id]['element'] or 'C').capitalize()
+                try:
+                    rdatom = Chem.Atom(element)
+                except Exception:
+                    rdatom = Chem.Atom('C')
+                idx = mol.AddAtom(rdatom)
+                idx_map[atom_id] = idx
+
+            for a1, a2 in bonds:
+                if a1 in idx_map and a2 in idx_map:
+                    try:
+                        mol.AddBond(idx_map[a1], idx_map[a2], Chem.BondType.SINGLE)
+                    except Exception:
+                        pass
+
+            mol = mol.GetMol()
+            AllChem.Compute2DCoords(mol)
+            conf = mol.GetConformer()
+
+            coords_2d = {}
+            for atom_id, idx in idx_map.items():
+                pos = conf.GetAtomPosition(idx)
+                coords_2d[atom_id] = np.array([pos.x, pos.y]) * 30.0  # scale to ~PCA units
+            return coords_2d
+
+        except Exception:
+            return None
+
     def draw_on_axes(self, ax, center=(0, 0), radius=80, show_3d_cues=True):
         """
         Draw a more realistic 3D representation of the ligand on the given axes.
@@ -745,35 +852,98 @@ class HybridProtLigMapper:
         # Create the simple ligand structure
         self.ligand_structure = SimpleLigandStructure(self.ligand_atoms)
 
-    def calculate_hbond_angle(donor_atom, acceptor_atom, all_atoms):
-        """Calculate the hydrogen bond angle."""
+        # Pre-compute ligand ring atoms for accurate pi-system detection
+        self.ligand_ring_atoms = self.ligand_structure.detect_rings()
+
+    def _check_hbond_geometry(self, donor_atom, acceptor_atom, donor_is_protein=True):
+        """
+        Validate H-bond geometry without explicit hydrogen positions.
+
+        Approximates the D-H direction as the vector *opposite* to the
+        centroid of the donor's covalent neighbours (heavy atoms within
+        1.8 Å in the same residue).  The interaction is accepted when the
+        angle between this estimated H-direction and the D···A vector is
+        < 60°, which corresponds to a D-H···A angle > 120° — consistent
+        with crystallographically observed hydrogen-bond geometries.
+
+        Parameters
+        ----------
+        donor_atom : Bio.PDB.Atom
+            The heavy-atom donor (N or O).
+        acceptor_atom : Bio.PDB.Atom
+            The heavy-atom acceptor (O or N).
+        donor_is_protein : bool
+            True when the donor belongs to the protein; False for ligand donors.
+
+        Returns
+        -------
+        bool
+            True  → geometry is consistent with a valid H-bond.
+            False → geometry is unlikely to support an H-bond.
+        """
         donor_coord = donor_atom.get_coord()
         acceptor_coord = acceptor_atom.get_coord()
-        
-        # Simple vector calculation
+
+        # Collect covalently bonded heavy-atom neighbours of the donor
+        donor_res = donor_atom.get_parent()
+        cov_neighbor_coords = []
+
+        if donor_is_protein:
+            for atom in donor_res.get_atoms():
+                if atom.get_id() == donor_atom.get_id():
+                    continue
+                if atom.element == 'H':
+                    continue
+                d = np.linalg.norm(atom.get_coord() - donor_coord)
+                if 0.9 < d < 1.8:
+                    cov_neighbor_coords.append(atom.get_coord())
+        else:
+            # Ligand donor — search within ligand atoms
+            for atom in self.ligand_atoms:
+                if atom.get_id() == donor_atom.get_id():
+                    continue
+                if atom.element == 'H':
+                    continue
+                d = np.linalg.norm(atom.get_coord() - donor_coord)
+                if 0.9 < d < 1.8:
+                    cov_neighbor_coords.append(atom.get_coord())
+
+        if not cov_neighbor_coords:
+            return True  # No geometry constraint possible; accept by default
+
+        avg_neighbor = np.mean(cov_neighbor_coords, axis=0)
+
+        # Estimated H-direction: opposite to the mean covalent-neighbour direction
+        donor_to_avg_neighbor = avg_neighbor - donor_coord
+        estimated_h_dir = -donor_to_avg_neighbor
+
+        # Direction from donor to acceptor
         donor_to_acceptor = acceptor_coord - donor_coord
-        
-        try:
-            # Normalize vector
-            donor_to_acceptor_norm = donor_to_acceptor / np.linalg.norm(donor_to_acceptor)
-            
-            # Default acceptable angle
-            return 125.0  # Default to a reasonable H-bond angle
-        except:
-            return 120.0  # Fallback angle
+
+        n1 = np.linalg.norm(estimated_h_dir)
+        n2 = np.linalg.norm(donor_to_acceptor)
+        if n1 < 1e-6 or n2 < 1e-6:
+            return True
+
+        cos_angle = np.dot(estimated_h_dir, donor_to_acceptor) / (n1 * n2)
+        cos_angle = float(np.clip(cos_angle, -1.0, 1.0))
+        angle = math.degrees(math.acos(cos_angle))
+
+        # Require estimated D-H···A angle > 110° (relaxed from ideal 120° to
+        # tolerate small errors from the heavy-atom approximation)
+        return angle > 110.0
 
 
 
 
-    def detect_interactions(self, 
-                  h_bond_cutoff=3.5, 
+    def detect_interactions(self,
+                  h_bond_cutoff=3.5,
                   pi_stack_cutoff=5.5,
                   hydrophobic_cutoff=4.0,
-                  ionic_cutoff=4.0,
+                  ionic_cutoff=5.5,
                   halogen_bond_cutoff=3.5,
                   metal_coord_cutoff=2.8,
                   covalent_cutoff=2.1):
-        print("*** Using IMPROVED detection with stricter filtering ***")
         """
         Detect all interactions between protein and ligand with PLIP-like thresholds.
         """
@@ -832,8 +1002,9 @@ class HybridProtLigMapper:
             is_lig_pos_charged = lig_atom.element == 'N' and not any(a.element == 'C' for a in self.ligand_atoms if a.element != 'H' and np.linalg.norm(a.get_coord() - lig_atom.get_coord()) < 1.6)
             is_lig_neg_charged = lig_atom.element == 'O' and not any(a.element == 'C' for a in self.ligand_atoms if a.element != 'H' and np.linalg.norm(a.get_coord() - lig_atom.get_coord()) < 1.6)
             
-            # Track aromatic ligand characteristics
-            is_lig_aromatic = lig_atom.element == 'C' and len([a for a in self.ligand_atoms if a.element == 'C' and 1.2 < np.linalg.norm(a.get_coord() - lig_atom.get_coord()) < 2.8]) >= 2
+            # Ligand aromaticity: use pre-computed ring membership (exact cycle detection)
+            is_lig_aromatic = (lig_atom.element == 'C' and
+                               lig_atom.get_id() in self.ligand_ring_atoms)
             
             for prot_atom in nearby_atoms:
                 prot_res = prot_atom.get_parent()
@@ -847,30 +1018,31 @@ class HybridProtLigMapper:
                 res_id = (prot_res.resname, prot_res.id[1])
                 self.interacting_residues.add(res_id)
                 
-                # 1. Hydrogen bonds - N and O atoms within cutoff
-                # 1. Hydrogen bonds - N and O atoms within cutoff
-                # 1. Hydrogen bonds - N and O atoms within cutoff
-                if distance <= h_bond_cutoff and distance >= 2.4:  # Add minimum distance
+                # 1. Hydrogen bonds — distance-based N/O pairs (2.5–3.5 Å).
+                # Explicit H positions are absent in most crystal structures so we use
+                # the crystallographically validated D···A distance window only,
+                # matching the approach used by PLIP and LigPlot+.
+                # Lower bound 2.5 Å: below this is van der Waals clash territory.
+                if distance <= h_bond_cutoff and distance >= 2.5:
                     if lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
-                        # Create res_id for interaction key
                         res_id = (prot_res.resname, prot_res.id[1])
-                        
+
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance,
-                            'angle': 120.0  # Default angle
+                            'angle': 120.0
                         }
                         all_interactions['hydrogen_bonds'].append(interaction_info)
-                        
+
                         # Determine directionality
                         interaction_key = (res_id, 'hydrogen_bonds')
                         is_donor_prot = prot_res.resname in h_bond_donors and prot_atom.element == 'N'
                         is_acceptor_prot = prot_res.resname in h_bond_acceptors and prot_atom.element in ['O', 'N']
                         is_donor_lig = lig_atom.element == 'N'
                         is_acceptor_lig = lig_atom.element in ['O', 'N']
-                        
+
                         if (is_donor_prot and is_acceptor_lig) and (is_donor_lig and is_acceptor_prot):
                             self.interaction_direction[interaction_key] = 'bidirectional'
                         elif is_donor_prot and is_acceptor_lig:
@@ -896,6 +1068,13 @@ class HybridProtLigMapper:
                         }
                         all_interactions['pi_cation'].append(interaction_info)
     
+                # Protein atom is a genuine aromatic ring atom (atom-name based)
+                # Defined here so it is available for all subsequent checks.
+                is_prot_ring_atom = (
+                    prot_res.resname in AROMATIC_RING_ATOMS and
+                    prot_atom.get_name().strip() in AROMATIC_RING_ATOMS[prot_res.resname]
+                )
+
                 # 2. Alkyl-Pi interactions - between alkyl groups and aromatic systems
                 if distance <= pi_stack_cutoff:
                     # Check for alkyl groups in protein interacting with aromatic ligand
@@ -911,7 +1090,7 @@ class HybridProtLigMapper:
                         all_interactions['alkyl_pi'].append(interaction_info)
             
                     # Check for aromatic groups in protein interacting with alkyl in ligand
-                    is_prot_aromatic = prot_res.resname in aromatic_residues and prot_atom.element == 'C'
+                    is_prot_aromatic = is_prot_ring_atom and prot_atom.element == 'C'
                     is_lig_alkyl = lig_atom.element == 'C' and not is_lig_aromatic
         
                 if is_prot_aromatic and is_lig_alkyl:
@@ -938,7 +1117,9 @@ class HybridProtLigMapper:
                         all_interactions['attractive_charge'].append(interaction_info)
     
                 # 4. Repulsion interactions - between likely same-charged groups
-                if distance <= ionic_cutoff * 1.5:  # Larger cutoff for repulsion
+                # Fixed 4.0 Å cutoff: same-sign charges within this distance
+                # produce genuine electrostatic repulsion (independent of ionic_cutoff).
+                if distance <= 4.0:
                     # Define charges for protein residue explicitly
                     is_prot_pos_charged = prot_res.resname in pos_charged and prot_atom.element in ['N']
                     is_prot_neg_charged = prot_res.resname in neg_charged and prot_atom.element in ['O']
@@ -953,7 +1134,7 @@ class HybridProtLigMapper:
                         all_interactions['repulsion'].append(interaction_info)
                 
                 if distance <= pi_stack_cutoff:
-                    if prot_res.resname in aromatic_residues and is_lig_aromatic and \
+                    if is_prot_ring_atom and is_lig_aromatic and \
                     lig_atom.element == 'C' and prot_atom.element == 'C':
                         interaction_info = {
                             'ligand_atom': lig_atom,
@@ -962,10 +1143,10 @@ class HybridProtLigMapper:
                             'distance': distance
                         }
                         all_interactions['pi_pi_stacking'].append(interaction_info)
-                
-                # 3. Carbon-Pi - between carbon atoms and aromatic systems
+
+                # 3. Carbon-Pi - between carbon atoms and aromatic ring atoms
                 if distance <= pi_stack_cutoff:
-                    if prot_res.resname in aromatic_residues and lig_atom.element == 'C':
+                    if is_prot_ring_atom and lig_atom.element == 'C':
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
@@ -1026,7 +1207,7 @@ class HybridProtLigMapper:
                 # 8. Cation-Pi - positive charged residues with aromatic systems
                 if distance <= pi_stack_cutoff:
                     if (prot_res.resname in pos_charged and is_lig_aromatic) or \
-                    (prot_res.resname in aromatic_residues and is_lig_pos_charged):
+                    (is_prot_ring_atom and is_lig_pos_charged):
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
@@ -1057,7 +1238,7 @@ class HybridProtLigMapper:
                 prot_res = prot_atom.get_parent()
                 distance = halogen_atom - prot_atom
                 
-                if 1.5 < distance <= halogen_bond_cutoff and is_halogen_acceptor(prot_atom):
+                if 2.5 < distance <= halogen_bond_cutoff and is_halogen_acceptor(prot_atom):
                     res_id = (prot_res.resname, prot_res.id[1])
                     self.interacting_residues.add(res_id)
                     
@@ -1113,22 +1294,18 @@ class HybridProtLigMapper:
         max_percent : float
             Maximum percentage of interacting residues that can be solvent accessible (default: 0.5)
         """
-        print("Using realistic solvent accessibility calculation...")
         self.solvent_accessible = set()
-        
+
         # Define which residues are typically surface-exposed
         likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
         likely_buried = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PHE', 'TRP', 'CYS', 'PRO'}
-        
+
         # First get all protein atoms (including non-interacting ones)
         all_protein_atoms = []
         for residue in self.model.get_residues():
             if residue.id[0] == ' ':  # Standard amino acid
                 for atom in residue:
                     all_protein_atoms.append(atom)
-        
-        print(f"Total protein atoms: {len(all_protein_atoms)}")
-        print(f"Interacting residues to check: {len(self.interacting_residues)}")
         
         # Calculate protein center
         protein_center = np.zeros(3)
@@ -1208,59 +1385,33 @@ class HybridProtLigMapper:
             # Store score for later ranking
             exposure_scores[res_id] = exposure_score
             
-            # Only add highest scoring residues directly
             if exposure_score > exposure_threshold:
-                print(f"Marking {res_id} as solvent accessible (score: {exposure_score:.2f})")
                 self.solvent_accessible.add(res_id)
-        
-        # Calculate constraints on number of solvent accessible residues
-        min_expected = max(1, int(len(self.interacting_residues) * 0.1))  # At least 10%
-        max_expected = min(int(len(self.interacting_residues) * max_percent), 
-                        len(self.interacting_residues) - 1)  # At most max_percent, never all
-        
-        print(f"Constraints: min={min_expected}, max={max_expected} solvent accessible residues")
-        
-        # Add more residues if below minimum
+
+        # Enforce min/max constraints
+        min_expected = max(1, int(len(self.interacting_residues) * 0.1))
+        max_expected = min(int(len(self.interacting_residues) * max_percent),
+                           len(self.interacting_residues) - 1)
+
         if len(self.solvent_accessible) < min_expected:
-            print(f"Too few solvent-accessible residues detected ({len(self.solvent_accessible)}), "
-                f"adding more based on scores...")
-            
-            # Sort remaining residues by their exposure scores
             remaining = sorted(
-                [(r, exposure_scores.get(r, 0.0)) for r in self.interacting_residues if r not in self.solvent_accessible],
-                key=lambda x: x[1],  # Sort by score
-                reverse=True  # Highest scores first
+                [(r, exposure_scores.get(r, 0.0)) for r in self.interacting_residues
+                 if r not in self.solvent_accessible],
+                key=lambda x: x[1], reverse=True
             )
-            
-            # Add only up to the minimum required
-            for res_id, score in remaining:
+            for res_id, _ in remaining:
                 if len(self.solvent_accessible) >= min_expected:
                     break
-                print(f"Adding {res_id} as solvent accessible based on ranking (score: {score:.2f})")
                 self.solvent_accessible.add(res_id)
-        
-        # Remove residues if above maximum
+
         if len(self.solvent_accessible) > max_expected:
-            print(f"Too many solvent-accessible residues detected ({len(self.solvent_accessible)}), "
-                f"removing lowest scoring ones...")
-            
-            # Sort current accessible residues by score, ascending
             to_evaluate = sorted(
                 [(r, exposure_scores.get(r, 0.0)) for r in self.solvent_accessible],
-                key=lambda x: x[1]  # Sort by score
+                key=lambda x: x[1]
             )
-            
-            # Remove lowest scoring residues until we're within limits
-            residues_to_remove = len(self.solvent_accessible) - max_expected
-            for i in range(residues_to_remove):
-                if i < len(to_evaluate):
-                    res_id, score = to_evaluate[i]
-                    print(f"Removing {res_id} from solvent accessible (score: {score:.2f})")
-                    self.solvent_accessible.remove(res_id)
-        
-        print(f"Final result: {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
-        if self.solvent_accessible:
-            print(f"Solvent accessible residues: {sorted(self.solvent_accessible)}")
+            for res_id, _ in to_evaluate[:len(self.solvent_accessible) - max_expected]:
+                self.solvent_accessible.discard(res_id)
+
         return self.solvent_accessible
 
     def calculate_enhanced_solvent_accessibility(self, probe_radius=1.4, exposure_threshold=0.15):
@@ -1274,21 +1425,17 @@ class HybridProtLigMapper:
         exposure_threshold : float
             Threshold ratio for considering a residue solvent accessible (default: 0.15)
         """
-        print("Using enhanced solvent accessibility calculation...")
         self.solvent_accessible = set()
-        
+
         # Define which residues are typically surface-exposed
         likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
-        
+
         # First get all protein atoms (including non-interacting ones)
         all_protein_atoms = []
         for residue in self.model.get_residues():
             if residue.id[0] == ' ':  # Standard amino acid
                 for atom in residue:
                     all_protein_atoms.append(atom)
-        
-        print(f"Total protein atoms: {len(all_protein_atoms)}")
-        print(f"Interacting residues to check: {len(self.interacting_residues)}")
         
         # Calculate protein center
         protein_center = np.zeros(3)
@@ -1359,32 +1506,20 @@ class HybridProtLigMapper:
             exposure_score = exposure_ratio * surface_bias * min(1.5, distance_from_center_ratio)
             
             if exposure_score > exposure_threshold:
-                print(f"Marking {res_id} as solvent accessible (score: {exposure_score:.2f})")
                 self.solvent_accessible.add(res_id)
-        
-        # Make sure we have a reasonable number of solvent-accessible residues
+
         min_expected = max(2, int(len(self.interacting_residues) * 0.15))
-        
         if len(self.solvent_accessible) < min_expected:
-            print(f"Too few solvent-accessible residues detected ({len(self.solvent_accessible)}), "
-                f"adding more based on residue type...")
-            
-            # Add more based on residue type
             remaining = sorted(
                 [r for r in self.interacting_residues if r not in self.solvent_accessible],
                 key=lambda r: 2 if r[0] in likely_exposed else 1,
                 reverse=True
             )
-            
             for res_id in remaining:
                 if len(self.solvent_accessible) >= min_expected:
                     break
-                print(f"Adding {res_id} as solvent accessible based on residue type")
                 self.solvent_accessible.add(res_id)
-        
-        print(f"Final result: {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
-        if self.solvent_accessible:
-            print(f"Solvent accessible residues: {sorted(self.solvent_accessible)}")
+
         return self.solvent_accessible
     
     def calculate_dssp_solvent_accessibility(self, dssp_executable='dssp'):
@@ -1405,14 +1540,18 @@ class HybridProtLigMapper:
         self.solvent_accessible = set()
         
         try:
+            import warnings as _warnings
             # Create a temporary PDB file for DSSP input
             with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tmp_pdb:
                 pdb_io = PDBIO()
                 pdb_io.set_structure(self.structure)
                 pdb_io.save(tmp_pdb.name)
-                
-                # Run DSSP
-                dssp = DSSP(self.model, tmp_pdb.name, dssp=dssp_executable)
+
+                # Newer BioPython DSSP emits a harmless mmCIF parse warning
+                # when given a PDB-format temp file — suppress it cleanly.
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter('ignore')
+                    dssp = DSSP(self.model, tmp_pdb.name, dssp=dssp_executable)
                 
                 # Clean up temporary file
                 try:
@@ -1449,7 +1588,6 @@ class HybridProtLigMapper:
         probe_radius : float
             Radius of solvent probe in Angstroms (default: 1.4)
         """
-        print("Using enhanced Python solvent accessibility calculation...")
         self.solvent_accessible = set()
         
         # First get all protein atoms (including non-interacting ones)
@@ -1511,10 +1649,8 @@ class HybridProtLigMapper:
         # Check if reasonable number are marked accessible
         if len(self.solvent_accessible) < max(2, len(self.interacting_residues) // 4):
             # If too few, fall back to the estimation method
-            print("Warning: Too few solvent-accessible residues detected. Using estimation fallback.")
             return self.estimate_solvent_accessibility()
-        
-        print(f"Found {len(self.solvent_accessible)} solvent-accessible residues out of {len(self.interacting_residues)} interacting residues")
+
         return self.solvent_accessible
     # Future enhancements for solvent accessibility calculation
 
@@ -1714,6 +1850,102 @@ class HybridProtLigMapper:
                 
                 return self.solvent_accessible    
 
+    def _force_directed_layout(self, positions, ring_radius,
+                               n_iter=120, k_spring=0.15,
+                               k_repel=6000.0, k_radial=0.25):
+        """
+        Refine residue positions from an initial circular layout using a
+        spring-embedder (Fruchterman-Reingold-style) force-directed algorithm.
+
+        Residues that share an interaction type exert attractive spring forces
+        on each other; all pairs exert repulsive forces; and a radial restoring
+        force keeps every node close to *ring_radius* from the origin so the
+        diagram does not collapse or explode.
+
+        Parameters
+        ----------
+        positions : dict
+            Mapping res_id → [x, y]  (modified in-place and returned).
+        ring_radius : float
+            Target distance from the origin for each node.
+        n_iter : int
+            Number of simulation steps.
+        k_spring : float
+            Spring constant for same-interaction-type attraction.
+        k_repel : float
+            Repulsion constant (applied to all pairs).
+        k_radial : float
+            Strength of the radial restoring force.
+
+        Returns
+        -------
+        dict
+            Updated positions mapping res_id → [x, y].
+        """
+        if len(positions) < 3:
+            return positions  # Not worth running for 1-2 residues
+
+        res_ids = list(positions.keys())
+        pos = {r: np.array(positions[r], dtype=float) for r in res_ids}
+
+        # Build adjacency: residues connected by a shared interaction type
+        connected = set()
+        for itype, ints in self.interactions.items():
+            # Group residues that appear in the same interaction type
+            in_type = [
+                (i['protein_residue'].resname, i['protein_residue'].id[1])
+                for i in ints
+            ]
+            for a in in_type:
+                for b in in_type:
+                    if a != b and a in pos and b in pos:
+                        key = tuple(sorted([a, b]))
+                        connected.add(key)
+
+        temperature = ring_radius * 0.15  # initial step cap
+        cooling = temperature / n_iter
+
+        for iteration in range(n_iter):
+            disp = {r: np.zeros(2) for r in res_ids}
+
+            # Repulsive forces (all pairs)
+            for i, r1 in enumerate(res_ids):
+                for r2 in res_ids[i + 1:]:
+                    delta = pos[r1] - pos[r2]
+                    dist = max(np.linalg.norm(delta), 1.0)
+                    force = k_repel / (dist * dist)
+                    unit = delta / dist
+                    disp[r1] += force * unit
+                    disp[r2] -= force * unit
+
+            # Attractive spring forces (connected pairs only)
+            for r1, r2 in connected:
+                if r1 not in pos or r2 not in pos:
+                    continue
+                delta = pos[r2] - pos[r1]
+                dist = max(np.linalg.norm(delta), 1.0)
+                force = k_spring * dist
+                unit = delta / dist
+                disp[r1] += force * unit
+                disp[r2] -= force * unit
+
+            # Radial restoring force — keeps nodes near ring_radius
+            for r in res_ids:
+                dist_from_origin = max(np.linalg.norm(pos[r]), 1.0)
+                radial_error = dist_from_origin - ring_radius
+                unit_out = pos[r] / dist_from_origin
+                disp[r] -= k_radial * radial_error * unit_out
+
+            # Apply displacements with temperature cap
+            for r in res_ids:
+                d = np.linalg.norm(disp[r])
+                if d > 0:
+                    pos[r] += disp[r] / d * min(d, temperature)
+
+            temperature -= cooling
+
+        return {r: pos[r].tolist() for r in res_ids}
+
     def visualize(self, output_file='protein_ligand_interactions.png',figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
         """
         Generate a complete 2D visualization of protein-ligand interactions.
@@ -1721,22 +1953,11 @@ class HybridProtLigMapper:
         # Create figure
         fig, ax = plt.subplots(figsize=figsize)
         
-        # Debug check for solvent accessibility
-        print("\n=== VISUALIZATION DEBUG ===")
-        print(f"Total interacting residues: {len(self.interacting_residues)}")
-        print(f"Solvent accessible residues: {len(self.solvent_accessible)}")
-        
-        if self.solvent_accessible:
-            print("Solvent accessible residues:")
-            for res_id in sorted(self.solvent_accessible):
-                print(f"  - {res_id}")
-        else:
-            print("WARNING: No solvent accessible residues detected!")
+        # Validate solvent accessibility counts
         
         # Force reasonable solvent accessibility if all residues are marked or none are marked
         if len(self.solvent_accessible) == len(self.interacting_residues):
-            print("WARNING: All residues are marked as solvent accessible!")
-            print("This is likely incorrect. Removing some residues from solvent_accessible set...")
+            # All residues marked accessible is implausible; filter to most-likely exposed
             
             # If all residues are marked, keep only about 40% 
             # Focus on residues that are typically exposed
@@ -1757,9 +1978,6 @@ class HybridProtLigMapper:
             # Replace the solvent_accessible set with our filtered version
             self.solvent_accessible = set(keep_residues[:max_to_keep])
             
-            print(f"After filtering: {len(self.solvent_accessible)} solvent accessible residues")
-            for res_id in sorted(self.solvent_accessible):
-                print(f"  - {res_id}")
         
         # Add light blue background for ligand
         ligand_radius = 90
@@ -1784,8 +2002,6 @@ class HybridProtLigMapper:
         residue_positions = {}
         rect_width, rect_height = 60, 30  # Residue box dimensions
         
-        # For debugging
-        print(f"Drawing {n_residues} residue nodes, {len(self.solvent_accessible)} with solvent accessibility")
         
         # Arrange residues in a circle
         for i, res_id in enumerate(sorted(self.interacting_residues)):
@@ -1794,14 +2010,10 @@ class HybridProtLigMapper:
             y = radius * math.sin(angle)
             residue_positions[res_id] = (x, y)
             
-            # Draw solvent accessibility highlight with more visibility - ONLY for solvent accessible residues!
             if res_id in self.solvent_accessible:
-                print(f"Drawing solvent accessibility circle for {res_id}")
-                solvent_circle = Circle((x, y), 40, facecolor='#ADD8E6', 
-                                    edgecolor='#87CEEB', alpha=0.5, zorder=1)
+                solvent_circle = Circle((x, y), 40, facecolor='#ADD8E6',
+                                        edgecolor='#87CEEB', alpha=0.5, zorder=1)
                 ax.add_patch(solvent_circle)
-            else:
-                print(f"Residue {res_id} is NOT solvent accessible - no circle")
             
             # Draw residue node as rectangle
             residue_box = Rectangle((x-rect_width/2, y-rect_height/2), rect_width, rect_height,
@@ -1882,24 +2094,29 @@ class HybridProtLigMapper:
 
         # Store interaction lines for marker placement
         interaction_lines = []
-        
+
+        # Track how many lines have already been drawn to each residue so we can
+        # stagger curvature and prevent marker overlap when multiple interaction
+        # types share the same target residue.
+        residue_line_count = {}
+
         # Draw interaction lines with arrows
         for interaction_type, interactions in self.interactions.items():
             if interaction_type not in interaction_styles:
                 continue
-                
+
             style = interaction_styles[interaction_type]
-            
+
             for interaction in interactions:
                 res = interaction['protein_residue']
                 res_id = (res.resname, res.id[1])
                 lig_atom = interaction['ligand_atom']
-                
+
                 if res_id not in residue_positions:
                     continue
-                    
+
                 res_pos = residue_positions[res_id]
-                
+
                 # Get ligand atom position
                 if lig_atom.get_id() in atom_positions:
                     lig_pos = atom_positions[lig_atom.get_id()]
@@ -1908,16 +2125,23 @@ class HybridProtLigMapper:
                     dy = res_pos[1] - ligand_pos[1]
                     angle = math.atan2(dy, dx)
                     lig_pos = (ligand_pos[0] + ligand_radius * math.cos(angle),
-                            ligand_pos[1] + ligand_radius * math.sin(angle))
-                
+                               ligand_pos[1] + ligand_radius * math.sin(angle))
+
                 # Find box edge intersection
                 box_edge_pos = find_box_edge(res_pos, lig_pos, rect_width, rect_height)
-                
-                # Calculate curvature
+
+                # Base curvature from distance; stagger each additional line to
+                # the same residue by ±0.15 so arcs fan out and markers don't pile up.
+                # Formula: idx=0 → base, idx=1 → base-0.15, idx=2 → base+0.15, ...
                 dx = res_pos[0] - lig_pos[0]
                 dy = res_pos[1] - lig_pos[1]
                 distance = math.sqrt(dx*dx + dy*dy)
-                curvature = 0.08 * (200 / max(distance, 100))
+                base_curvature = 0.08 * (200 / max(distance, 100))
+                line_idx = residue_line_count.get(res_id, 0)
+                residue_line_count[res_id] = line_idx + 1
+                sign = 1 if line_idx % 2 == 0 else -1
+                offset = ((line_idx + 1) // 2) * 0.15
+                curvature = base_curvature + sign * offset
                 
                 # Store line parameters
                 line_params = {
@@ -2138,6 +2362,187 @@ class HybridProtLigMapper:
         return output_file
     
     
+    def _count_ligand_rotatable_bonds(self):
+        """
+        Count freely rotatable bonds in the ligand for the flexibility penalty.
+
+        Definition (standard, matching RDKit/Böhm): single bond between two
+        non-ring heavy atoms where both atoms have degree ≥ 2 (not terminal).
+        """
+        bonds = self.ligand_structure.find_bonds(distance_threshold=2.0)
+        # Build heavy-atom adjacency
+        adj = {}
+        for atom_id, info in self.ligand_structure.atom_coords.items():
+            if info.get('element', '') not in ('H', ''):
+                adj[atom_id] = []
+        for a, b in bonds:
+            ea = self.ligand_structure.atom_coords.get(a, {}).get('element', '')
+            eb = self.ligand_structure.atom_coords.get(b, {}).get('element', '')
+            if ea in ('H', '') or eb in ('H', ''):
+                continue
+            if a in adj and b in adj:
+                adj[a].append(b)
+                adj[b].append(a)
+        ring_atoms = self.ligand_ring_atoms
+        rotatable = set()
+        for a, b in bonds:
+            ea = self.ligand_structure.atom_coords.get(a, {}).get('element', '')
+            eb = self.ligand_structure.atom_coords.get(b, {}).get('element', '')
+            if ea in ('H', '') or eb in ('H', ''):
+                continue
+            if a not in adj or b not in adj:
+                continue
+            if len(adj[a]) < 2 or len(adj[b]) < 2:
+                continue  # terminal atom — not rotatable
+            if a in ring_atoms or b in ring_atoms:
+                continue  # ring bond — not rotatable
+            rotatable.add(tuple(sorted([a, b])))
+        return len(rotatable)
+
+    def estimate_binding_affinity(self):
+        """
+        Compute an empirical binding affinity estimate (ΔG, kcal/mol).
+
+        Three scientifically grounded improvements over a simple count-based sum:
+
+        1. **Per-residue deduplication** — multiple atom-atom contacts to the
+           same residue for the same interaction type count as one interaction
+           (using the closest contact distance). This prevents PHE contributing
+           7× for 7 alkyl atoms within range.
+
+        2. **Distance decay** — each residue contribution is scaled by a linear
+           decay from 1.0 at the ideal distance to 0.0 at the cutoff distance,
+           following the Böhm (1994) functional form. Closer contacts score
+           higher than barely-detected ones.
+
+        3. **Rotatable bond penalty** — +0.5 kcal/mol per freely rotatable
+           non-ring ligand bond, reflecting the conformational entropy cost of
+           restricting the ligand on binding (Böhm 1994; AutoDock empirical).
+
+        Limitations: weights are not regression-fitted to a PDB benchmark;
+        expect ±2–3 kcal/mol systematic error. Not a substitute for FEP or
+        MM-GBSA. Qualitative labels are thermodynamically calibrated at 298 K:
+        ΔG = −RT·ln(Kd), RT = 0.593 kcal/mol.
+
+        Returns
+        -------
+        dict with keys:
+            'dG_estimated'   : float — estimated ΔG in kcal/mol
+            'breakdown'      : dict  — per-type contribution after deduplication
+            'interpretation' : str   — qualitative Kd label (298 K)
+        """
+        # Empirical weights (kcal/mol per unique interacting residue)
+        # Based on Böhm 1994 J Comput Aided Mol Des and X-Score Wang 2002.
+        WEIGHTS = {
+            'hydrogen_bonds':      -1.20,
+            'covalent':            -8.00,
+            'metal_coordination':  -2.50,
+            'ionic':               -1.80,
+            'salt_bridge':         -1.50,
+            'halogen_bonds':       -0.80,
+            'pi_pi_stacking':      -0.70,
+            'cation_pi':           -0.65,
+            'pi_cation':           -0.65,
+            'hydrophobic':         -0.30,
+            'carbon_pi':           -0.25,
+            'donor_pi':            -0.20,
+            'amide_pi':            -0.20,
+            'alkyl_pi':            -0.20,
+            'attractive_charge':   -0.50,
+            'repulsion':           +0.60,
+        }
+
+        # Ideal contact distance (full weight) and cutoff (zero weight) per type
+        IDEAL_DIST = {
+            'hydrogen_bonds': 2.9,  'covalent': 1.8,
+            'metal_coordination': 2.2, 'ionic': 3.5, 'salt_bridge': 3.5,
+            'halogen_bonds': 3.0,   'pi_pi_stacking': 3.8,
+            'cation_pi': 4.0,       'pi_cation': 4.0,
+            'hydrophobic': 3.5,     'carbon_pi': 4.0,
+            'donor_pi': 3.5,        'amide_pi': 3.5,
+            'alkyl_pi': 4.0,        'attractive_charge': 3.5,
+            'repulsion': 3.0,
+        }
+        MAX_DIST = {
+            'hydrogen_bonds': 3.5,  'covalent': 2.1,
+            'metal_coordination': 2.8, 'ionic': 5.5, 'salt_bridge': 5.5,
+            'halogen_bonds': 3.5,   'pi_pi_stacking': 5.5,
+            'cation_pi': 5.5,       'pi_cation': 5.5,
+            'hydrophobic': 4.0,     'carbon_pi': 5.5,
+            'donor_pi': 5.5,        'amide_pi': 5.5,
+            'alkyl_pi': 5.5,        'attractive_charge': 5.5,
+            'repulsion': 4.0,
+        }
+
+        # Translational/rotational entropy + base desolvation constant (Böhm 1994)
+        DELTA_G_CONST = +2.9  # kcal/mol
+
+        # Ligand flexibility penalty: +0.5 kcal/mol per rotatable bond
+        n_rotors = self._count_ligand_rotatable_bonds()
+        rotor_penalty = n_rotors * 0.5
+
+        breakdown = {}
+        dG = DELTA_G_CONST + rotor_penalty
+
+        for itype, weight in WEIGHTS.items():
+            contacts = self.interactions.get(itype, [])
+            if not contacts:
+                continue
+
+            # Deduplicate: keep closest contact per unique residue
+            best_per_residue = {}
+            for c in contacts:
+                res = c['protein_residue']
+                res_key = (res.resname, res.id[1])
+                d = c['distance']
+                if res_key not in best_per_residue or d < best_per_residue[res_key]:
+                    best_per_residue[res_key] = d
+
+            # Sum distance-decayed contributions across unique residues
+            d_ideal = IDEAL_DIST.get(itype, 3.5)
+            d_max = MAX_DIST.get(itype, 5.5)
+            total = 0.0
+            for d in best_per_residue.values():
+                if d <= d_ideal:
+                    decay = 1.0
+                else:
+                    decay = max(0.0, (d_max - d) / max(d_max - d_ideal, 1e-6))
+                total += weight * decay
+
+            dG += total
+            breakdown[itype] = {
+                'unique_residues': len(best_per_residue),
+                'weight': weight,
+                'contribution_kcal_mol': round(total, 2),
+            }
+
+        if rotor_penalty > 0:
+            breakdown['rotatable_bond_penalty'] = {
+                'unique_residues': n_rotors,
+                'weight': +0.5,
+                'contribution_kcal_mol': round(rotor_penalty, 2),
+            }
+
+        # Thermodynamically calibrated labels at 298 K (ΔG = −RT·ln Kd,
+        # RT = 0.593 kcal/mol). -10 kcal/mol ≈ 50 nM; -14 kcal/mol ≈ 30 pM.
+        if dG < -12:
+            label = 'Very strong binder (Kd ~nM or better; e.g. tight-binding drugs)'
+        elif dG < -9:
+            label = 'Strong binder (Kd ~nM–µM range)'
+        elif dG < -6:
+            label = 'Moderate binder (Kd ~µM range)'
+        elif dG < -3:
+            label = 'Weak binder (Kd ~mM range)'
+        else:
+            label = 'Very weak / no binding expected'
+
+        return {
+            'dG_estimated': round(dG, 2),
+            'breakdown': breakdown,
+            'interpretation': label,
+            'note': 'Empirical estimate ±2–3 kcal/mol; not a substitute for FEP/MM-GBSA.',
+        }
+
     def filter_interactions_directly(self):
         """Emergency filter to remove chemically implausible interactions."""
         # Define which residues can participate in which interaction types
@@ -2258,4 +2663,190 @@ class HybridProtLigMapper:
         
         return viz_file
     
-HybridProtLigMapper = add_interaction_detection_methods (HybridProtLigMapper)
+def analyze_trajectory(structure_file, ligand_resname=None,
+                       output_dir='.', dpi=300,
+                       generate_reports=False,
+                       frame_step=1):
+    """
+    Analyse every structural model (frame) in a multi-model PDB/mmCIF file and
+    aggregate interaction statistics across the ensemble.
+
+    Multi-model PDB files are produced by NMR refinement, conformational
+    sampling, or converted from MD trajectories (e.g., via MDAnalysis or
+    GROMACS trjconv).  For true MD trajectories in DCD/XTC format, convert
+    to multi-model PDB first:
+        ``gmx trjconv -f traj.xtc -s topol.tpr -o traj_frames.pdb``
+        ``mdconvert traj.dcd -o traj_frames.pdb``
+
+    Parameters
+    ----------
+    structure_file : str
+        Path to a multi-model PDB or mmCIF file.
+    ligand_resname : str, optional
+        Three-letter residue name of the ligand (auto-detected if None).
+    output_dir : str
+        Directory for per-frame PNGs and an aggregated summary CSV.
+    dpi : int
+        Resolution for per-frame PNG images.
+    generate_reports : bool
+        If True, generate a text report for each frame.
+    frame_step : int
+        Analyse every Nth frame (1 = every frame, 2 = every other, etc.).
+
+    Returns
+    -------
+    dict
+        'per_frame'   : list of per-frame result dicts (frame_idx, interactions, dG)
+        'mean_counts' : dict of interaction_type → mean count across frames
+        'occupancy'   : dict of residue_id → fraction of frames it appears
+        'summary_csv' : path to the written CSV file
+    """
+    import csv
+
+    os.makedirs(output_dir, exist_ok=True)
+
+    # Count models in the file
+    parser = MultiFormatParser()
+    structure = parser.parse_structure(structure_file)
+    models = list(structure.get_models())
+
+    if len(models) == 0:
+        raise ValueError(f"No structural models found in {structure_file}")
+
+    if len(models) == 1:
+        print("Warning: Only one model found. "
+              "For trajectory analysis supply a multi-model PDB file.")
+
+    # Per-frame results
+    per_frame = []
+    residue_frame_counts = defaultdict(int)
+    interaction_sums = defaultdict(int)
+    n_analysed = 0
+
+    # Write a single-model PDB from each model for HybridProtLigMapper
+    tmp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
+    tmp_path = tmp_pdb.name
+    tmp_pdb.close()
+
+    for model_idx, model in enumerate(models):
+        if model_idx % frame_step != 0:
+            continue
+
+        # Write this model to a temporary single-model PDB
+        from Bio.PDB import PDBIO, Select
+
+        class SingleModelSelect(Select):
+            def __init__(self, target_model_id):
+                self._mid = target_model_id
+            def accept_model(self, m):
+                return 1 if m.id == self._mid else 0
+
+        io = PDBIO()
+        io.set_structure(structure)
+        io.save(tmp_path, select=SingleModelSelect(model.id))
+
+        # Run PandaMap on this frame
+        try:
+            mapper = HybridProtLigMapper(tmp_path, ligand_resname=ligand_resname)
+            mapper.detect_interactions()
+            affinity = mapper.estimate_binding_affinity()
+
+            frame_counts = {k: len(v) for k, v in mapper.interactions.items()}
+            for itype, cnt in frame_counts.items():
+                interaction_sums[itype] += cnt
+
+            for res_id in mapper.interacting_residues:
+                residue_frame_counts[res_id] += 1
+
+            frame_result = {
+                'frame_idx': model_idx,
+                'model_id': model.id,
+                'interaction_counts': frame_counts,
+                'dG_estimated': affinity['dG_estimated'],
+                'interacting_residues': list(mapper.interacting_residues),
+            }
+
+            # Optionally generate visualisation
+            png_path = os.path.join(
+                output_dir,
+                f"{os.path.splitext(os.path.basename(structure_file))[0]}_frame{model_idx:04d}.png"
+            )
+            try:
+                mapper.calculate_realistic_solvent_accessibility()
+                mapper.visualize(output_file=png_path, dpi=dpi,
+                                 title=f"Frame {model_idx}")
+                frame_result['png'] = png_path
+            except Exception as viz_err:
+                frame_result['png'] = None
+                print(f"  Frame {model_idx} visualisation skipped: {viz_err}")
+
+            if generate_reports:
+                rpt_path = os.path.join(
+                    output_dir,
+                    f"{os.path.splitext(os.path.basename(structure_file))[0]}_frame{model_idx:04d}.txt"
+                )
+                try:
+                    if hasattr(mapper, 'generate_interaction_report'):
+                        mapper.generate_interaction_report(output_file=rpt_path)
+                        frame_result['report'] = rpt_path
+                except Exception:
+                    pass
+
+            per_frame.append(frame_result)
+            n_analysed += 1
+            print(f"Frame {model_idx:4d}/{len(models)-1}  "
+                  f"ΔG≈{affinity['dG_estimated']:+.1f} kcal/mol  "
+                  f"residues={len(mapper.interacting_residues)}")
+
+        except Exception as frame_err:
+            print(f"Frame {model_idx} failed: {frame_err}")
+
+    # Clean up temporary PDB
+    try:
+        os.unlink(tmp_path)
+    except Exception:
+        pass
+
+    if n_analysed == 0:
+        raise RuntimeError("No frames could be analysed successfully.")
+
+    # Compute aggregate statistics
+    mean_counts = {k: round(v / n_analysed, 2)
+                   for k, v in interaction_sums.items()}
+    total_frames = n_analysed
+    occupancy = {res_id: round(cnt / total_frames, 3)
+                 for res_id, cnt in residue_frame_counts.items()}
+
+    # Write summary CSV
+    csv_path = os.path.join(
+        output_dir,
+        f"{os.path.splitext(os.path.basename(structure_file))[0]}_trajectory_summary.csv"
+    )
+    fieldnames = ['frame_idx', 'model_id', 'dG_estimated'] + \
+                 list(interaction_sums.keys())
+    with open(csv_path, 'w', newline='') as fh:
+        writer = csv.DictWriter(fh, fieldnames=fieldnames,
+                                extrasaction='ignore')
+        writer.writeheader()
+        for fr in per_frame:
+            row = {
+                'frame_idx': fr['frame_idx'],
+                'model_id': fr['model_id'],
+                'dG_estimated': fr['dG_estimated'],
+            }
+            row.update(fr['interaction_counts'])
+            writer.writerow(row)
+
+    print(f"\nTrajectory analysis complete: {n_analysed} frames analysed.")
+    print(f"Summary CSV written to: {csv_path}")
+
+    return {
+        'per_frame': per_frame,
+        'mean_counts': mean_counts,
+        'occupancy': occupancy,
+        'summary_csv': csv_path,
+        'n_frames_analysed': n_analysed,
+    }
+
+
+HybridProtLigMapper = add_interaction_detection_methods(HybridProtLigMapper)

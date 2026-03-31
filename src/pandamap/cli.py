@@ -38,7 +38,9 @@ def main():
         help='Height of 3D visualization in pixels (default: 600)')
     parser.add_argument('--no-3d-cues', action='store_true',
         help='Disable 3D cues in 2D visualization')
-    
+    parser.add_argument('--deltaG', action='store_true',
+        help='Estimate binding free energy (ΔG) using empirical scoring')
+
     args = parser.parse_args()
     
     # Handle version flag
@@ -78,6 +80,17 @@ def main():
         )
         
         print(f"Analysis complete. Visualization saved to: {output_file}")
+
+        if args.deltaG:
+            result = mapper.estimate_binding_affinity()
+            print("\n--- Estimated Binding Affinity ---")
+            print(f"  ΔG ≈ {result['dG_estimated']:.2f} kcal/mol")
+            print(f"  {result['interpretation']}")
+            print("  Breakdown:")
+            for itype, info in result['breakdown'].items():
+                n = info.get('unique_residues', info.get('count', '?'))
+                print(f"    {itype} (n={n}): {info['contribution_kcal_mol']:+.2f} kcal/mol")
+            print("----------------------------------")
         
         if args.report:
             report_file = args.report_file or f"{os.path.splitext(output_file)[0]}_report.txt"

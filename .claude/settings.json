@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 /tmp/generate_pandamap_paper.py)",
+      "Bash(python3 -c \"from src.pandamap.core import HybridProtLigMapper, analyze_trajectory, AROMATIC_RING_ATOMS; print\\(''Import OK''\\)\")",
+      "Bash(python3 -c \":*)",
+      "Bash(python3 -:*)",
+      "Bash(pip install:*)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(echo \"install_exit:$?\")",
+      "Bash(python3 -c \"import ast; ast.parse\\(open\\(''src/pandamap/core.py''\\).read\\(\\)\\); print\\(''Syntax OK''\\)\")"
+    ]
+  }
+}

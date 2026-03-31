@@ -5,3 +5,10 @@ requests>=2.25.0
 
 [fancy]
 rich>=13.0
+
+[full]
+rich>=13.0
+py3Dmol
+
+[viz]
+py3Dmol

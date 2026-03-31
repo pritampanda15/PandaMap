@@ -27,7 +27,7 @@
 </p>
 
 
-**Version 4.1.0: With 3D HTML rendering**
+**Version 4.2.0: With 3D HTML rendering**
 
 PandaMap is a Python package for visualizing protein-ligand interactions with enhanced detection methods.
 

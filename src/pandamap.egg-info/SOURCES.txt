@@ -14,3 +14,5 @@ src/pandamap.egg-info/dependency_links.txt
 src/pandamap.egg-info/entry_points.txt
 src/pandamap.egg-info/requires.txt
 src/pandamap.egg-info/top_level.txt
+src/pandamap/utils/__init__.py
+src/pandamap/utils/versioning.py

@@ -368,7 +368,6 @@ def add_interaction_detection_methods(cls):
     
     def generate_interaction_report(self, output_file=None):
         """Generate a PLIP-like text report for the interactions."""
-        print("Starting interaction report generation...")
         aromatic = {'PHE', 'TYR', 'TRP', 'HIS'}
         self.interactions['pi_pi_stacking'] = [i for i in self.interactions['pi_pi_stacking'] 
                                          if i['protein_residue'].resname in aromatic]
@@ -383,20 +382,6 @@ def add_interaction_detection_methods(cls):
         # Remove covalent bonds with distances > 2.1Å
         self.interactions['covalent'] = [i for i in self.interactions['covalent'] 
                                    if i['distance'] < 2.1]
-        # Debug: Show first interaction structure
-        for itype, ilist in self.interactions.items():
-            if ilist:
-                print(f"First {itype} interaction structure:")
-                first_item = ilist[0]
-                print(f"  Type: {type(first_item)}")
-                # If it's a dictionary, print its keys
-                if isinstance(first_item, dict):
-                    print(f"  Keys: {list(first_item.keys())}")
-                    # Print some key values for debugging
-                    for key in ['protein_residue', 'distance', 'restype', 'resnr', 'reschain', 'ligand_atom', 'protein_atom']:
-                        if key in first_item:
-                            print(f"  {key}: {first_item[key]}")
-                break
         
         # Prepare ligand info
         if hasattr(self, 'ligand_residue') and self.ligand_residue:
@@ -502,18 +487,15 @@ def add_interaction_detection_methods(cls):
         # Get interacting residues from the interacting_residues set
         try:
             if hasattr(self, 'interacting_residues') and self.interacting_residues:
-                print(f"Found {len(self.interacting_residues)} residues in interacting_residues set")
                 for res_id in self.interacting_residues:
                     if isinstance(res_id, tuple) and len(res_id) == 2:
                         restype, resnr = res_id
-                        # Try to find the chain from protein_residues
                         if res_id in self.protein_residues:
                             res = self.protein_residues[res_id]
                             if hasattr(res, 'get_parent') and callable(res.get_parent):
                                 parent = res.get_parent()
                                 if parent and hasattr(parent, 'id'):
                                     chain = parent.id
-                                    print(f"Adding residue from set: {restype}{resnr}{chain}")
                                     # Create a sample interaction entry for each residue
                                     #for itype in processed_interactions:
                                         #processed_interactions[itype].append({
