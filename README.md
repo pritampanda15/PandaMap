@@ -28,6 +28,26 @@
 
 ---
 
+## What's New in v4.3
+
+Correctness release. Several fixes change **which interactions are detected** and
+**what ΔG is reported** — see [Upgrading from 4.2](#upgrading-from-42).
+
+| Change | Description |
+|---|---|
+| **Halogen bonds now detect Cl, Br and I** | The donor test was case-sensitive against BioPython's upper-cased element symbols (`'BR'`), so only fluorine was ever matched. Bromine, chlorine and iodine halogen bonds were undetectable |
+| **No more ΔG double-counting** | Each ionic contact was scored as both `ionic` (−1.80) and `salt_bridge` (−1.50); `cation_pi` and `pi_cation` overlapped and scored one contact twice |
+| **Carboxylate salt bridges detected** | Ligand anion perception excluded every carboxylate — the commonest anionic group in drug-like ligands |
+| **D–H···A angular criterion** | With explicit hydrogens the true donor angle is measured and must exceed 100° (PLIP's threshold) |
+| **Metal coordination no longer scored as covalent** | A Zn–His contact at 2.0 Å was being weighted −8.0 kcal/mol |
+| **Readable ligand depiction** | Larger ligands collapsed into an unreadable blob; marker size now tracks bond length |
+| **`--csv` and `--plots` outputs** | Machine-readable interaction table and a four-panel graphical report |
+| **3D HTML no longer crashes** | `object of type 'Atom' has no len()` on some ligands |
+| **Python API report fixed** | `generate_report()` rendered every residue as `UNK??` when passed `mapper.interactions` |
+| **Regression test suite** | 18 tests, no external downloads |
+
+---
+
 ## What's New in v4.2
 
 | Feature | Description |
@@ -45,16 +65,23 @@
 
 ## Features
 
-- **16 interaction classes** detected with crystallographically validated distance thresholds:
-  - Hydrogen bonds (2.5–3.5 Å, N/O pairs)
+- **15 interaction classes** detected with crystallographically validated distance thresholds:
+  - Hydrogen bonds (2.5–3.5 Å, N/O pairs, D–H···A ≥ 100° when hydrogens are present)
   - π–π stacking, cation–π, pi–cation, carbon–π, donor–π, amide–π, alkyl–π
   - Hydrophobic contacts (4.0 Å)
-  - Ionic interactions and salt bridges (5.5 Å)
-  - Halogen bonds (2.5–3.5 Å)
+  - Ionic / salt bridge (5.5 Å) — one class; see note below
+  - Halogen bonds (2.5–3.5 Å; F, Cl, Br, I)
   - Metal coordination (2.8 Å)
   - Covalent bonds (≤2.1 Å, CYS/SER/LYS/HIS)
   - Attractive and repulsive charge interactions
-- **Three output formats**: 2D PNG diagram, interactive 3D HTML (3Dmol.js), plain-text report
+
+  > Earlier releases advertised 16 classes by listing `ionic` and `salt_bridge`
+  > separately. They share one detection rule and one set of cutoffs, so they
+  > are reported as a single class and scored once.
+
+- **Five output formats**: 2D PNG diagram, interactive 3D HTML (3Dmol.js),
+  plain-text report, machine-readable CSV (`--csv`), and a four-panel
+  graphical report (`--plots`)
 - **Empirical ΔG scoring** with per-residue deduplication, distance decay, and rotor penalty
 - **Multi-frame trajectory analysis** with occupancy statistics and CSV export
 - **Solvent accessibility**: DSSP (preferred) → Shrake–Rupley fallback → geometric fallback
@@ -131,6 +158,11 @@ Options:
   --3d                    Generate interactive 3D HTML visualization
   --3d-output FILE        Path for 3D HTML file
   --deltaG                Estimate binding free energy (ΔG, kcal/mol)
+  --csv [FILE]            Export every interaction as a tidy CSV
+  --plots [FILE]          Four-panel graphical interaction report (PNG)
+  --strict-halogens       Restrict halogen bonds to Cl/Br/I (see note below)
+  --strict-hbond-geometry Also apply the heavy-atom angular proxy to
+                          structures without explicit hydrogens
   --dpi DPI               Output PNG resolution (default: 300)
   -t, --title TEXT        Custom diagram title
   --width PX              3D viewer width in pixels (default: 800)
@@ -156,26 +188,48 @@ mapper.detect_interactions()
 # 2D diagram
 mapper.visualize(output_file="interactions.png")
 
-# Text report
-from pandamap.improved_interaction_detection import ImprovedInteractionDetection
-detector = ImprovedInteractionDetection()
-detector.generate_report(
-    ligand_metadata={
-        'hetid': mapper.ligand_residue.resname,
-        'chain': mapper.ligand_residue.parent.id,
-        'position': mapper.ligand_residue.id[1],
-        'longname': mapper.ligand_residue.resname,
-        'type': 'LIGAND',
-    },
-    interaction_data=mapper.interactions,
-    output_file="report.txt"
-)
+# Text report — simplest route, identical output to `pandamap --report`
+mapper.run_analysis(output_file="interactions.png",
+                    generate_report=True,
+                    report_file="report.txt")
+
+# Machine-readable table of every contact
+mapper.export_interactions_csv("interactions.csv")
+
+# Four-panel graphical report
+mapper.generate_interaction_plots("report.png")
 
 # Inspect raw interactions
 for itype, contacts in mapper.interactions.items():
     if contacts:
         print(f"{itype}: {len(contacts)} contacts")
 ```
+
+If you need the report generator directly, the parameters are `ligand_info`
+and `interactions` (earlier revisions of this README named them
+`ligand_metadata` and `interaction_data`, which raises `TypeError`):
+
+```python
+from pandamap.improved_interaction_detection import ImprovedInteractionDetection
+
+ImprovedInteractionDetection().generate_report(
+    ligand_info={
+        'hetid': mapper.ligand_residue.resname,
+        'chain': mapper.ligand_residue.parent.id,
+        'position': mapper.ligand_residue.id[1],
+        'longname': mapper.ligand_residue.resname,
+        'type': 'LIGAND',
+    },
+    interactions=mapper.interactions,
+    output_file="report.txt"
+)
+```
+
+> **Fixed in 4.3.** Passing `mapper.interactions` to `generate_report()`
+> previously produced lines reading `UNK?? -- 2.79Å -- SU9`, because the
+> formatter expected flattened `restype`/`resnr`/`reschain` keys that only the
+> CLI code path filled in. Both paths now normalise their input, so the Python
+> API and the CLI produce identical reports.
 
 ### Empirical ΔG estimation
 
@@ -241,14 +295,59 @@ All cutoffs are validated against PLIP and published crystallographic surveys:
 
 | Interaction | Cutoff | Reference |
 |---|---|---|
-| Hydrogen bond | 2.5–3.5 Å | PLIP; Auffinger 2004 |
+| Hydrogen bond | 2.5–3.5 Å, D–H···A ≥ 100° | PLIP; Auffinger 2004 |
 | π–π stacking | 5.5 Å (atom–atom) | McGaughey 1998 |
 | Hydrophobic | 4.0 Å | Bissantz 2010 |
 | Ionic / salt bridge | 5.5 Å | Kumar & Nussinov 1999 |
 | Halogen bond | 2.5–3.5 Å | Auffinger 2004 |
 | Metal coordination | 2.8 Å | CSD surveys |
-| Covalent | ≤2.1 Å | — |
+| Covalent | 1.2–2.1 Å, non-metal ligand atom | — |
 | Repulsion | 4.0 Å | — |
+
+### Hydrogen-bond geometry
+
+The angular criterion is applied in two tiers:
+
+- **Explicit hydrogens present** (neutron, ultrahigh-resolution, NMR, or
+  protonated models) — the true D–H···A angle is measured in both donor
+  directions and must exceed **100°**, matching PLIP's `HBOND_DON_ANGLE_MIN`.
+- **No hydrogens** (most X-ray structures) — distance only, as before. A
+  heavy-atom angular proxy is available via `--strict-hbond-geometry`, but it
+  is off by default: without hydrogens it cannot tell donor from acceptor and
+  rejects many genuine bonds.
+
+Each detected bond records `angle` and `angle_source` (`explicit_H` or
+`heavy_atom`) so you can tell which rule applied.
+
+### Halogen bonds and fluorine
+
+All four halogens — **F, Cl, Br and I** — are reported by default, matching
+PLIP, which also lists C–F···O contacts.
+
+Note for interpretation: organic fluorine has a negligible σ-hole and is not a
+halogen-bond donor in the strict sense of Auffinger et al. (2004), which
+defines the interaction for Cl, Br and I. Every halogen contact therefore
+carries a `halogen_element` field so fluorine can be separated during
+analysis, and `--strict-halogens` restricts detection to Cl/Br/I if you want
+the conservative definition.
+
+---
+
+## Upgrading from 4.2
+
+Version 4.3 fixes defects that affect reported results. Numbers will change:
+
+- **Ligands containing Cl, Br or I** gain halogen bonds that were previously
+  undetectable. On PDB 1US0 this recovers the Br···O(Thr113) bond at 2.97 Å.
+- **Ligands with carboxylate, phosphate or sulfonate groups** gain ionic
+  contacts that ligand anion perception previously missed.
+- **ΔG becomes less negative** for anything with charged groups, because
+  ionic contacts are no longer counted twice (−1.80 *and* −1.50). Benchmark
+  shifts: 1ELS −21.97 → −18.10, 1M17 −1.43 → −0.86, 1US0 −10.52 → −13.92
+  (1US0 becomes *more* negative, since it gains the bromine bond and two
+  carboxylate contacts).
+
+If you have published numbers from 4.2, re-run rather than mixing versions.
 
 ---
 
@@ -259,6 +358,35 @@ All cutoffs are validated against PLIP and published crystallographic surveys:
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1m17_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/4jmz_interactions.png)
+
+### Graphical Report (`--plots`)
+
+```bash
+pandamap 1US0.pdb --ligand LDT --plots report.png
+```
+
+Four panels, complementing the text report rather than replacing it:
+
+| Panel | Shows |
+|---|---|
+| **(a)** Contacts per class | Which interaction types dominate |
+| **(b)** Distance distribution | Every contact against its ideal distance — separates near-optimal geometry from contacts scraping the cutoff |
+| **(c)** Per-residue profile | Top 15 residues stacked by interaction class; identifies hotspot residues at a glance |
+| **(d)** ΔG breakdown | Per-class contribution, penalties in red |
+
+### CSV Export (`--csv`)
+
+```bash
+pandamap 1US0.pdb --ligand LDT --csv interactions.csv
+```
+
+One row per contact — the text report is readable but not parseable:
+
+```csv
+interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
+halogen_bonds,THR,113,A,OG1,BR8,Br,2.97,True,Br
+hydrogen_bonds,TYR,48,A,OH,O33,O,2.73,True,
+```
 
 ### Text Report
 

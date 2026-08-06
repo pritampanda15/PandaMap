@@ -308,6 +308,50 @@ def test_csv_export_round_trips(tmp_path):
     assert all(float(r["distance_A"]) > 0 for r in rows)
 
 
+def test_python_api_report_names_residues(tmp_path):
+    """Passing mapper.interactions straight to generate_report() -- exactly
+    what the README's Python API section shows -- used to render every line
+    as 'UNK?? -- 2.79A -- LIG', because the formatter reads flat
+    restype/resnr/reschain keys that only the CLI path populated."""
+    from pandamap.improved_interaction_detection import ImprovedInteractionDetection
+
+    mapper = HybridProtLigMapper(
+        _write(tmp_path, "api.pdb", GOOD_HBOND), ligand_resname="LIG"
+    )
+    mapper.detect_interactions()
+
+    out = tmp_path / "report.txt"
+    ImprovedInteractionDetection().generate_report(
+        ligand_info={
+            "hetid": mapper.ligand_residue.resname,
+            "chain": mapper.ligand_residue.parent.id,
+            "position": mapper.ligand_residue.id[1],
+            "longname": mapper.ligand_residue.resname,
+            "type": "LIGAND",
+        },
+        interactions=mapper.interactions,
+        output_file=str(out),
+    )
+    text = out.read_text()
+    assert "UNK??" not in text, "residue identity lost in the Python API report"
+    assert "SER39" in text.replace(" ", "")
+
+
+def test_normalize_interactions_is_idempotent(tmp_path):
+    """Records that already carry flat keys must survive untouched, so the
+    helper is safe on both the CLI and the Python API path."""
+    from pandamap.improved_interaction_detection import normalize_interactions
+
+    already_flat = {
+        "hydrogen_bonds": [
+            {"restype": "LEU", "resnr": 83, "reschain": "A", "distance": 2.79}
+        ]
+    }
+    once = normalize_interactions(already_flat)
+    twice = normalize_interactions(once)
+    assert once == twice == already_flat
+
+
 def test_solvent_accessibility_tiers_do_not_recurse(tmp_path):
     """estimate_solvent_accessibility() delegates to the Shrake-Rupley tier,
     whose own fallback must not call back into it."""
