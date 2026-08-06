@@ -93,7 +93,10 @@ def main():
         output_file = mapper.run_analysis(
             output_file=args.output,
             generate_report=args.report,
-            report_file=args.report_file
+            report_file=args.report_file,
+            dpi=args.dpi,
+            title=args.title,
+            show_3d_cues=not args.no_3d_cues
         )
         
         print(f"Analysis complete. Visualization saved to: {output_file}")
