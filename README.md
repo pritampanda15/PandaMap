@@ -45,6 +45,7 @@ Correctness release. Several fixes change **which interactions are detected** an
 | **3D HTML no longer crashes** | `object of type 'Atom' has no len()` on some ligands |
 | **Python API report fixed** | `generate_report()` rendered every residue as `UNK??` when passed `mapper.interactions` |
 | **Regression test suite** | 18 tests, no external downloads |
+| **`--dpi`, `--title`, `--no-3d-cues` now take effect** | All three were accepted by the CLI but never reached the renderer |
 
 ---
 
@@ -355,6 +356,14 @@ If you have published numbers from 4.2, re-run rather than mixing versions.
 
 ### 2D Interaction Diagram
 
+Aldose reductase–IDD594 (PDB 1US0). The halogen bond from the ligand bromine to
+Thr113 (cyan, **X**) is one of the contacts recovered by the 4.3 halogen fix;
+cyan haloes mark solvent-accessible residues.
+
+![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_1us0.png)
+
+Further examples:
+
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1m17_interactions.png)
 ![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/4jmz_interactions.png)
@@ -364,6 +373,8 @@ If you have published numbers from 4.2, re-run rather than mixing versions.
 ```bash
 pandamap 1US0.pdb --ligand LDT --plots report.png
 ```
+
+![Graphical interaction report](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/graphical_report_1us0.png)
 
 Four panels, complementing the text report rather than replacing it:
 
