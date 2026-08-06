@@ -175,9 +175,77 @@ def refine_hydrophobic_interactions(interactions):
     
     return final_refined
 
+def normalize_interactions(interactions):
+    """
+    Flatten interaction records into the keys the report formatter expects.
+
+    ``HybridProtLigMapper.interactions`` stores the protein residue as a
+    BioPython ``Residue`` object under ``'protein_residue'``.  The report
+    formatter reads the flat keys ``restype`` / ``resnr`` / ``reschain``.
+    When a caller passed ``mapper.interactions`` straight to
+    :func:`generate_plip_report` — exactly what the documented Python API
+    shows — none of those keys were present and every line rendered as
+    ``UNK?? -- 2.79A -- LIG``.  The CLI looked correct only because it
+    reached the same formatter through a different code path that did this
+    conversion first.
+
+    Records that already carry the flat keys are passed through unchanged,
+    so this is safe to apply on either path.
+
+    Parameters
+    ----------
+    interactions : dict
+        Mapping of interaction type -> list of interaction records.
+
+    Returns
+    -------
+    dict
+        Same structure, with ``restype``, ``resnr`` and ``reschain``
+        populated wherever they could be derived.
+    """
+    if not isinstance(interactions, dict):
+        return interactions
+
+    normalized = {}
+    for itype, records in interactions.items():
+        out = []
+        for record in records or []:
+            if not isinstance(record, dict):
+                out.append(record)
+                continue
+
+            flat = dict(record)
+            residue = record.get('protein_residue')
+
+            if flat.get('restype') in (None, 'UNK') and hasattr(residue, 'resname'):
+                flat['restype'] = residue.resname
+
+            if flat.get('resnr') in (None, 0, '?'):
+                res_id = getattr(residue, 'id', None)
+                if isinstance(res_id, tuple) and len(res_id) > 1:
+                    flat['resnr'] = res_id[1]
+
+            if flat.get('reschain') in (None, 'X', '?'):
+                parent = None
+                if hasattr(residue, 'get_parent') and callable(residue.get_parent):
+                    parent = residue.get_parent()
+                elif hasattr(residue, 'parent'):
+                    parent = residue.parent
+                if parent is not None and getattr(parent, 'id', None) is not None:
+                    flat['reschain'] = parent.id
+
+            out.append(flat)
+        normalized[itype] = out
+    return normalized
+
+
 def generate_plip_report(ligand_info, interactions, output_file=None):
     """Generate a PLIP-like text report for interactions with robust error handling."""
-    
+
+    # Accept raw HybridProtLigMapper.interactions as well as pre-flattened
+    # records, so the Python API and the CLI produce identical reports.
+    interactions = normalize_interactions(interactions)
+
     report = []
     report.append("=============================================================================")
     report.append(f"PandaMap Interaction Report")

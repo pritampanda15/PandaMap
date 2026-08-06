@@ -40,6 +40,21 @@ def main():
         help='Disable 3D cues in 2D visualization')
     parser.add_argument('--deltaG', action='store_true',
         help='Estimate binding free energy (ΔG) using empirical scoring')
+    parser.add_argument('--csv', nargs='?', const=True, default=False,
+        metavar='FILE',
+        help='Export all detected interactions as a machine-readable CSV')
+    parser.add_argument('--plots', nargs='?', const=True, default=False,
+        metavar='FILE',
+        help='Generate a four-panel graphical interaction report (PNG)')
+    parser.add_argument('--strict-hbond-geometry', action='store_true',
+        dest='strict_hbond_geometry',
+        help='Also apply the heavy-atom angular proxy when the structure has '
+             'no explicit hydrogens (the exact D-H...A test always applies '
+             'when hydrogens are present)')
+    parser.add_argument('--strict-halogens', action='store_true',
+        dest='strict_halogens',
+        help='Restrict halogen bonds to Cl/Br/I (Auffinger 2004); '
+             'by default C-F...O contacts are also reported, as in PLIP')
 
     args = parser.parse_args()
     
@@ -70,7 +85,9 @@ def main():
     
     try:
         # Create the mapper and run the analysis
-        mapper = HybridProtLigMapper(args.structure_file, ligand_resname=args.ligand)
+        mapper = HybridProtLigMapper(args.structure_file, ligand_resname=args.ligand,
+                                     strict_halogens=args.strict_halogens,
+                                     strict_hbond_geometry=args.strict_hbond_geometry)
         
         # Run the standard analysis
         output_file = mapper.run_analysis(
@@ -92,6 +109,16 @@ def main():
                 print(f"    {itype} (n={n}): {info['contribution_kcal_mol']:+.2f} kcal/mol")
             print("----------------------------------")
         
+        if args.csv:
+            csv_path = args.csv if isinstance(args.csv, str) else \
+                f"{os.path.splitext(output_file)[0]}_interactions.csv"
+            mapper.export_interactions_csv(csv_path)
+
+        if args.plots:
+            plot_path = args.plots if isinstance(args.plots, str) else \
+                f"{os.path.splitext(output_file)[0]}_report.png"
+            mapper.generate_interaction_plots(plot_path, dpi=args.dpi)
+
         if args.report:
             report_file = args.report_file or f"{os.path.splitext(output_file)[0]}_report.txt"
             print(f"Interaction report saved to: {report_file}")
