@@ -2980,7 +2980,8 @@ class HybridProtLigMapper:
         print(f"Graphical interaction report saved to {output_file}")
         return output_file
 
-    def run_analysis(self, output_file=None, use_dssp=True, generate_report=False, report_file=None):
+    def run_analysis(self, output_file=None, use_dssp=True, generate_report=False,
+                     report_file=None, dpi=300, title=None, show_3d_cues=True):
         """
         Run the complete analysis pipeline.
         
@@ -3040,7 +3041,10 @@ class HybridProtLigMapper:
         
         # Generate visualization
         print("Generating visualization...")
-        viz_file = self.visualize(output_file=output_file)
+        # --dpi / --title / --no-3d-cues were accepted by the CLI but never
+        # reached visualize(), so they silently did nothing.
+        viz_file = self.visualize(output_file=output_file, dpi=dpi,
+                                  title=title, show_3d_cues=show_3d_cues)
         
         # Generate text report if requested
         if generate_report:
