@@ -62,7 +62,10 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         for interaction in interactions:
             pa = interaction.get('protein_atom')
             la = interaction.get('ligand_atom')
-            if not pa or not la:
+            # NB: `not pa` invokes Atom.__bool__ -> __len__, which BioPython
+            # Atom does not define (TypeError: object of type 'Atom' has no
+            # len()).  Compare against None explicitly.
+            if pa is None or la is None:
                 continue
 
             prot_coords = pa.get_coord() if hasattr(pa, 'get_coord') else getattr(pa, 'coord', None)

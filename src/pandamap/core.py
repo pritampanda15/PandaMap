@@ -32,6 +32,24 @@ from Bio.PDB import PDBParser, NeighborSearch
 
 # Exact ring-atom names for each aromatic amino acid.
 # Only these atoms are considered part of the aromatic pi-system.
+# Halogen-bond donors.  Note that organic fluorine has a negligible sigma-hole
+# and is not a halogen-bond donor in the strict sense of Auffinger et al. (2004),
+# which defines C-X...O for X = Cl, Br, I.  F is collected by default (PLIP also
+# reports C-F...O contacts) but every detected halogen bond carries a
+# 'halogen_element' field so F contacts can be separated, and
+# strict_halogens=True drops them entirely.
+HALOGEN_ELEMENTS = frozenset(['F', 'Cl', 'Br', 'I'])
+STRICT_HALOGEN_ELEMENTS = frozenset(['Cl', 'Br', 'I'])
+
+# Ligand elements that can form a covalent bond to a protein nucleophile.
+# Deliberately excludes metals, whose short contacts are coordination bonds.
+COVALENT_LIGAND_ELEMENTS = frozenset(['C', 'N', 'O', 'S', 'P', 'Se', 'B'])
+
+# Minimum D-H...A angle for a hydrogen bond, in degrees.  Matches PLIP's
+# HBOND_DON_ANGLE_MIN default.  Applied exactly when explicit hydrogens are
+# present; otherwise a heavy-atom direction test stands in.
+HBOND_DON_ANGLE_MIN = 100.0
+
 AROMATIC_RING_ATOMS = {
     'PHE': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
     'TYR': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
@@ -410,10 +428,36 @@ class SimpleLigandStructure:
         # Find bonds
         bonds = self.find_bonds()
         
-        # Scale coordinates to fit within the specified radius
-        all_coords = np.array(list(coords_2d.values()))
+        # Scale coordinates to fit within the specified radius.
+        #
+        # Previously this used max(|coord|) over both axes of *un-centred*
+        # coordinates, so an off-centre layout (RDKit emits these routinely)
+        # was scaled by its distance from the origin rather than its true
+        # size, shrinking the depiction.  Centre on the bounding box first,
+        # then scale by the larger half-range.
+        all_coords = np.array(list(coords_2d.values()), dtype=float)
+        bbox_centre = (all_coords.max(axis=0) + all_coords.min(axis=0)) / 2.0
+        all_coords = all_coords - bbox_centre
+        coords_2d = {aid: np.asarray(c, dtype=float) - bbox_centre
+                     for aid, c in coords_2d.items()}
         max_extent = np.max(np.abs(all_coords))
+        if max_extent <= 0:
+            max_extent = 1.0
         scaling_factor = radius / (max_extent * 1.2)  # Leave some margin
+
+        # Atom marker radius must track the drawn bond length, otherwise a
+        # ligand with many atoms is scaled down until neighbouring circles
+        # overlap and the depiction collapses into an unreadable blob.
+        bond_lengths = [
+            np.linalg.norm((coords_2d[a] - coords_2d[b]) * scaling_factor)
+            for a, b in bonds if a in coords_2d and b in coords_2d
+        ]
+        if bond_lengths:
+            median_bond = float(np.median(bond_lengths))
+        else:
+            median_bond = radius / 4.0
+        # 0.30 x bond length keeps a clear gap between bonded atoms.
+        atom_unit = float(np.clip(median_bond * 0.30, 2.0, 11.0))
         
         # Create a mapping of atom IDs to positions in the plot
         atom_positions = {}
@@ -458,7 +502,7 @@ class SimpleLigandStructure:
                 element = self.atom_coords[atom_id]['element']
                 
                 # Determine size based on element and z-position
-                base_size = 9 if element in ['C', 'H'] else 11
+                base_size = atom_unit if element in ['C', 'H'] else atom_unit * 1.22
                 z = z_values.get(atom_id, 0.5)
                 size_factor = 0.8 + 0.4 * z  # Larger when closer
                 size = base_size * size_factor
@@ -554,7 +598,7 @@ class SimpleLigandStructure:
             z = z_values.get(atom_id, 0.5) if show_3d_cues else 0.5
             
             # Determine size based on element and z-position
-            base_size = 9 if element in ['C', 'H'] else 11
+            base_size = atom_unit if element in ['C', 'H'] else atom_unit * 1.22
             size_factor = 0.8 + 0.4 * z  # Larger when closer
             size = base_size * size_factor
             
@@ -763,17 +807,27 @@ class HybridProtLigMapper:
     visualizations with a simplified ligand structure.
     """
     
-    def __init__(self, structure_file, ligand_resname=None):
+    def __init__(self, structure_file, ligand_resname=None, strict_halogens=False,
+                 strict_hbond_geometry=False):
         """
         Initialize with a structure file containing a protein-ligand complex.
-        
+
         Parameters:
         -----------
         structure_file : str
             Path to the structure file (PDB, mmCIF/CIF, or PDBQT format)
         ligand_resname : str, optional
             Specific residue name of the ligand to focus on
+        strict_halogens : bool, optional
+            If True, restrict halogen bonds to Cl/Br/I (Auffinger et al. 2004).
+            Default False also reports C-F...O contacts, matching PLIP.
+        strict_hbond_geometry : bool, optional
+            If True, apply the heavy-atom angular proxy to structures that lack
+            explicit hydrogens.  The exact D-H...A criterion is always applied
+            when hydrogens are present, independent of this flag.
         """
+        self.strict_halogens = strict_halogens
+        self.strict_hbond_geometry = strict_hbond_geometry
         self.structure_file = structure_file
         self.ligand_resname = ligand_resname
         
@@ -798,8 +852,11 @@ class HybridProtLigMapper:
                 if ligand_resname is None or residue.resname == ligand_resname:
                     for atom in residue:
                         self.ligand_atoms.append(atom)
-                        # Identify halogen atoms in ligand
-                        if atom.element in ['F', 'Cl', 'Br', 'I']:
+                        # Identify halogen atoms in ligand.
+                        # BioPython returns PDB element symbols upper-cased
+                        # ('BR', 'CL'), so normalise before comparing or Br/Cl/I
+                        # are silently dropped and only F is ever detected.
+                        if atom.element.strip().capitalize() in HALOGEN_ELEMENTS:
                             self.halogen_atoms.append(atom)
                     if self.ligand_residue is None:
                         self.ligand_residue = residue
@@ -854,6 +911,42 @@ class HybridProtLigMapper:
 
         # Pre-compute ligand ring atoms for accurate pi-system detection
         self.ligand_ring_atoms = self.ligand_structure.detect_rings()
+
+    def _attached_hydrogens(self, heavy_atom, max_dist=1.3):
+        """Explicit hydrogens covalently attached to a heavy atom, if any."""
+        parent = heavy_atom.get_parent()
+        if parent is None:
+            return []
+        origin = heavy_atom.get_coord()
+        return [a for a in parent.get_atoms()
+                if a.element.strip().upper() == 'H'
+                and np.linalg.norm(a.get_coord() - origin) < max_dist]
+
+    def _best_hbond_angle(self, prot_atom, lig_atom):
+        """
+        Measure the true D-H···A angle when explicit hydrogens are present.
+
+        Either partner may be the donor, so both directions are tested and the
+        most favourable (largest) angle is returned.  Returns
+        ``(angle_degrees, source)`` where source is 'explicit_H', or
+        ``(None, 'heavy_atom')`` when neither candidate donor carries a
+        hydrogen, signalling the caller to use the heavy-atom approximation.
+        """
+        best = None
+        for donor, acceptor in ((prot_atom, lig_atom), (lig_atom, prot_atom)):
+            for h in self._attached_hydrogens(donor):
+                hv = donor.get_coord() - h.get_coord()
+                av = acceptor.get_coord() - h.get_coord()
+                nh, na = np.linalg.norm(hv), np.linalg.norm(av)
+                if nh == 0 or na == 0:
+                    continue
+                cos_a = np.clip(np.dot(hv, av) / (nh * na), -1.0, 1.0)
+                angle = math.degrees(math.acos(cos_a))
+                if best is None or angle > best:
+                    best = angle
+        if best is None:
+            return None, 'heavy_atom'
+        return best, 'explicit_H'
 
     def _check_hbond_geometry(self, donor_atom, acceptor_atom, donor_is_protein=True):
         """
@@ -999,8 +1092,8 @@ class HybridProtLigMapper:
             nearby_atoms = ns.search(lig_atom.get_coord(), max_cutoff)
             
             # Track ionizable ligand atoms for ionizable interactions
-            is_lig_pos_charged = lig_atom.element == 'N' and not any(a.element == 'C' for a in self.ligand_atoms if a.element != 'H' and np.linalg.norm(a.get_coord() - lig_atom.get_coord()) < 1.6)
-            is_lig_neg_charged = lig_atom.element == 'O' and not any(a.element == 'C' for a in self.ligand_atoms if a.element != 'H' and np.linalg.norm(a.get_coord() - lig_atom.get_coord()) < 1.6)
+            is_lig_pos_charged = self._is_ligand_cation(lig_atom)
+            is_lig_neg_charged = self._is_ligand_anion(lig_atom)
             
             # Ligand aromaticity: use pre-computed ring membership (exact cycle detection)
             is_lig_aromatic = (lig_atom.element == 'C' and
@@ -1018,21 +1111,38 @@ class HybridProtLigMapper:
                 res_id = (prot_res.resname, prot_res.id[1])
                 self.interacting_residues.add(res_id)
                 
-                # 1. Hydrogen bonds — distance-based N/O pairs (2.5–3.5 Å).
-                # Explicit H positions are absent in most crystal structures so we use
-                # the crystallographically validated D···A distance window only,
-                # matching the approach used by PLIP and LigPlot+.
-                # Lower bound 2.5 Å: below this is van der Waals clash territory.
+                # 1. Hydrogen bonds — D···A distance window (2.5–3.5 Å) plus an
+                # angular criterion.  When the structure carries explicit
+                # hydrogens the true D-H···A angle is measured and must exceed
+                # HBOND_DON_ANGLE_MIN (100°, PLIP's default).  Otherwise the
+                # angle is approximated from the donor's heavy-atom geometry.
                 if distance <= h_bond_cutoff and distance >= 2.5:
                     if lig_atom.element in ['N', 'O'] and prot_atom.element in ['N', 'O']:
                         res_id = (prot_res.resname, prot_res.id[1])
+
+                        hb_angle, angle_source = self._best_hbond_angle(
+                            prot_atom, lig_atom)
+                        if hb_angle is not None:
+                            # Explicit hydrogens available: enforce the true
+                            # D-H···A criterion, exactly as PLIP does.
+                            if hb_angle < HBOND_DON_ANGLE_MIN:
+                                continue
+                        elif self.strict_hbond_geometry:
+                            # No explicit H.  The heavy-atom direction test is
+                            # only a proxy and cannot distinguish donor from
+                            # acceptor, so it is opt-in: applied as a hard
+                            # filter it rejects many genuine bonds.
+                            if not (self._check_hbond_geometry(prot_atom, lig_atom, True) or
+                                    self._check_hbond_geometry(lig_atom, prot_atom, False)):
+                                continue
 
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
                             'protein_residue': prot_res,
                             'distance': distance,
-                            'angle': 120.0
+                            'angle': hb_angle,
+                            'angle_source': angle_source
                         }
                         all_interactions['hydrogen_bonds'].append(interaction_info)
 
@@ -1092,15 +1202,20 @@ class HybridProtLigMapper:
                     # Check for aromatic groups in protein interacting with alkyl in ligand
                     is_prot_aromatic = is_prot_ring_atom and prot_atom.element == 'C'
                     is_lig_alkyl = lig_atom.element == 'C' and not is_lig_aromatic
-        
-                if is_prot_aromatic and is_lig_alkyl:
-                    interaction_info = {
-                        'ligand_atom': lig_atom,
-                        'protein_atom': prot_atom,
-                        'protein_residue': prot_res,
-                        'distance': distance
-                    }
-                    all_interactions['alkyl_pi'].append(interaction_info)
+
+                    # NB: this test was previously dedented out of the enclosing
+                    # distance check, so it read is_prot_aromatic/is_lig_alkyl
+                    # left over from an earlier loop iteration (and would raise
+                    # NameError on the first pass if pi_stack_cutoff were ever
+                    # lowered below the neighbour-search radius).
+                    if is_prot_aromatic and is_lig_alkyl:
+                        interaction_info = {
+                            'ligand_atom': lig_atom,
+                            'protein_atom': prot_atom,
+                            'protein_residue': prot_res,
+                            'distance': distance
+                        }
+                        all_interactions['alkyl_pi'].append(interaction_info)
     
                 # 3. Attractive charge interactions - between oppositely charged groups
                 if distance <= ionic_cutoff:
@@ -1201,13 +1316,21 @@ class HybridProtLigMapper:
                             'protein_residue': prot_res,
                             'distance': distance
                         }
+                        # A salt bridge IS the charge-charge contact detected
+                        # here, not an additional one.  Appending to both keys
+                        # made every ionic contact score twice (-1.80 and
+                        # -1.50).  Record once, under 'ionic'; the report
+                        # labels this class "Ionic / salt bridge".
                         all_interactions['ionic'].append(interaction_info)
-                        all_interactions['salt_bridge'].append(interaction_info)  # Salt bridges are a type of ionic interaction
                 
                 # 8. Cation-Pi - positive charged residues with aromatic systems
+                # Directional and disjoint from 'pi_cation' above, which
+                # handles the protein-cation -> ligand-ring direction.  This
+                # branch is ligand-cation -> protein-ring only; previously it
+                # also matched the protein-cation direction, so those contacts
+                # were scored under both keys.
                 if distance <= pi_stack_cutoff:
-                    if (prot_res.resname in pos_charged and is_lig_aromatic) or \
-                    (is_prot_ring_atom and is_lig_pos_charged):
+                    if is_prot_ring_atom and is_lig_pos_charged:
                         interaction_info = {
                             'ligand_atom': lig_atom,
                             'protein_atom': prot_atom,
@@ -1217,9 +1340,15 @@ class HybridProtLigMapper:
                         all_interactions['cation_pi'].append(interaction_info)
                 
                 # 9. Covalent bonds - very close interactions with specific atom types
-                if distance <= covalent_cutoff:
+                # Lower bound 1.2 A excludes physically impossible contacts.
+                # The ligand atom must be a plausible organic electrophile: a
+                # metal at 2.0-2.1 A from HIS ND1/NE2 or CYS SG is coordination,
+                # not a covalent bond, and misfiling it costs -8.0 kcal/mol in
+                # the scoring function.
+                if 1.2 <= distance <= covalent_cutoff and \
+                   lig_atom.element.strip().capitalize() in COVALENT_LIGAND_ELEMENTS:
                     # Only include likely covalent bonds involving specific residues and atom types
-                    if ((prot_res.resname == 'CYS' and prot_atom.name == 'SG') or 
+                    if ((prot_res.resname == 'CYS' and prot_atom.name == 'SG') or
                         (prot_res.resname == 'SER' and prot_atom.name == 'OG') or
                         (prot_res.resname == 'LYS' and prot_atom.name == 'NZ') or
                         (prot_res.resname == 'HIS' and prot_atom.name in ['ND1', 'NE2'])):
@@ -1233,20 +1362,24 @@ class HybridProtLigMapper:
         
         # Handle halogen bonds separately
         for halogen_atom in self.halogen_atoms:
+            hal_element = halogen_atom.element.strip().capitalize()
+            if self.strict_halogens and hal_element not in STRICT_HALOGEN_ELEMENTS:
+                continue
             nearby_atoms = ns.search(halogen_atom.get_coord(), halogen_bond_cutoff)
             for prot_atom in nearby_atoms:
                 prot_res = prot_atom.get_parent()
                 distance = halogen_atom - prot_atom
-                
+
                 if 2.5 < distance <= halogen_bond_cutoff and is_halogen_acceptor(prot_atom):
                     res_id = (prot_res.resname, prot_res.id[1])
                     self.interacting_residues.add(res_id)
-                    
+
                     interaction_info = {
                         'ligand_atom': halogen_atom,
                         'protein_atom': prot_atom,
                         'protein_residue': prot_res,
-                        'distance': distance
+                        'distance': distance,
+                        'halogen_element': hal_element
                     }
                     all_interactions['halogen_bonds'].append(interaction_info)
         
@@ -1578,6 +1711,77 @@ class HybridProtLigMapper:
         
         return self.solvent_accessible
     
+    def _ligand_neighbours(self, atom, cutoff=1.75):
+        """Heavy-atom covalent neighbours of a ligand atom."""
+        out = []
+        for other in self.ligand_atoms:
+            if other is atom or other.element.strip().upper() == 'H':
+                continue
+            if np.linalg.norm(other.get_coord() - atom.get_coord()) < cutoff:
+                out.append(other)
+        return out
+
+    def _is_ligand_anion(self, atom):
+        """
+        Formally anionic ligand oxygen.
+
+        The previous rule ("oxygen with no carbon neighbour") excluded every
+        carboxylate, which is the single most common anionic group in
+        drug-like ligands, so carboxylate salt bridges were never detected.
+        Here an oxygen counts as anionic if it is terminal on a carboxylate,
+        phosphate/phosphonate, or sulfate/sulfonate group.
+        """
+        if atom.element.strip().upper() != 'O':
+            return False
+        neighbours = self._ligand_neighbours(atom)
+        if len(neighbours) != 1:
+            return False                      # bridging or hydroxyl-like
+        centre = neighbours[0]
+        centre_el = centre.element.strip().upper()
+        if centre_el not in ('C', 'P', 'S', 'N'):
+            return False
+        # Count terminal oxygens on the central atom: >=2 implies a
+        # delocalised, formally charged group (COO-, PO3-, SO3-, NO2-).
+        terminal_o = sum(
+            1 for nb in self._ligand_neighbours(centre)
+            if nb.element.strip().upper() == 'O' and len(self._ligand_neighbours(nb)) == 1
+        )
+        return terminal_o >= 2
+
+    def _is_ligand_cation(self, atom):
+        """
+        Formally cationic ligand nitrogen.
+
+        Counts quaternary/protonated amines (three or more heavy-atom
+        neighbours) and guanidinium/amidinium nitrogens (terminal N on a
+        carbon bearing two or more nitrogens).
+        """
+        if atom.element.strip().upper() != 'N':
+            return False
+        neighbours = self._ligand_neighbours(atom)
+        if len(neighbours) >= 3:
+            return True                        # quaternary / protonated amine
+        for nb in neighbours:
+            if nb.element.strip().upper() != 'C':
+                continue
+            n_count = sum(1 for x in self._ligand_neighbours(nb)
+                          if x.element.strip().upper() == 'N')
+            if n_count >= 2:
+                return True                    # guanidinium / amidinium
+        return False
+
+    def estimate_solvent_accessibility(self, probe_radius=1.4):
+        """
+        Tier-2 solvent-accessibility estimate (dependency-free).
+
+        Previously every call site referenced this name but no such method
+        existed, so the DSSP and pure-Python tiers raised AttributeError and
+        silently degraded to the geometric estimator.  Routing it to the
+        Shrake-Rupley implementation makes the documented three-tier fallback
+        actually reachable.
+        """
+        return self.calculate_python_solvent_accessibility(probe_radius=probe_radius)
+
     def calculate_python_solvent_accessibility(self, probe_radius=1.4):
         """
         Enhanced solvent accessibility calculation in pure Python.
@@ -1648,8 +1852,10 @@ class HybridProtLigMapper:
         
         # Check if reasonable number are marked accessible
         if len(self.solvent_accessible) < max(2, len(self.interacting_residues) // 4):
-            # If too few, fall back to the estimation method
-            return self.estimate_solvent_accessibility()
+            # If too few, drop to the tier-3 geometric estimator.  (Calling
+            # estimate_solvent_accessibility() here would recurse, since that
+            # method now delegates to this one.)
+            return self.calculate_realistic_solvent_accessibility()
 
         return self.solvent_accessible
     # Future enhancements for solvent accessibility calculation
@@ -2437,8 +2643,9 @@ class HybridProtLigMapper:
             'hydrogen_bonds':      -1.20,
             'covalent':            -8.00,
             'metal_coordination':  -2.50,
+            # 'salt_bridge' is an alias of 'ionic' (same detection); it carries
+            # no separate weight so charge-charge contacts are counted once.
             'ionic':               -1.80,
-            'salt_bridge':         -1.50,
             'halogen_bonds':       -0.80,
             'pi_pi_stacking':      -0.70,
             'cation_pi':           -0.65,
@@ -2584,6 +2791,195 @@ class HybridProtLigMapper:
             i for i in self.interactions['donor_pi']
             if i['protein_residue'].resname in neg_charged and i['distance'] < 5.5
         ]
+    def export_interactions_csv(self, csv_file='interactions.csv'):
+        """
+        Write every detected interaction as one row of a tidy CSV.
+
+        The text report is human-readable but not parseable; this gives a
+        machine-readable table for downstream filtering, plotting, or
+        comparison across structures.  Columns:
+
+            interaction_type, protein_residue, protein_resnum, protein_chain,
+            protein_atom, ligand_atom, ligand_element, distance_A,
+            solvent_accessible, halogen_element
+
+        Returns the path written.
+        """
+        import csv as _csv
+
+        rows = []
+        for itype, contacts in self.interactions.items():
+            for c in contacts:
+                res = c.get('protein_residue')
+                pa = c.get('protein_atom')
+                la = c.get('ligand_atom')
+                if res is None or pa is None or la is None:
+                    continue
+                chain = res.get_parent().id if res.get_parent() is not None else ''
+                rows.append({
+                    'interaction_type': itype,
+                    'protein_residue': res.resname,
+                    'protein_resnum': res.id[1],
+                    'protein_chain': chain,
+                    'protein_atom': pa.get_name(),
+                    'ligand_atom': la.get_name(),
+                    'ligand_element': la.element.strip().capitalize(),
+                    'distance_A': round(float(c['distance']), 2),
+                    'solvent_accessible': (res.resname, res.id[1]) in self.solvent_accessible,
+                    'halogen_element': c.get('halogen_element', ''),
+                })
+
+        rows.sort(key=lambda r: (r['interaction_type'], r['distance_A']))
+        fields = ['interaction_type', 'protein_residue', 'protein_resnum',
+                  'protein_chain', 'protein_atom', 'ligand_atom',
+                  'ligand_element', 'distance_A', 'solvent_accessible',
+                  'halogen_element']
+        with open(csv_file, 'w', newline='') as fh:
+            writer = _csv.DictWriter(fh, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"Interaction CSV written to {csv_file} ({len(rows)} rows)")
+        return csv_file
+
+    def generate_interaction_plots(self, output_file='interaction_report.png', dpi=300):
+        """
+        Render a four-panel graphical summary of the detected interactions.
+
+        Complements (does not replace) the text report:
+
+          (a) interaction count by class, coloured as in the 2D diagram
+          (b) contact-distance distribution per class, with the ideal distance
+              and detection cutoff marked
+          (c) per-residue interaction profile, stacked by class
+          (d) per-class contribution to the empirical dG
+
+        Returns the path written, or None when nothing was detected.
+        """
+        import matplotlib.pyplot as _plt
+        from matplotlib.patches import Patch as _Patch
+
+        present = {k: v for k, v in self.interactions.items() if v}
+        if not present:
+            print("No interactions detected; skipping plots.")
+            return None
+
+        palette = {
+            'hydrogen_bonds': '#2E8B57', 'halogen_bonds': '#40E0D0',
+            'hydrophobic': '#A0A0A0', 'pi_pi_stacking': '#9370DB',
+            'carbon_pi': '#708090', 'alkyl_pi': '#6495ED',
+            'donor_pi': '#BA55D3', 'amide_pi': '#DDA0DD',
+            'cation_pi': '#FF00FF', 'pi_cation': '#FF69B4',
+            'ionic': '#FF4500', 'salt_bridge': '#FF6347',
+            'metal_coordination': '#FFD700', 'covalent': '#000000',
+            'attractive_charge': '#1E90FF', 'repulsion': '#DC143C',
+        }
+        # Title-case first, then substitute π: .title() would upper-case it.
+        nice = lambda k: k.replace('_', ' ').title().replace('Pi', 'π')
+        colour = lambda k: palette.get(k, '#888888')
+
+        order = sorted(present, key=lambda k: len(present[k]), reverse=True)
+        fig, axes = _plt.subplots(2, 2, figsize=(15, 11))
+        ax_a, ax_b, ax_c, ax_d = axes.ravel()
+
+        # (a) counts -----------------------------------------------------
+        counts = [len(present[k]) for k in order]
+        ax_a.barh(range(len(order)), counts,
+                  color=[colour(k) for k in order], edgecolor='black', linewidth=0.6)
+        ax_a.set_yticks(range(len(order)))
+        ax_a.set_yticklabels([nice(k) for k in order], fontsize=9)
+        ax_a.invert_yaxis()
+        ax_a.set_xlabel('Number of contacts')
+        ax_a.set_title('(a) Interactions detected by class', fontweight='bold', loc='left')
+        for i, c in enumerate(counts):
+            ax_a.text(c + max(counts) * 0.01, i, str(c), va='center', fontsize=9)
+        ax_a.spines[['top', 'right']].set_visible(False)
+
+        # (b) distance distributions -------------------------------------
+        ideal = {'hydrogen_bonds': 2.9, 'covalent': 1.8, 'metal_coordination': 2.2,
+                 'ionic': 3.5, 'salt_bridge': 3.5, 'halogen_bonds': 3.0,
+                 'pi_pi_stacking': 3.8, 'cation_pi': 4.0, 'pi_cation': 4.0,
+                 'hydrophobic': 3.5, 'carbon_pi': 4.0, 'donor_pi': 3.5,
+                 'amide_pi': 3.5, 'alkyl_pi': 4.0, 'attractive_charge': 3.5,
+                 'repulsion': 3.0}
+        for i, k in enumerate(order):
+            d = [c['distance'] for c in present[k]]
+            jitter = (np.random.RandomState(0).rand(len(d)) - 0.5) * 0.28
+            ax_b.scatter(d, np.full(len(d), i) + jitter, s=26,
+                         color=colour(k), edgecolor='black', linewidth=0.4,
+                         alpha=0.85, zorder=3)
+            if k in ideal:
+                ax_b.plot([ideal[k]], [i], marker='|', color='black',
+                          markersize=14, markeredgewidth=1.6, zorder=4)
+        ax_b.set_yticks(range(len(order)))
+        ax_b.set_yticklabels([nice(k) for k in order], fontsize=9)
+        ax_b.invert_yaxis()
+        ax_b.set_xlabel('Contact distance (Å)')
+        ax_b.set_title('(b) Distance distribution  (| = ideal distance)',
+                       fontweight='bold', loc='left')
+        ax_b.grid(axis='x', alpha=0.3, zorder=0)
+        ax_b.spines[['top', 'right']].set_visible(False)
+
+        # (c) per-residue profile ----------------------------------------
+        per_res = {}
+        for k in order:
+            for c in present[k]:
+                r = c['protein_residue']
+                per_res.setdefault(f"{r.resname}{r.id[1]}", {}).setdefault(k, 0)
+                per_res[f"{r.resname}{r.id[1]}"][k] += 1
+        ranked = sorted(per_res, key=lambda r: -sum(per_res[r].values()))[:15]
+        bottom = np.zeros(len(ranked))
+        for k in order:
+            vals = np.array([per_res[r].get(k, 0) for r in ranked], dtype=float)
+            if vals.sum() == 0:
+                continue
+            ax_c.bar(range(len(ranked)), vals, bottom=bottom,
+                     color=colour(k), edgecolor='black', linewidth=0.4, label=nice(k))
+            bottom += vals
+        ax_c.set_xticks(range(len(ranked)))
+        ax_c.set_xticklabels(ranked, rotation=45, ha='right', fontsize=8)
+        ax_c.set_ylabel('Contacts')
+        ax_c.set_title('(c) Per-residue interaction profile (top 15)',
+                       fontweight='bold', loc='left')
+        ax_c.legend(fontsize=7, ncol=2, frameon=False)
+        ax_c.spines[['top', 'right']].set_visible(False)
+
+        # (d) dG contributions -------------------------------------------
+        try:
+            res = self.estimate_binding_affinity()
+            brk = res['breakdown']
+            items = [(k, v['contribution_kcal_mol']) for k, v in brk.items()
+                     if isinstance(v, dict) and 'contribution_kcal_mol' in v]
+            items.sort(key=lambda kv: kv[1])
+            if items:
+                labels = [nice(k) for k, _ in items]
+                vals = [v for _, v in items]
+                ax_d.barh(range(len(items)), vals,
+                          color=['#C0392B' if v > 0 else colour(k)
+                                 for (k, v) in items],
+                          edgecolor='black', linewidth=0.6)
+                ax_d.set_yticks(range(len(items)))
+                ax_d.set_yticklabels(labels, fontsize=9)
+                ax_d.axvline(0, color='black', linewidth=0.8)
+                ax_d.set_xlabel('Contribution to ΔG (kcal/mol)')
+                ax_d.set_title(
+                    f"(d) ΔG breakdown — total {res['dG_estimated']:.2f} kcal/mol",
+                    fontweight='bold', loc='left')
+                ax_d.spines[['top', 'right']].set_visible(False)
+        except Exception as exc:                      # scoring is optional
+            ax_d.text(0.5, 0.5, f'ΔG unavailable\n{exc}', ha='center',
+                      va='center', transform=ax_d.transAxes)
+            ax_d.axis('off')
+
+        lig = getattr(self, 'ligand_residue', None)
+        title = f"PandaMap interaction summary — {lig.resname}" if lig is not None \
+            else "PandaMap interaction summary"
+        fig.suptitle(title, fontsize=15, fontweight='bold')
+        fig.tight_layout(rect=[0, 0, 1, 0.97])
+        fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        _plt.close(fig)
+        print(f"Graphical interaction report saved to {output_file}")
+        return output_file
+
     def run_analysis(self, output_file=None, use_dssp=True, generate_report=False, report_file=None):
         """
         Run the complete analysis pipeline.
