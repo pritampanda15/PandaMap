@@ -325,7 +325,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
 
     for symbol, xy in partners.values():
         ax.text(xy[0], xy[1], symbol, ha='center', va='center', fontsize=fs(11),
-                fontweight='bold', color='#7a5c00', zorder=5,
+                fontweight='bold', color='#7a5c00', zorder=9,   # above lines and labels
                 bbox=dict(boxstyle='circle,pad=0.25', fc='#fff3bf', ec='#b8860b',
                           lw=1.5 * font))
 
