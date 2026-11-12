@@ -5,21 +5,44 @@ Command-line interface for PandaMap.
 import sys
 import os
 import argparse
-from pandamap.core import HybridProtLigMapper
+from pandamap.core import HybridProtLigMapper, list_ligands
 from pandamap.create_3d_view import create_pandamap_3d_viz
+
+
+def _make_console_safe():
+    """Never let a non-UTF-8 console (e.g. Windows cp1252, or redirected
+    output) crash the run on characters such as the Greek letters in the
+    interaction names: unencodable characters are replaced instead."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors='replace')
+        except (AttributeError, ValueError):
+            pass
 
 
 def main():
     """Command-line interface for PandaMap."""
+    _make_console_safe()
+    from pandamap import __version__
     parser = argparse.ArgumentParser(
         description='PandaMap: Visualize protein-ligand interactions from structure files')
     parser.add_argument('structure_file',
         help='Path to structure file (PDB, mmCIF/CIF, or PDBQT format)')
     parser.add_argument('--output', '-o', help='Output image file path')
-    parser.add_argument('--ligand', '-l', help='Specific ligand residue name to analyze')
+    parser.add_argument('--ligand', '-l',
+        help='Ligand residue name to analyze (default: auto-detect the largest '
+             'non-solvent HETATM group)')
+    parser.add_argument('--chain', help='Chain ID of the ligand, when it occurs more than once')
+    parser.add_argument('--resnum', type=int,
+        help='Residue number of the ligand, when it occurs more than once')
+    parser.add_argument('--list-ligands', action='store_true',
+        help='List the candidate ligands in the structure file and exit')
+    parser.add_argument('--debug', action='store_true',
+        help='Show the full Python traceback when an error occurs')
     parser.add_argument('--dpi', type=int, default=300, help='Image resolution (default: 300 dpi)')
     parser.add_argument('--title', '-t', help='Custom title for the visualization')
-    parser.add_argument('--version', '-v', action='store_true', help='Show version information')
+    parser.add_argument('--version', '-v', action='version',
+        version=f'PandaMap version {__version__}', help='Show version information')
     parser.add_argument('--report', '-r', action='store_true',
         help='Generate text report')
     parser.add_argument('--report-file',
@@ -58,26 +81,31 @@ def main():
 
     args = parser.parse_args()
     
-    # Handle version flag
-    if args.version:
-        from pandamap import __version__
-        print(f"PandaMap version {__version__}")
-        return 0
-    
     # Check file existence
     if not os.path.exists(args.structure_file):
         print(f"Error: File not found: {args.structure_file}")
         return 1
     
-    # Check file extension
+    # Unknown extensions are parsed by content (PDB unless it looks like mmCIF)
     file_ext = os.path.splitext(args.structure_file)[1].lower()
     if file_ext not in ['.pdb', '.cif', '.mmcif', '.pdbqt']:
-        print(f"Warning: Unrecognized file extension: {file_ext}")
-        print("Supported formats: .pdb, .cif, .mmcif, .pdbqt")
-        choice = input("Attempt to parse anyway? (y/n): ")
-        if choice.lower() != 'y':
+        print(f"Note: unrecognized file extension '{file_ext}'; "
+              "detecting the format from the file content.")
+
+    if args.list_ligands:
+        try:
+            ligands = list_ligands(args.structure_file)
+        except Exception as e:
+            print(f"Error: {e}")
             return 1
-    
+        if not ligands:
+            print("No ligand (HETATM) found.")
+            return 1
+        print(f"{'Ligand':<8}{'Chain':<7}{'Residue':<9}Atoms")
+        for lig in ligands:
+            print(f"{lig['resname']:<8}{lig['chain']:<7}{lig['resnum']:<9}{lig['n_atoms']}")
+        return 0
+
     # Set up 3D visualization output file if needed
     if args.use_3d and args.output_3d is None:
         base_name = os.path.splitext(os.path.basename(args.structure_file))[0]
@@ -86,6 +114,8 @@ def main():
     try:
         # Create the mapper and run the analysis
         mapper = HybridProtLigMapper(args.structure_file, ligand_resname=args.ligand,
+                                     ligand_chain=args.chain,
+                                     ligand_resnum=args.resnum,
                                      strict_halogens=args.strict_halogens,
                                      strict_hbond_geometry=args.strict_hbond_geometry)
         
@@ -114,7 +144,7 @@ def main():
         
         if args.csv:
             csv_path = args.csv if isinstance(args.csv, str) else \
-                f"{os.path.splitext(output_file)[0]}_interactions.csv"
+                f"{os.path.splitext(output_file)[0]}.csv"
             mapper.export_interactions_csv(csv_path)
 
         if args.plots:
@@ -123,8 +153,13 @@ def main():
             mapper.generate_interaction_plots(plot_path, dpi=args.dpi)
 
         if args.report:
-            report_file = args.report_file or f"{os.path.splitext(output_file)[0]}_report.txt"
-            print(f"Interaction report saved to: {report_file}")
+            report_file = args.report_file or (
+                os.path.splitext(os.path.basename(args.structure_file))[0]
+                + "_interactions_report.txt")
+            if os.path.exists(report_file):
+                print(f"Interaction report saved to: {report_file}")
+            else:
+                print(f"Warning: the interaction report could not be written to {report_file}")
         
         # Generate 3D visualization if requested
         if args.use_3d:
@@ -147,8 +182,11 @@ def main():
         
     except Exception as e:
         print(f"Error: {e}")
-        # Uncomment the next line for debugging
-        # import traceback; traceback.print_exc()
+        if args.debug:
+            import traceback
+            traceback.print_exc()
+        elif not isinstance(e, (ValueError, OSError)):
+            print("Run again with --debug for the full traceback.")
         return 1
 
 if __name__ == "__main__":

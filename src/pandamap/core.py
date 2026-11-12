@@ -89,7 +89,7 @@ def parse_pdbqt(pdbqt_file):
     temp_pdb.close()
     
     # Read the PDBQT file and write a modified version without charges and types
-    with open(pdbqt_file, 'r') as f_pdbqt, open(temp_pdb_path, 'w') as f_pdb:
+    with open(pdbqt_file, 'r') as f_pdbqt, open(temp_pdb_path, 'w', encoding='utf-8') as f_pdb:
         for line in f_pdbqt:
             if line.startswith(('ATOM', 'HETATM')):
                 # Keep the PDB format portion, remove the PDBQT-specific part
@@ -148,7 +148,120 @@ class MultiFormatParser:
             return structure
         
         else:
-            raise ValueError(f"Unsupported file format: {file_ext}. Supported formats: .pdb, .cif, .mmcif, .pdbqt")
+            # Unknown extension (e.g. .ent, .pdb1, no extension): decide from
+            # the content rather than refusing or prompting the user.
+            if _looks_like_mmcif(file_path):
+                return self.mmcif_parser.get_structure('complex', file_path)
+            return self.pdb_parser.get_structure('complex', file_path)
+
+
+def _looks_like_mmcif(file_path):
+    """True if the first meaningful line of the file is an mmCIF data block."""
+    try:
+        with open(file_path, 'r', encoding='utf-8', errors='replace') as fh:
+            for line in fh:
+                line = line.strip()
+                if line and not line.startswith('#'):
+                    return line.startswith('data_')
+    except OSError:
+        pass
+    return False
+
+
+# HETATM residue names that are never the ligand of interest.
+WATER_RESNAMES = frozenset({'HOH', 'WAT', 'H2O', 'DOD', 'TIP', 'TIP3', 'SOL'})
+# Ions, buffer/cryo additives and modified amino acids: valid when requested
+# explicitly, but skipped when the ligand is auto-detected.
+NON_LIGAND_RESNAMES = frozenset({
+    'NA', 'K', 'LI', 'CL', 'BR', 'IOD', 'MG', 'CA', 'ZN', 'FE', 'FE2', 'MN',
+    'CU', 'CU1', 'CO', 'NI', 'CD', 'HG', 'SR', 'BA', 'CS', 'RB',
+    'SO4', 'PO4', 'NO3', 'ACT', 'ACE', 'NH2', 'NH4', 'FMT', 'CO3', 'SCN', 'AZI',
+    'GOL', 'EDO', 'PEG', 'PGE', 'PG4', '1PE', 'P6G', 'MPD', 'DMS', 'IPA',
+    'EOH', 'MOH', 'BME', 'DTT', 'TRS', 'MES', 'EPE', 'CIT', 'IMD',
+    'MSE', 'SEP', 'TPO', 'PTR', 'CSO', 'CME', 'KCX', 'MLY', 'HYP', 'PCA',
+})
+
+
+def _describe_ligand(residue):
+    return (f"{residue.resname.strip()} (chain {residue.get_parent().id}, "
+            f"residue {residue.id[1]}, {len(residue)} atoms)")
+
+
+def _ligand_candidates(model):
+    """All non-water HETATM residues of a model, largest first."""
+    candidates = [r for r in model.get_residues()
+                  if r.id[0] != ' ' and r.resname.strip().upper() not in WATER_RESNAMES]
+    # sorted() is stable, so equal-sized copies keep file order
+    return sorted(candidates, key=lambda r: -len(r))
+
+
+def list_ligands(structure_file):
+    """
+    List the candidate ligands (non-water HETATM residues) in a structure file.
+
+    Returns a list of dicts with keys ``resname``, ``chain``, ``resnum`` and
+    ``n_atoms``, largest first.  Use it to find the name to pass as
+    ``ligand_resname`` / ``--ligand``.
+    """
+    structure = MultiFormatParser().parse_structure(structure_file)
+    models = list(structure.get_models())
+    if not models:
+        raise ValueError(f"No atoms could be read from {structure_file}. "
+                         "Is it a valid PDB, mmCIF or PDBQT file?")
+    return [{'resname': r.resname.strip(), 'chain': r.get_parent().id,
+             'resnum': r.id[1], 'n_atoms': len(r)}
+            for r in _ligand_candidates(models[0])]
+
+
+def _select_ligand(model, structure_file, resname=None, chain=None, resnum=None):
+    """Pick the single HETATM residue to analyse as the ligand."""
+    candidates = _ligand_candidates(model)
+    if not candidates:
+        raise ValueError(f"No ligand (HETATM) found in the file: {structure_file}")
+    available = ", ".join(_describe_ligand(r) for r in candidates[:15])
+
+    matches = candidates
+    if resname is not None:
+        wanted = str(resname).strip().upper()
+        matches = [r for r in matches if r.resname.strip().upper() == wanted]
+    if chain is not None:
+        matches = [r for r in matches if r.get_parent().id == str(chain)]
+    if resnum is not None:
+        matches = [r for r in matches if r.id[1] == int(resnum)]
+
+    if not matches:
+        wanted = " ".join(
+            part for part in (
+                f"'{resname}'" if resname is not None else "",
+                f"chain {chain}" if chain is not None else "",
+                f"residue {resnum}" if resnum is not None else "",
+            ) if part)
+        raise ValueError(f"Ligand {wanted} not found in {structure_file}. "
+                         f"Available ligands: {available}")
+
+    if resname is None:
+        # Auto-detect: prefer real small molecules over ions and additives.
+        preferred = [r for r in matches
+                     if r.resname.strip().upper() not in NON_LIGAND_RESNAMES]
+        matches = preferred or matches
+        ligand = matches[0]
+        others = [r for r in candidates if r is not ligand]
+        if others and resnum is None:
+            print(f"Auto-selected ligand {_describe_ligand(ligand)}. "
+                  f"Other HETATM groups: "
+                  f"{', '.join(_describe_ligand(r) for r in others[:8])}. "
+                  "Use --ligand / ligand_resname to choose another.")
+        return ligand
+
+    # Several copies of the named ligand: analyse one, in file order.
+    match_ids = {id(r) for r in matches}
+    matches = [r for r in model.get_residues() if id(r) in match_ids]
+    ligand = matches[0]
+    if len(matches) > 1:
+        print(f"Found {len(matches)} copies of {ligand.resname.strip()}; using "
+              f"chain {ligand.get_parent().id} residue {ligand.id[1]}. "
+              "Use --chain / --resnum (ligand_chain / ligand_resnum) to choose another.")
+    return ligand
 
 class SimpleLigandStructure:
     """
@@ -808,7 +921,7 @@ class HybridProtLigMapper:
     """
     
     def __init__(self, structure_file, ligand_resname=None, strict_halogens=False,
-                 strict_hbond_geometry=False):
+                 strict_hbond_geometry=False, ligand_chain=None, ligand_resnum=None):
         """
         Initialize with a structure file containing a protein-ligand complex.
 
@@ -817,7 +930,12 @@ class HybridProtLigMapper:
         structure_file : str
             Path to the structure file (PDB, mmCIF/CIF, or PDBQT format)
         ligand_resname : str, optional
-            Specific residue name of the ligand to focus on
+            Residue name of the ligand (case-insensitive).  If omitted, the
+            largest HETATM group that is not water, an ion or a common
+            crystallisation additive is selected automatically.
+        ligand_chain, ligand_resnum : str / int, optional
+            Chain ID and residue number, to pick one copy when the structure
+            contains the ligand more than once.
         strict_halogens : bool, optional
             If True, restrict halogen bonds to Cl/Br/I (Auffinger et al. 2004).
             Default False also reports C-F...O contacts, matching PLIP.
@@ -833,8 +951,17 @@ class HybridProtLigMapper:
         
         # Parse the structure file using the multi-format parser
         parser = MultiFormatParser()
-        self.structure = parser.parse_structure(structure_file)
-        self.model = self.structure[0]
+        try:
+            self.structure = parser.parse_structure(structure_file)
+            models = list(self.structure.get_models())
+        except (OSError, ValueError):
+            raise
+        except Exception as e:
+            raise ValueError(f"Could not parse {structure_file}: {e}") from e
+        if not models:
+            raise ValueError(f"No atoms could be read from {structure_file}. "
+                             "Is it a valid PDB, mmCIF or PDBQT file?")
+        self.model = models[0]
         
         # Separate ligand from protein
         self.protein_atoms = []
@@ -846,10 +973,17 @@ class HybridProtLigMapper:
         self.metal_atoms = []
         self.halogen_atoms = []
         
+        # Exactly one HETATM residue is the ligand.  (Previously, with no
+        # ligand name given, every HETATM group - waters and ions included -
+        # was merged into one "ligand".)
+        selected_ligand = _select_ligand(self.model, structure_file,
+                                         resname=ligand_resname,
+                                         chain=ligand_chain, resnum=ligand_resnum)
+
         for residue in self.model.get_residues():
             # Store ligand atoms (HETATM records)
             if residue.id[0] != ' ':  # Non-standard residue (HETATM)
-                if ligand_resname is None or residue.resname == ligand_resname:
+                if residue is selected_ligand:
                     for atom in residue:
                         self.ligand_atoms.append(atom)
                         # Identify halogen atoms in ligand.
@@ -2834,7 +2968,7 @@ class HybridProtLigMapper:
                   'protein_chain', 'protein_atom', 'ligand_atom',
                   'ligand_element', 'distance_A', 'solvent_accessible',
                   'halogen_element']
-        with open(csv_file, 'w', newline='') as fh:
+        with open(csv_file, 'w', newline='', encoding='utf-8') as fh:
             writer = _csv.DictWriter(fh, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
@@ -3010,10 +3144,15 @@ class HybridProtLigMapper:
         # Calculate solvent accessibility
         print("Calculating solvent accessibility...")
         try:
-            if use_dssp:
+            import shutil as _shutil
+            dssp_exe = _shutil.which('mkdssp') or _shutil.which('dssp')
+            if use_dssp and dssp_exe is None:
+                # DSSP is optional; the built-in estimate needs no extra tools
+                self.calculate_realistic_solvent_accessibility()
+            elif use_dssp:
                 # Try DSSP first
                 print("Trying DSSP method first...")
-                self.calculate_dssp_solvent_accessibility()
+                self.calculate_dssp_solvent_accessibility(dssp_executable=dssp_exe)
                 
                 # Check if DSSP found too many solvent accessible residues
                 if len(self.solvent_accessible) > len(self.interacting_residues) * 0.5:
@@ -3224,7 +3363,7 @@ def analyze_trajectory(structure_file, ligand_resname=None,
     )
     fieldnames = ['frame_idx', 'model_id', 'dG_estimated'] + \
                  list(interaction_sums.keys())
-    with open(csv_path, 'w', newline='') as fh:
+    with open(csv_path, 'w', newline='', encoding='utf-8') as fh:
         writer = csv.DictWriter(fh, fieldnames=fieldnames,
                                 extrasaction='ignore')
         writer.writeheader()

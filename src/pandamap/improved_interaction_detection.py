@@ -340,7 +340,7 @@ def generate_plip_report(ligand_info, interactions, output_file=None):
     # Write to file if specified
     if output_file:
         try:
-            with open(output_file, 'w') as f:
+            with open(output_file, 'w', encoding='utf-8') as f:
                 f.write("\n".join(report))
             print(f"Report saved to {output_file}")
         except Exception as e:
@@ -605,7 +605,7 @@ def add_interaction_detection_methods(cls):
             simple_report.append("=============================================================================")
             
             if output_file:
-                with open(output_file, 'w') as f:
+                with open(output_file, 'w', encoding='utf-8') as f:
                     f.write('\n'.join(simple_report))
                     
             return '\n'.join(simple_report)
@@ -753,7 +753,7 @@ def add_interaction_detection_methods(cls):
         
         # Write report to file
         report_text = "\n".join(report)
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             f.write(report_text)
         
         print(f"Enhanced interaction report saved to: {output_file}")

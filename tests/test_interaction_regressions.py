@@ -365,3 +365,106 @@ def test_solvent_accessibility_tiers_do_not_recurse(tmp_path):
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+# --------------------------------------------------------------------------
+# Ligand selection, input handling and encoding (user-reported problems)
+# --------------------------------------------------------------------------
+
+MIXED_HETATM_COMPLEX = """
+ATOM      1  N   THR A 113      10.000  10.000  10.000  1.00 20.00           N
+ATOM      2  CA  THR A 113      11.000  10.000  10.000  1.00 20.00           C
+ATOM      3  CB  THR A 113      11.500  11.000  10.000  1.00 20.00           C
+ATOM      4  OG1 THR A 113      12.000  12.000  10.000  1.00 20.00           O
+HETATM    5  C1  LIG B   1      14.000  13.500  10.000  1.00 20.00           C
+HETATM    6  O1  LIG B   1      14.900  12.400  10.000  1.00 20.00           O
+HETATM    7  C2  LIG B   1      15.500  14.000  10.000  1.00 20.00           C
+HETATM    8  C1  LIG C   2      34.000  13.500  10.000  1.00 20.00           C
+HETATM    9  O1  LIG C   2      34.900  12.400  10.000  1.00 20.00           O
+HETATM   10  C2  LIG C   2      35.500  14.000  10.000  1.00 20.00           C
+HETATM   11  S   SO4 D   3      20.000  20.000  20.000  1.00 20.00           S
+HETATM   12  O1  SO4 D   3      21.000  20.000  20.000  1.00 20.00           O
+HETATM   13  O2  SO4 D   3      19.000  20.000  20.000  1.00 20.00           O
+HETATM   14  O3  SO4 D   3      20.000  21.000  20.000  1.00 20.00           O
+HETATM   15  O4  SO4 D   3      20.000  19.000  20.000  1.00 20.00           O
+HETATM   16 ZN    ZN E   4      25.000  25.000  25.000  1.00 20.00          ZN
+HETATM   17  O   HOH W   5      13.000  12.500  11.000  1.00 20.00           O
+HETATM   18  O   HOH W   6      12.500  13.000   9.000  1.00 20.00           O
+END
+"""
+
+
+def _mixed(tmp_path):
+    return _write(tmp_path, "mixed.pdb", MIXED_HETATM_COMPLEX)
+
+
+def test_auto_detect_ignores_water_ions_and_additives(tmp_path):
+    """With no ligand name every HETATM group (waters included) used to be
+    merged into one 'ligand', inflating hydrogen-bond counts and the score."""
+    mapper = HybridProtLigMapper(_mixed(tmp_path))
+    assert mapper.ligand_residue.resname == "LIG"
+    assert {a.get_parent().resname for a in mapper.ligand_atoms} == {"LIG"}
+    assert len(mapper.ligand_atoms) == 3          # one copy, not both
+    assert [a.element for a in mapper.metal_atoms] == ["ZN"]
+
+
+def test_ligand_name_is_case_insensitive_and_copy_selectable(tmp_path):
+    path = _mixed(tmp_path)
+    assert HybridProtLigMapper(path, ligand_resname="lig").ligand_residue.get_parent().id == "B"
+    second = HybridProtLigMapper(path, ligand_resname="LIG", ligand_chain="C")
+    assert second.ligand_residue.id[1] == 2
+    assert HybridProtLigMapper(path, ligand_resname="SO4").ligand_residue.resname == "SO4"
+
+
+def test_unknown_ligand_error_lists_available_ligands(tmp_path):
+    with pytest.raises(ValueError, match=r"'XXX' not found.*LIG \(chain B"):
+        HybridProtLigMapper(_mixed(tmp_path), ligand_resname="XXX")
+
+
+def test_list_ligands(tmp_path):
+    from pandamap import list_ligands
+    names = [lig["resname"] for lig in list_ligands(_mixed(tmp_path))]
+    assert names[0] == "SO4" and "LIG" in names and "HOH" not in names
+
+
+def test_unparseable_file_gives_clear_error(tmp_path):
+    with pytest.raises(ValueError, match="No atoms could be read"):
+        HybridProtLigMapper(_write(tmp_path, "junk.pdb", "not a structure\n"))
+
+
+def test_unknown_extension_is_parsed_by_content(tmp_path):
+    mapper = HybridProtLigMapper(_write(tmp_path, "c.ent", BROMINE_COMPLEX))
+    assert mapper.ligand_residue.resname == "LIG"
+
+
+def test_report_is_written_as_utf8_regardless_of_locale(tmp_path, monkeypatch):
+    """On Windows the default cp1252 codec cannot encode the report's
+    non-ASCII characters ('π', 'Å'), so it was silently not written
+    (GitHub issue #5)."""
+    import builtins
+    real_open = builtins.open
+
+    def ascii_default_open(file, mode="r", *args, **kwargs):
+        if "b" not in mode and "encoding" not in kwargs and len(args) < 2:
+            kwargs["encoding"] = "ascii"
+        return real_open(file, mode, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "open", ascii_default_open)
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    report = tmp_path / "report.txt"
+    mapper.generate_interaction_report(output_file=str(report))
+    assert "Å" in report.read_bytes().decode("utf-8")
+
+
+def test_cli_version_needs_no_structure_file(capsys):
+    from pandamap.cli import main
+    import sys
+    argv, sys.argv = sys.argv, ["pandamap", "--version"]
+    try:
+        with pytest.raises(SystemExit) as exc:
+            main()
+    finally:
+        sys.argv = argv
+    assert exc.value.code == 0
+    assert "PandaMap version" in capsys.readouterr().out

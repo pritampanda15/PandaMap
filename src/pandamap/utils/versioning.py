@@ -1,47 +1,40 @@
-import warnings
-import requests
-import shutil
-from packaging.version import Version
+import os
+import re
+import sys
 from importlib.metadata import version
+
+
+def _version_tuple(text):
+    """Leading numeric components of a version string: '4.3.0rc1' -> (4, 3, 0)."""
+    return tuple(int(n) for n in re.findall(r"\d+", text.split("+")[0])[:4])
 
 
 def check_for_updates(package_name="pandamap", env_var_disable="PANDAMAP_NO_UPDATE_CHECK"):
     """
-    Check PyPI for a newer version and notify the user.
+    Check PyPI for a newer version and print a one-line notice to stderr.
 
-    Parameters:
-    - package_name (str): The name of the package to check.
-    - env_var_disable (str): Environment variable to skip version check.
+    Never raises: any failure (offline, proxy, missing metadata) is ignored.
+    Set the environment variable ``PANDAMAP_NO_UPDATE_CHECK=1`` to skip it.
     """
-    import os
-
     if os.getenv(env_var_disable):
         return
 
     try:
+        import requests
+
         current_version = version(package_name)
         response = requests.get(
             f"https://pypi.org/pypi/{package_name}/json", timeout=2
         )
         latest_version = response.json()["info"]["version"]
 
-        if Version(latest_version) > Version(current_version):
-            message = (
-                f"\n\U0001F6A8 [bold red]{package_name} {latest_version} is available![/bold red] "
-                f"[dim](you have {current_version})[/dim]\n\n"
-                f"[yellow]Update with:[/yellow] [green]pip install --upgrade {package_name}[/green]\n"
-                f"[dim]To disable update checks, set: {env_var_disable}=1[/dim]\n"
+        if _version_tuple(latest_version) > _version_tuple(current_version):
+            print(
+                f"{package_name} {latest_version} is available "
+                f"(you have {current_version}). "
+                f"Update with: pip install --upgrade {package_name}  "
+                f"[set {env_var_disable}=1 to silence this notice]",
+                file=sys.stderr,
             )
-
-            if shutil.which("rich"):
-                try:
-                    from rich.console import Console
-                    console = Console()
-                    console.print(message)
-                except ImportError:
-                    warnings.warn(message, UserWarning, stacklevel=2)
-            else:
-                warnings.warn(message, UserWarning, stacklevel=2)
-
     except Exception:
         pass  # Silently ignore errors

@@ -15,10 +15,12 @@ threading.Thread(target=check_for_updates, daemon=True).start()
 
 
 # Core imports
-from .core import SimpleLigandStructure, HybridProtLigMapper, analyze_trajectory
+from .core import (SimpleLigandStructure, HybridProtLigMapper,
+                   analyze_trajectory, list_ligands)
 
-__all__ = ["SimpleLigandStructure", "HybridProtLigMapper", "analyze_trajectory"]
-__version__ = "4.3.0"  # Keep this as fallback if importlib fails
+__all__ = ["SimpleLigandStructure", "HybridProtLigMapper",
+           "analyze_trajectory", "list_ligands"]
+__version__ = "4.3.1"  # Keep this as fallback if importlib fails
 try:
     __version__ = version("pandamap")
 except Exception:
