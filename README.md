@@ -83,7 +83,7 @@ Try it on the example structure in this repository:
 # Three diagrams (modern 2D, classic, 3D contacts)
 pandamap example/1m17.pdb --ligand AQ4
 
-# Add a text report and a four-panel graphical summary
+# Add a text report and a summary figure
 pandamap example/1m17.pdb --ligand AQ4 --report --plots
 
 # Add an interactive 3D viewer you can open in a browser
@@ -106,7 +106,7 @@ For an input called `1m17.pdb`, files are written to the current directory:
 | *(default)* | `1m17_interactions_classic.png` | Classic diagram |
 | *(default)* | `1m17_interactions_3d.png` | 3D contact view |
 | `--report` | `1m17_interactions_report.txt` | Text report |
-| `--plots` | `1m17_interactions_report.png` | Four-panel graphical summary |
+| `--plots` | `1m17_interactions_report.png` | Five-panel summary figure, including the 2D map |
 | `--csv` | `1m17_interactions.csv` | One row per contact |
 | `--json` | `1m17_interactions.json` | The whole analysis as JSON |
 | `--3d` | `1m17_3d_visualization.html` | Interactive 3D viewer |
@@ -182,14 +182,27 @@ or `--json`.
 
 ### Graphical summary (`--plots`)
 
+One figure that explains the binding site at a glance, built around the 2D
+interaction map and laid out for publication (183 mm wide, 5–7 pt Arial,
+one colour per interaction family in every panel).
+
 ![Graphical interaction report](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/report_1m17.png)
 
 | Panel | Shows |
 |---|---|
-| **(a)** Contacts per class | Which interaction types dominate |
-| **(b)** Distance distribution | Each contact against its ideal distance |
-| **(c)** Per-residue profile | The 15 residues with most contacts, stacked by type |
-| **(d)** ΔG breakdown | Contribution of each type to the estimate; penalties in red |
+| **a** Interaction map | Which residue touches which part of the ligand, and how |
+| **b** Contacts by type | How many contacts of each kind |
+| **c** Contact distances | Every contact against the typical distance for its kind |
+| **d** Residue profile | Which residue makes which kinds of contact, and which are solvent exposed |
+| **e** Estimated ΔG | Contribution of each interaction type to the estimate; the hatched bar is a penalty |
+
+The line above the panels states the key facts: number of contacts and
+residues, the closest hydrogen bond, solvent exposure and the ΔG estimate.
+Give `--plots` a `.pdf` or `.svg` path for a vector figure with editable text:
+
+```bash
+pandamap example/1m17.pdb --ligand AQ4 --plots figure.pdf
+```
 
 ### CSV (`--csv`) and JSON (`--json`)
 
@@ -289,7 +302,8 @@ Options:
   --json [FILE]           Export the analysis as JSON (ligand, summary, every
                           interaction with its atoms, per-residue roll-up;
                           adds the ΔG estimate when --deltaG is given)
-  --plots [FILE]          Four-panel graphical interaction report (PNG)
+  --plots [FILE]          Five-panel summary figure built around the 2D map
+                          (.png, .pdf or .svg)
   --strict-halogens       Restrict halogen bonds to Cl/Br/I (see note below)
   --strict-hbond-geometry Also apply the heavy-atom angular proxy to
                           structures without explicit hydrogens
@@ -480,7 +494,8 @@ distance decay, and an entropy penalty for rotatable bonds:
 - **Redesigned text report** that names the atoms in each contact and adds a
   per-residue table.
 - **JSON export** (`--json`).
-- **`report.png`** uses the same names and colours as the diagrams.
+- **`report.png`** is a five-panel publication-style figure built around the 2D
+  interaction map; `.pdf` and `.svg` output keeps the text editable.
 - **Interactive viewer** opens on the binding site and labels contacting atoms.
 - **Fixes**: solvent accessibility no longer changes between runs of the same
   file; a metal far from the ligand is no longer reported as a ligand

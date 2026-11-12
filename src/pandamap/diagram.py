@@ -153,7 +153,8 @@ def _box_edge(centre, target, pad=0.08):
 
 def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.png',
                              figsize=(11, 11.6), dpi=300, title=None,
-                             show_distances=True, show_nearby_residues=False):
+                             show_distances=True, show_nearby_residues=False,
+                             ax=None, theme=None):
     """
     Draw the 2D protein-ligand interaction diagram for an analysed mapper.
 
@@ -170,6 +171,14 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     show_nearby_residues : bool
         Also show binding-site residues that have no specific interaction
         (drawn with a dashed outline and no line).
+
+    ax, theme :
+        For embedding the diagram in a larger figure: draw on ``ax`` instead
+        of creating and saving a figure (no title or legend is added), with
+        optional ``theme`` overrides - ``scale`` and ``min_font`` for text,
+        ``colours`` (interaction type -> colour), ``ink``, ``box_fill``,
+        ``box_edge``, ``solvent_edge``, ``weight`` and ``atom_colours``.
+        A dict describing what was drawn is returned instead of a path.
 
     Returns the path written.
     """
@@ -261,6 +270,16 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     radius = max(_R_RESIDUES, n * (_BOX_W + 0.45) / (2 * math.pi))
     limit = radius + 1.7
     font = (_R_RESIDUES + 1.7) / limit            # keep text in step with the boxes
+    theme = dict(theme or {})
+    font *= theme.get('scale', 1.0)
+    fs = lambda size: max(theme.get('min_font', 0), size * font)
+    weight = theme.get('weight', 'bold')
+    ink = theme.get('ink', '#343a40')
+    atom_colours = theme.get('atom_colours', ATOM_COLOURS)
+
+    def colour_of(itype):
+        default = INTERACTION_STYLE.get(itype, (itype, '#495057', '-', '?'))[1]
+        return (theme.get('colours') or {}).get(itype, default)
     order, angles = _spread_angles(preferred, math.radians(18))
     centre = {everyone[i]: np.array([math.cos(a), math.sin(a)]) * radius
               for i, a in zip(order, angles)}
@@ -286,24 +305,26 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
             merged.setdefault(home or tkey, []).extend(by_target[tkey])
         contacts[key] = merged
 
-    fig, ax = plt.subplots(figsize=figsize)
+    own_figure = ax is None
+    if own_figure:
+        fig, ax = plt.subplots(figsize=figsize)
     ax.set_aspect('equal')
     ax.axis('off')
 
     # ---- ligand ------------------------------------------------------------
     for i, j in bonds:
-        ax.plot([pts[i][0], pts[j][0]], [pts[i][1], pts[j][1]], color='#343a40',
+        ax.plot([pts[i][0], pts[j][0]], [pts[i][1], pts[j][1]], color=ink,
                 lw=2.6 * font, solid_capstyle='round', zorder=3)
     for i, atom in enumerate(heavy):
         element = _element(atom)
         if element != 'C' or not neighbours[i]:
             ax.text(pts[i][0], pts[i][1], element.capitalize(), ha='center', va='center',
-                    fontsize=13 * font, fontweight='bold', zorder=5,
-                    color=ATOM_COLOURS.get(element, '#343a40'),
+                    fontsize=fs(13), fontweight='bold', zorder=5,
+                    color=atom_colours.get(element, ink),
                     bbox=dict(boxstyle='circle,pad=0.12', fc='white', ec='none'))
 
     for symbol, xy in partners.values():
-        ax.text(xy[0], xy[1], symbol, ha='center', va='center', fontsize=11 * font,
+        ax.text(xy[0], xy[1], symbol, ha='center', va='center', fontsize=fs(11),
                 fontweight='bold', color='#7a5c00', zorder=5,
                 bbox=dict(boxstyle='circle,pad=0.25', fc='#fff3bf', ec='#b8860b',
                           lw=1.5 * font))
@@ -323,14 +344,16 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         any_solvent = any_solvent or accessible
         ax.add_patch(FancyBboxPatch(
             (c[0] - _BOX_W / 2, c[1] - _BOX_H / 2), _BOX_W, _BOX_H,
-            boxstyle='round,pad=0.02,rounding_size=0.22', zorder=6, fc=fill,
-            ec=_SOLVENT_EDGE if accessible else '#495057',
+            boxstyle='round,pad=0.02,rounding_size=0.22', zorder=6,
+            fc=theme.get('box_fill', fill),
+            ec=theme.get('solvent_edge', _SOLVENT_EDGE) if accessible
+            else theme.get('box_edge', '#495057'),
             lw=(3.2 if accessible else 1.3) * font,
             ls='-' if key in contacts else (0, (3, 2))))
         text = f"{resname} {resnum}" + (f" {chain}" if multi_chain else "")
         ax.text(c[0], c[1], text, ha='center', va='center',
-                fontsize=(10.8 if multi_chain else 12.5) * font,
-                fontweight='bold', color='#212529', zorder=7)
+                fontsize=fs(10.8 if multi_chain else 12.5),
+                fontweight=weight, color=theme.get('ink', '#212529'), zorder=7)
 
         groups = sorted(contacts.get(key, {}).items(),
                         key=lambda kv: min(_PRIORITY.get(t, 99) for t, _ in kv[1]))
@@ -339,7 +362,8 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         n_badges = sum(len({t for t, _ in members}) for _, members in groups)
         shortest = min((np.linalg.norm(np.asarray(targets[t]) - c) for t, _ in groups),
                        default=0.0) - _BOX_W / 2
-        step = min(0.62, max(0.0, shortest - 1.2) / max(1, n_badges))
+        step = min(theme.get('badge_step', 0.62), max(0.0, shortest - 1.2) / max(1, n_badges))
+        first = theme.get('badge_start', 0.55)
         slot = 0
         for g, (tkey, members) in enumerate(groups):
             by_type = defaultdict(list)
@@ -347,8 +371,9 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
                 by_type[itype].append(contact)
             types = sorted(by_type, key=lambda t: _PRIORITY.get(t, 99))
             used_types.update(types)
-            _, colour, linestyle, _ = INTERACTION_STYLE.get(
+            _, _, linestyle, _ = INTERACTION_STYLE.get(
                 types[0], (types[0], '#495057', '-', '?'))
+            colour = colour_of(types[0])
 
             end = np.asarray(targets[tkey], dtype=float)
             start = _box_edge(c, end)
@@ -368,26 +393,32 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
                 ax.plot(end[0], end[1], 'o', ms=5 * font, color=colour, zorder=4)
 
             for itype in types:
-                _, bcolour, _, badge = INTERACTION_STYLE.get(
-                    itype, (itype, '#495057', '-', '?'))
-                p = start + direction * (0.55 + step * slot)
+                badge = INTERACTION_STYLE.get(itype, (itype, '#495057', '-', '?'))[3]
+                bcolour = colour_of(itype)
+                p = start + direction * (first + step * slot)
                 slot += 1
                 ax.text(p[0], p[1], badge, ha='center', va='center',
-                        fontsize=9.5 * font, fontweight='bold', color=bcolour, zorder=8,
+                        fontsize=fs(9.5), fontweight=weight, color=bcolour, zorder=8,
                         bbox=dict(boxstyle='circle,pad=0.28', fc='white', ec=bcolour,
                                   lw=1.5 * font))
             if show_distances and 'hydrogen_bonds' in by_type:
                 best = min(c_['distance'] for c_ in by_type['hydrogen_bonds'])
-                p = start + direction * max(0.55 + step * slot + 0.35, length * 0.6)
+                p = start + direction * max(first + step * slot + 0.35, length * 0.6)
                 if np.linalg.norm(p - start) < length - 0.3:
                     ax.text(p[0], p[1], f"{best:.1f} Å", ha='center', va='center',
-                            fontsize=8.5 * font, color=INTERACTION_STYLE['hydrogen_bonds'][1],
+                            fontsize=fs(8.5), color=colour_of('hydrogen_bonds'),
                             zorder=8, bbox=dict(boxstyle='round,pad=0.15', fc='white',
                                                 ec='none', alpha=0.9))
 
     if not residues:
         ax.text(0, -_R_LIGAND - 1.2, 'No interactions detected', ha='center',
-                fontsize=12, color='#868e96')
+                fontsize=fs(12), color='#868e96')
+
+    if not own_figure:
+        ax.set_xlim(-limit, limit)
+        ax.set_ylim(-limit, limit)
+        return {'used_types': used_types, 'residue_classes': used_classes,
+                'any_solvent': any_solvent, 'nearby': bool(nearby), 'limit': limit}
 
     # ---- legend: only what is on the plot ----------------------------------
     handles = [Line2D([0], [0], color=INTERACTION_STYLE[t][1], ls=INTERACTION_STYLE[t][2],
