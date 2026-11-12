@@ -169,6 +169,9 @@ Options:
   --3d-output FILE        Path for 3D HTML file
   --deltaG                Estimate binding free energy (ΔG, kcal/mol)
   --csv [FILE]            Export every interaction as a tidy CSV
+  --json [FILE]           Export the analysis as JSON (ligand, summary, every
+                          interaction with its atoms, per-residue roll-up;
+                          adds the ΔG estimate when --deltaG is given)
   --plots [FILE]          Four-panel graphical interaction report (PNG)
   --strict-halogens       Restrict halogen bonds to Cl/Br/I (see note below)
   --strict-hbond-geometry Also apply the heavy-atom angular proxy to
@@ -229,6 +232,11 @@ mapper.run_analysis(output_file="interactions.png",
 
 # Machine-readable table of every contact
 mapper.export_interactions_csv("interactions.csv")
+
+# The same data as JSON, or as a Python dict
+mapper.export_interactions_json("interactions.json")
+data = mapper.interactions_as_dict()
+print(data["summary"]["by_type"])
 
 # Four-panel graphical report
 mapper.generate_interaction_plots("report.png")
@@ -459,37 +467,154 @@ hydrogen_bonds,TYR,48,A,OH,O33,O,2.73,True,
 
 ### Text Report
 
+Every contact names the residue atom and the ligand atom involved, closest first,
+followed by a per-residue table (`pandamap 1els.pdb --ligand PAH --report`):
+
 ```
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: PAH:A:439
-Name: PAH
-Type: LIGAND
+  Structure      1els.pdb
+  Ligand         PAH  (chain A, residue 439, 9 heavy atoms)
+  Binding site   12 residues in chain A; 7 solvent accessible
+  Interactions   20 contacts of 6 types
 
-Interacting Chains: A
-Interacting Residues: 13
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds          10  ██████████████████████████████
+  Ionic interactions       2  ██████
+  Attractive charges       2  ██████
+  Metal coordination       4  ████████████
+  Carbon-π interactions    1  ███
+  Alkyl-π interactions     1  ███
 
-Interaction Summary:
-  Hydrogen Bonds: 10
-  Carbon-π Interactions: 1
-  Metal Coordination: 4
-  Ionic Interactions: 2
-  Salt Bridges: 2
-  Alkyl-π Interactions: 1
-  Attractive Charge: 2
-  Repulsion: 5
+HYDROGEN BONDS (10)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 246 A  OD2    PAH:O3          2.60 Å
+   2  GLU 168 A  OE2    PAH:N3          2.66 Å
+   3  SER 375 A  N      PAH:O1P         2.82 Å
+   4  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   5  LYS 396 A  NZ     PAH:O2          3.05 Å
+   6  SER 39 A   OG     PAH:O2P         3.06 Å
+   7  GLN 167 A  NE2    PAH:O3          3.10 Å
+   8  LYS 345 A  NZ     PAH:O3P         3.21 Å
+   9  GLY 37 A   O      PAH:O3P         3.36 Å
+  10  ASP 320 A  OD2    PAH:O3          3.46 Å
 
-Hydrogen Bonds:
-  1. GLU168A  -- 2.66Å -- PAH
-  2. ASP246A  -- 2.60Å -- PAH
-  3. GLN167A  -- 3.10Å -- PAH
-  4. ASP320A  -- 3.46Å -- PAH
-  5. LYS396A  -- 3.05Å -- PAH
-  ...
+IONIC INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
 
-=============================================================================
+ATTRACTIVE CHARGES (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
+
+METAL COORDINATION (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLY 37 A   O      PAH:MN          2.12 Å
+   2  ASP 320 A  OD2    PAH:MN          2.19 Å
+   3  ASP 246 A  OD2    PAH:MN          2.24 Å
+   4  GLU 295 A  OE2    PAH:MN          2.24 Å
+
+CARBON-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 373 A  CE1    PAH:C2          5.35 Å
+
+ALKYL-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 373 A  CE1    PAH:C2          5.35 Å
+
+RESIDUES (12)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  ARG 374 A         3    2.98 Å  -        hydrogen bond, ionic, attractive charge
+  LYS 345 A         3    3.21 Å  -        hydrogen bond, ionic, attractive charge
+  GLY 37 A          2    2.12 Å  -        hydrogen bond, metal
+  ASP 320 A         2    2.19 Å  yes      hydrogen bond, metal
+  ASP 246 A         2    2.24 Å  yes      hydrogen bond, metal
+  HIS 373 A         2    5.35 Å  -        carbon-π, alkyl-π
+  GLU 295 A         1    2.24 Å  yes      metal
+  GLU 168 A         1    2.66 Å  yes      hydrogen bond
+  SER 375 A         1    2.82 Å  yes      hydrogen bond
+  LYS 396 A         1    3.05 Å  -        hydrogen bond
+  SER 39 A          1    3.06 Å  yes      hydrogen bond
+  GLN 167 A         1    3.10 Å  yes      hydrogen bond
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================
+```
+
+### JSON
+
+`--json` writes the same analysis for use in other programs (shortened here):
+
+```json
+{
+  "pandamap_version": "4.4.0",
+  "structure": "1els.pdb",
+  "ligand": {
+    "name": "PAH",
+    "chain": "A",
+    "number": 439,
+    "n_heavy_atoms": 9
+  },
+  "summary": {
+    "n_interactions": 20,
+    "n_residues": 12,
+    "by_type": {
+      "alkyl_pi": 1,
+      "attractive_charge": 2,
+      "carbon_pi": 1,
+      "hydrogen_bonds": 10,
+      "ionic": 2,
+      "metal_coordination": 4
+    }
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "HIS",
+        "number": 373,
+        "chain": "A"
+      },
+      "protein_atom": "CE1",
+      "ligand_atom": "C2",
+      "ligand_element": "C",
+      "distance": 5.347,
+      "solvent_accessible": false
+    },
+    "..."
+  ],
+  "residues": [
+    {
+      "name": "ARG",
+      "number": 374,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 3,
+      "closest_distance": 2.982,
+      "types": [
+        "attractive_charge",
+        "hydrogen_bonds",
+        "ionic"
+      ]
+    },
+    "..."
+  ]
+}
 ```
 
 ### ΔG Estimation Output

@@ -99,8 +99,8 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     }});
     viewer.addLabel("{atom_name}", {{
         position: {{x: {prot_coords[0]}, y: {prot_coords[1]}, z: {prot_coords[2]}}},
-        fontSize: 11, fontColor: 'black', backgroundColor: 'white',
-        backgroundOpacity: 0.7, inFront: true
+        fontSize: 10, fontColor: 'black', backgroundColor: 'white',
+        backgroundOpacity: 0.6, inFront: true
     }});""")
 
             js_interactions.append(f"""
@@ -242,7 +242,9 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
       {''.join(js_solvent)}
       {''.join(js_interactions)}
       {js_legend}
-      viewer.zoomTo();
+      // open on the binding site rather than the whole protein
+      viewer.zoomTo({{hetflag: true, resn: '{ligand_resname}'}});
+      viewer.zoom(0.55);
       viewer.render();
     }});
   </script>

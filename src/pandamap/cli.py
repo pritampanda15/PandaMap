@@ -79,6 +79,11 @@ def main():
     parser.add_argument('--csv', nargs='?', const=True, default=False,
         metavar='FILE',
         help='Export all detected interactions as a machine-readable CSV')
+    parser.add_argument('--json', nargs='?', const=True, default=False,
+        metavar='FILE',
+        help='Export the analysis as JSON: ligand, summary, every interaction '
+             'with its atoms and distance, and a per-residue roll-up '
+             '(includes the ΔG estimate when --deltaG is given)')
     parser.add_argument('--plots', nargs='?', const=True, default=False,
         metavar='FILE',
         help='Generate a four-panel graphical interaction report (PNG)')
@@ -165,6 +170,11 @@ def main():
             csv_path = args.csv if isinstance(args.csv, str) else \
                 f"{os.path.splitext(output_file)[0]}.csv"
             mapper.export_interactions_csv(csv_path)
+
+        if args.json:
+            json_path = args.json if isinstance(args.json, str) else \
+                f"{os.path.splitext(output_file)[0]}.json"
+            mapper.export_interactions_json(json_path, include_affinity=args.deltaG)
 
         if args.plots:
             plot_path = args.plots if isinstance(args.plots, str) else \

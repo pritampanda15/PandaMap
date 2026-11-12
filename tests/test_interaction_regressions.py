@@ -626,3 +626,59 @@ def test_visualize_3d_style(tmp_path):
     out = tmp_path / "v3d.png"
     assert mapper.visualize(output_file=str(out), dpi=50, style="3d") == str(out)
     assert out.stat().st_size > 1000
+
+
+def test_text_report_names_the_contacting_atoms(tmp_path):
+    """Each contact row names the residue, its atom and the ligand atom,
+    e.g. '1  THR 113 A  OG1    LIG:O1    2.93 Å', closest first."""
+    import re
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    report = tmp_path / "report.txt"
+    mapper.generate_interaction_report(output_file=str(report))
+    text = report.read_text(encoding="utf-8")
+    rows = re.findall(r"^\s+\d+\s+(THR 113 A)\s+(\w+)\s+LIG:(\w+)\s+([\d.]+) Å", text, re.M)
+    assert rows, text
+    assert "Structure      mixed.pdb" in text
+    assert "SUMMARY" in text and "RESIDUES (1)" in text
+    # every line fits an 80-column terminal
+    assert max(len(line) for line in text.splitlines()) <= 80
+
+
+def test_graphical_report_is_written(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "report.png"
+    assert mapper.generate_interaction_plots(str(out), dpi=50) == str(out)
+    assert out.stat().st_size > 1000
+
+
+def test_json_export(tmp_path):
+    import json
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "site.json"
+    assert mapper.export_interactions_json(str(out), include_affinity=True) == str(out)
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["structure"] == "mixed.pdb"
+    assert data["ligand"] == {"name": "LIG", "chain": "B", "number": 1, "n_heavy_atoms": 3}
+    assert data["summary"]["n_interactions"] == len(data["interactions"]) > 0
+    assert sum(data["summary"]["by_type"].values()) == data["summary"]["n_interactions"]
+    first = data["interactions"][0]
+    assert first["residue"] == {"name": "THR", "number": 113, "chain": "A"}
+    assert {"type", "protein_atom", "ligand_atom", "distance", "solvent_accessible"} <= set(first)
+    assert data["residues"][0]["n_contacts"] >= 1
+    assert "dG_estimated" in data["binding_affinity"]
+
+
+def test_cli_json_option(tmp_path, monkeypatch):
+    import json
+    import sys
+    from pandamap.cli import main
+    out = tmp_path / "x.png"
+    monkeypatch.setattr(sys, "argv", ["pandamap", _mixed(tmp_path), "--ligand", "LIG",
+                                      "--diagrams", "modern", "--dpi", "50",
+                                      "-o", str(out), "--json"])
+    assert main() == 0
+    data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
+    assert data["ligand"]["name"] == "LIG" and "binding_affinity" not in data

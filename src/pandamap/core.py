@@ -2976,6 +2976,96 @@ class HybridProtLigMapper:
             i for i in self.interactions['donor_pi']
             if i['protein_residue'].resname in neg_charged and i['distance'] < 5.5
         ]
+    def interactions_as_dict(self):
+        """
+        The analysis as plain Python data (JSON-serialisable): structure and
+        ligand, a summary, every interaction with the atoms involved, and a
+        per-residue roll-up.  ``export_interactions_json`` writes exactly this.
+        """
+        lig = self.ligand_residue
+        contacts = []
+        for itype, items in self.interactions.items():
+            for c in items:
+                res, pa, la = c.get('protein_residue'), c.get('protein_atom'), c.get('ligand_atom')
+                if res is None or pa is None or la is None:
+                    continue
+                parent = res.get_parent()
+                entry = {
+                    'type': itype,
+                    'residue': {'name': res.resname.strip(), 'number': int(res.id[1]),
+                                'chain': parent.id if parent is not None else ''},
+                    'protein_atom': pa.get_name().strip(),
+                    'ligand_atom': la.get_name().strip(),
+                    'ligand_element': (la.element or '').strip().capitalize(),
+                    'distance': round(float(c['distance']), 3),
+                    'solvent_accessible': (res.resname, res.id[1]) in self.solvent_accessible,
+                }
+                if c.get('angle') is not None:
+                    entry['angle'] = round(float(c['angle']), 1)
+                if c.get('type'):
+                    entry['note'] = str(c['type']).replace('_', ' ')
+                if c.get('halogen_element'):
+                    entry['halogen_element'] = c['halogen_element']
+                contacts.append(entry)
+        contacts.sort(key=lambda e: (e['type'], e['distance']))
+
+        by_type, residues = {}, {}
+        for e in contacts:
+            by_type[e['type']] = by_type.get(e['type'], 0) + 1
+            r = e['residue']
+            row = residues.setdefault((r['chain'], r['number'], r['name']), {
+                **r, 'solvent_accessible': e['solvent_accessible'],
+                'n_contacts': 0, 'closest_distance': e['distance'], 'types': []})
+            row['n_contacts'] += 1
+            row['closest_distance'] = min(row['closest_distance'], e['distance'])
+            if e['type'] not in row['types']:
+                row['types'].append(e['type'])
+
+        try:
+            from importlib.metadata import version as _version
+            pandamap_version = _version('pandamap')
+        except Exception:
+            pandamap_version = None
+        return {
+            'pandamap_version': pandamap_version,
+            'structure': os.path.basename(str(self.structure_file)),
+            'ligand': {
+                'name': lig.resname.strip(),
+                'chain': lig.get_parent().id,
+                'number': int(lig.id[1]),
+                'n_heavy_atoms': sum(1 for a in self.ligand_atoms
+                                     if (a.element or '').strip().upper() != 'H'),
+            },
+            'units': {'distance': 'angstrom', 'angle': 'degree'},
+            'summary': {'n_interactions': len(contacts), 'n_residues': len(residues),
+                        'by_type': by_type},
+            'interactions': contacts,
+            'residues': sorted(residues.values(),
+                               key=lambda r: (-r['n_contacts'], r['closest_distance'])),
+        }
+
+    def export_interactions_json(self, json_file='interactions.json', include_affinity=False):
+        """
+        Write the analysis as JSON (see ``interactions_as_dict`` for the
+        layout).  With ``include_affinity`` the empirical ΔG estimate is added
+        under ``binding_affinity``.  Returns the path written.
+        """
+        import json as _json
+
+        data = self.interactions_as_dict()
+        if include_affinity:
+            try:
+                data['binding_affinity'] = _json.loads(
+                    _json.dumps(self.estimate_binding_affinity(), default=float))
+            except Exception as exc:
+                data['binding_affinity'] = {'error': str(exc)}
+        with open(json_file, 'w', encoding='utf-8') as fh:
+            _json.dump(data, fh, indent=2, ensure_ascii=False)
+            fh.write('\n')
+        print(f"Interaction JSON written to {json_file} "
+              f"({data['summary']['n_interactions']} interactions)")
+        return json_file
+
     def export_interactions_csv(self, csv_file='interactions.csv'):
         """
         Write every detected interaction as one row of a tidy CSV.
@@ -3058,19 +3148,12 @@ class HybridProtLigMapper:
             print("No interactions detected; skipping plots.")
             return None
 
-        palette = {
-            'hydrogen_bonds': '#2E8B57', 'halogen_bonds': '#40E0D0',
-            'hydrophobic': '#A0A0A0', 'pi_pi_stacking': '#9370DB',
-            'carbon_pi': '#708090', 'alkyl_pi': '#6495ED',
-            'donor_pi': '#BA55D3', 'amide_pi': '#DDA0DD',
-            'cation_pi': '#FF00FF', 'pi_cation': '#FF69B4',
-            'ionic': '#FF4500', 'salt_bridge': '#FF6347',
-            'metal_coordination': '#FFD700', 'covalent': '#000000',
-            'attractive_charge': '#1E90FF', 'repulsion': '#DC143C',
-        }
-        # Title-case first, then substitute π: .title() would upper-case it.
-        nice = lambda k: k.replace('_', ' ').title().replace('Pi', 'π')
-        colour = lambda k: palette.get(k, '#888888')
+        # Same names and colours as the 2D and 3D diagrams
+        from .diagram import INTERACTION_STYLE as _STYLE
+        from matplotlib.ticker import MaxNLocator as _MaxNLocator
+        nice = lambda k: _STYLE[k][0] if k in _STYLE else \
+            k.replace('_', ' ').capitalize()
+        colour = lambda k: _STYLE[k][1] if k in _STYLE else '#888888'
 
         order = sorted(present, key=lambda k: len(present[k]), reverse=True)
         fig, axes = _plt.subplots(2, 2, figsize=(15, 11))
@@ -3088,6 +3171,7 @@ class HybridProtLigMapper:
         for i, c in enumerate(counts):
             ax_a.text(c + max(counts) * 0.01, i, str(c), va='center', fontsize=9)
         ax_a.spines[['top', 'right']].set_visible(False)
+        ax_a.xaxis.set_major_locator(_MaxNLocator(integer=True))
 
         # (b) distance distributions -------------------------------------
         ideal = {'hydrogen_bonds': 2.9, 'covalent': 1.8, 'metal_coordination': 2.2,
@@ -3119,8 +3203,8 @@ class HybridProtLigMapper:
         for k in order:
             for c in present[k]:
                 r = c['protein_residue']
-                per_res.setdefault(f"{r.resname}{r.id[1]}", {}).setdefault(k, 0)
-                per_res[f"{r.resname}{r.id[1]}"][k] += 1
+                per_res.setdefault(f"{r.resname} {r.id[1]}", {}).setdefault(k, 0)
+                per_res[f"{r.resname} {r.id[1]}"][k] += 1
         ranked = sorted(per_res, key=lambda r: -sum(per_res[r].values()))[:15]
         bottom = np.zeros(len(ranked))
         for k in order:
@@ -3135,7 +3219,9 @@ class HybridProtLigMapper:
         ax_c.set_ylabel('Contacts')
         ax_c.set_title('(c) Per-residue interaction profile (top 15)',
                        fontweight='bold', loc='left')
-        ax_c.legend(fontsize=7, ncol=2, frameon=False)
+        ax_c.legend(fontsize=8, ncol=2, frameon=False)
+        ax_c.yaxis.set_major_locator(_MaxNLocator(integer=True))
+        ax_c.set_ylim(0, max(bottom.max(), 1) * 1.45)   # room for the legend
         ax_c.spines[['top', 'right']].set_visible(False)
 
         # (d) dG contributions -------------------------------------------
@@ -3157,7 +3243,7 @@ class HybridProtLigMapper:
                 ax_d.axvline(0, color='black', linewidth=0.8)
                 ax_d.set_xlabel('Contribution to ΔG (kcal/mol)')
                 ax_d.set_title(
-                    f"(d) ΔG breakdown — total {res['dG_estimated']:.2f} kcal/mol",
+                    f"(d) ΔG breakdown (total {res['dG_estimated']:.2f} kcal/mol)",
                     fontweight='bold', loc='left')
                 ax_d.spines[['top', 'right']].set_visible(False)
         except Exception as exc:                      # scoring is optional
@@ -3166,8 +3252,9 @@ class HybridProtLigMapper:
             ax_d.axis('off')
 
         lig = getattr(self, 'ligand_residue', None)
-        title = f"PandaMap interaction summary — {lig.resname}" if lig is not None \
-            else "PandaMap interaction summary"
+        base = os.path.splitext(os.path.basename(str(self.structure_file)))[0]
+        title = f"PandaMap interaction summary: {base} · {lig.resname.strip()}" \
+            if lig is not None else f"PandaMap interaction summary: {base}"
         fig.suptitle(title, fontsize=15, fontweight='bold')
         fig.tight_layout(rect=[0, 0, 1, 0.97])
         fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
