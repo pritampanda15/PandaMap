@@ -682,3 +682,37 @@ def test_cli_json_option(tmp_path, monkeypatch):
     assert main() == 0
     data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
     assert data["ligand"]["name"] == "LIG" and "binding_affinity" not in data
+
+
+@pytest.mark.parametrize("name", ["figure.pdf", "figure.svg"])
+def test_graphical_report_vector_output(tmp_path, name):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / name
+    assert mapper.generate_interaction_plots(str(out)) == str(out)
+    assert out.stat().st_size > 1000
+    if name.endswith(".svg"):
+        svg = out.read_text(encoding="utf-8")
+        # text stays text (editable), and the five panels are all there
+        for word in ("Interaction map", "Contacts by type", "Contact distances",
+                     "Residue profile", "THR 113"):
+            assert word in svg
+
+
+def test_graphical_report_skipped_without_interactions(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="SO4")
+    mapper.detect_interactions()
+    if any(mapper.interactions.values()):
+        pytest.skip("fixture ligand makes contacts")
+    assert mapper.generate_interaction_plots(str(tmp_path / "none.png")) is None
+
+
+def test_diagram_can_be_drawn_on_an_existing_axes(tmp_path):
+    import matplotlib.pyplot as plt
+    from pandamap.diagram import draw_interaction_diagram
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    fig, ax = plt.subplots(figsize=(3, 3))
+    info = draw_interaction_diagram(mapper, ax=ax, theme={"scale": 0.3, "min_font": 5})
+    assert info["used_types"] and len(fig.axes) == 1 and not fig.legends
+    plt.close(fig)

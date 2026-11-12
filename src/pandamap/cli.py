@@ -86,7 +86,8 @@ def main():
              '(includes the ΔG estimate when --deltaG is given)')
     parser.add_argument('--plots', nargs='?', const=True, default=False,
         metavar='FILE',
-        help='Generate a four-panel graphical interaction report (PNG)')
+        help='Draw the five-panel summary figure, built around the 2D interaction '
+             'map (.png, .pdf or .svg)')
     parser.add_argument('--strict-hbond-geometry', action='store_true',
         dest='strict_hbond_geometry',
         help='Also apply the heavy-atom angular proxy when the structure has '

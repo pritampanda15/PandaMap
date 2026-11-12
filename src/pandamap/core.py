@@ -3128,139 +3128,20 @@ class HybridProtLigMapper:
 
     def generate_interaction_plots(self, output_file='interaction_report.png', dpi=300):
         """
-        Render a four-panel graphical summary of the detected interactions.
+        Draw the graphical interaction report: one publication-style figure
+        with five panels that explain the binding site at a glance.
 
-        Complements (does not replace) the text report:
+          a  the 2D interaction map
+          b  contacts by interaction type
+          c  every contact distance against the typical distance for its type
+          d  residue x interaction-type matrix, with solvent exposure
+          e  per-type contribution to the empirical dG estimate
 
-          (a) interaction count by class, coloured as in the 2D diagram
-          (b) contact-distance distribution per class, with the ideal distance
-              and detection cutoff marked
-          (c) per-residue interaction profile, stacked by class
-          (d) per-class contribution to the empirical dG
-
-        Returns the path written, or None when nothing was detected.
+        The extension of ``output_file`` selects the format (.png, .pdf,
+        .svg).  Returns the path written, or None when nothing was detected.
         """
-        import matplotlib.pyplot as _plt
-        from matplotlib.patches import Patch as _Patch
-
-        present = {k: v for k, v in self.interactions.items() if v}
-        if not present:
-            print("No interactions detected; skipping plots.")
-            return None
-
-        # Same names and colours as the 2D and 3D diagrams
-        from .diagram import INTERACTION_STYLE as _STYLE
-        from matplotlib.ticker import MaxNLocator as _MaxNLocator
-        nice = lambda k: _STYLE[k][0] if k in _STYLE else \
-            k.replace('_', ' ').capitalize()
-        colour = lambda k: _STYLE[k][1] if k in _STYLE else '#888888'
-
-        order = sorted(present, key=lambda k: len(present[k]), reverse=True)
-        fig, axes = _plt.subplots(2, 2, figsize=(15, 11))
-        ax_a, ax_b, ax_c, ax_d = axes.ravel()
-
-        # (a) counts -----------------------------------------------------
-        counts = [len(present[k]) for k in order]
-        ax_a.barh(range(len(order)), counts,
-                  color=[colour(k) for k in order], edgecolor='black', linewidth=0.6)
-        ax_a.set_yticks(range(len(order)))
-        ax_a.set_yticklabels([nice(k) for k in order], fontsize=9)
-        ax_a.invert_yaxis()
-        ax_a.set_xlabel('Number of contacts')
-        ax_a.set_title('(a) Interactions detected by class', fontweight='bold', loc='left')
-        for i, c in enumerate(counts):
-            ax_a.text(c + max(counts) * 0.01, i, str(c), va='center', fontsize=9)
-        ax_a.spines[['top', 'right']].set_visible(False)
-        ax_a.xaxis.set_major_locator(_MaxNLocator(integer=True))
-
-        # (b) distance distributions -------------------------------------
-        ideal = {'hydrogen_bonds': 2.9, 'covalent': 1.8, 'metal_coordination': 2.2,
-                 'ionic': 3.5, 'salt_bridge': 3.5, 'halogen_bonds': 3.0,
-                 'pi_pi_stacking': 3.8, 'cation_pi': 4.0, 'pi_cation': 4.0,
-                 'hydrophobic': 3.5, 'carbon_pi': 4.0, 'donor_pi': 3.5,
-                 'amide_pi': 3.5, 'alkyl_pi': 4.0, 'attractive_charge': 3.5,
-                 'repulsion': 3.0}
-        for i, k in enumerate(order):
-            d = [c['distance'] for c in present[k]]
-            jitter = (np.random.RandomState(0).rand(len(d)) - 0.5) * 0.28
-            ax_b.scatter(d, np.full(len(d), i) + jitter, s=26,
-                         color=colour(k), edgecolor='black', linewidth=0.4,
-                         alpha=0.85, zorder=3)
-            if k in ideal:
-                ax_b.plot([ideal[k]], [i], marker='|', color='black',
-                          markersize=14, markeredgewidth=1.6, zorder=4)
-        ax_b.set_yticks(range(len(order)))
-        ax_b.set_yticklabels([nice(k) for k in order], fontsize=9)
-        ax_b.invert_yaxis()
-        ax_b.set_xlabel('Contact distance (Å)')
-        ax_b.set_title('(b) Distance distribution  (| = ideal distance)',
-                       fontweight='bold', loc='left')
-        ax_b.grid(axis='x', alpha=0.3, zorder=0)
-        ax_b.spines[['top', 'right']].set_visible(False)
-
-        # (c) per-residue profile ----------------------------------------
-        per_res = {}
-        for k in order:
-            for c in present[k]:
-                r = c['protein_residue']
-                per_res.setdefault(f"{r.resname} {r.id[1]}", {}).setdefault(k, 0)
-                per_res[f"{r.resname} {r.id[1]}"][k] += 1
-        ranked = sorted(per_res, key=lambda r: -sum(per_res[r].values()))[:15]
-        bottom = np.zeros(len(ranked))
-        for k in order:
-            vals = np.array([per_res[r].get(k, 0) for r in ranked], dtype=float)
-            if vals.sum() == 0:
-                continue
-            ax_c.bar(range(len(ranked)), vals, bottom=bottom,
-                     color=colour(k), edgecolor='black', linewidth=0.4, label=nice(k))
-            bottom += vals
-        ax_c.set_xticks(range(len(ranked)))
-        ax_c.set_xticklabels(ranked, rotation=45, ha='right', fontsize=8)
-        ax_c.set_ylabel('Contacts')
-        ax_c.set_title('(c) Per-residue interaction profile (top 15)',
-                       fontweight='bold', loc='left')
-        ax_c.legend(fontsize=8, ncol=2, frameon=False)
-        ax_c.yaxis.set_major_locator(_MaxNLocator(integer=True))
-        ax_c.set_ylim(0, max(bottom.max(), 1) * 1.45)   # room for the legend
-        ax_c.spines[['top', 'right']].set_visible(False)
-
-        # (d) dG contributions -------------------------------------------
-        try:
-            res = self.estimate_binding_affinity()
-            brk = res['breakdown']
-            items = [(k, v['contribution_kcal_mol']) for k, v in brk.items()
-                     if isinstance(v, dict) and 'contribution_kcal_mol' in v]
-            items.sort(key=lambda kv: kv[1])
-            if items:
-                labels = [nice(k) for k, _ in items]
-                vals = [v for _, v in items]
-                ax_d.barh(range(len(items)), vals,
-                          color=['#C0392B' if v > 0 else colour(k)
-                                 for (k, v) in items],
-                          edgecolor='black', linewidth=0.6)
-                ax_d.set_yticks(range(len(items)))
-                ax_d.set_yticklabels(labels, fontsize=9)
-                ax_d.axvline(0, color='black', linewidth=0.8)
-                ax_d.set_xlabel('Contribution to ΔG (kcal/mol)')
-                ax_d.set_title(
-                    f"(d) ΔG breakdown (total {res['dG_estimated']:.2f} kcal/mol)",
-                    fontweight='bold', loc='left')
-                ax_d.spines[['top', 'right']].set_visible(False)
-        except Exception as exc:                      # scoring is optional
-            ax_d.text(0.5, 0.5, f'ΔG unavailable\n{exc}', ha='center',
-                      va='center', transform=ax_d.transAxes)
-            ax_d.axis('off')
-
-        lig = getattr(self, 'ligand_residue', None)
-        base = os.path.splitext(os.path.basename(str(self.structure_file)))[0]
-        title = f"PandaMap interaction summary: {base} · {lig.resname.strip()}" \
-            if lig is not None else f"PandaMap interaction summary: {base}"
-        fig.suptitle(title, fontsize=15, fontweight='bold')
-        fig.tight_layout(rect=[0, 0, 1, 0.97])
-        fig.savefig(output_file, dpi=dpi, bbox_inches='tight')
-        _plt.close(fig)
-        print(f"Graphical interaction report saved to {output_file}")
-        return output_file
+        from .report_figure import draw_report_figure
+        return draw_report_figure(self, output_file=output_file, dpi=dpi)
 
     def run_analysis(self, output_file=None, use_dssp=True, generate_report=False,
                      report_file=None, dpi=300, title=None, show_3d_cues=True,
