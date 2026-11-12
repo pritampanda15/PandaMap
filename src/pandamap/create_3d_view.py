@@ -14,6 +14,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     }
 
     temp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
+    temp_pdb.close()  # Windows cannot delete a file that is still open
     io = PDBIO()
     io.set_structure(mapper.structure)
     io.save(temp_pdb.name)
@@ -226,7 +227,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
   </script>
 </body></html>"""
 
-    with open(output_file, 'w') as f:
+    with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html)
     print(f"3D visualization saved to {output_file}")
     return output_file

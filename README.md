@@ -131,6 +131,9 @@ PandaMap works without RDKit — it falls back to PCA-based 2D projection automa
 # 2D interaction diagram
 pandamap structure.pdb
 
+# See which ligands the file contains
+pandamap complex.pdb --list-ligands
+
 # Specify ligand, generate report and 3D viewer
 pandamap complex.pdb --ligand PFL --report --3d
 
@@ -152,7 +155,12 @@ Positional arguments:
   structure_file          Path to PDB, mmCIF/CIF, or PDBQT file
 
 Options:
-  -l, --ligand NAME       Three-letter residue code of the ligand (default: auto-detect)
+  -l, --ligand NAME       Residue name of the ligand, case-insensitive (default:
+                          auto-detect the largest HETATM group that is not
+                          water, an ion or a crystallisation additive)
+  --chain ID              Chain of the ligand, when it occurs more than once
+  --resnum N              Residue number of the ligand, when it occurs more than once
+  --list-ligands          List the candidate ligands in the file and exit
   -o, --output FILE       Output PNG file path
   -r, --report            Generate plain-text interaction report
   --report-file FILE      Path for text report
@@ -170,6 +178,7 @@ Options:
   --height PX             3D viewer height in pixels (default: 600)
   --no-surface            Hide protein surface in 3D viewer
   --no-3d-cues            Disable depth cues in 2D diagram
+  --debug                 Print the full traceback when an error occurs
   -v, --version           Show version
   -h, --help              Show help
 ```
@@ -184,6 +193,10 @@ Options:
 from pandamap import HybridProtLigMapper
 
 mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG")
+# Several copies of the ligand?  Pick one:
+# mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG",
+#                              ligand_chain="B", ligand_resnum=501)
+# Not sure of the name?  pandamap.list_ligands("complex.pdb")
 mapper.detect_interactions()
 
 # 2D diagram
