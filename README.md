@@ -469,10 +469,18 @@ Hydrogen Bonds:
 If you use PandaMap in your research, please cite:
 
 ```
-Pritam Kumar Panda. (2025). PandaMap: A Python Package for Comprehensive
-Visualization of Protein–Ligand Interaction Networks and Empirical Binding
-Affinity Estimation. Stanford University, CA, USA
-https://github.com/pritampanda15/PandaMap
+@article {Panda2026.08.06.743421,
+	author = {Panda, Pritam Kumar},
+	title = {PandaMap: A Python Package for Comprehensive Visualization of Protein{\textendash}Ligand Interaction Networks},
+	elocation-id = {2026.08.06.743421},
+	year = {2026},
+	doi = {10.64898/2026.08.06.743421},
+	publisher = {Cold Spring Harbor Laboratory},
+	abstract = {Protein{\textendash}ligand interaction diagrams are a routine part of structural and medicinal chemistry, but the tools that produce them tend to force a choice: comprehensive detection with tabular output, publication-quality figures behind a licence, or a scripting environment that assumes expertise. PandaMap (Protein AND ligAnd interaction MAPper) is an open-source Python package that produces a 2D interaction diagram, an interactive 3D viewer, a text report, a machine-readable CSV, and a four-panel graphical summary from a single command. It reads PDB, mmCIF and PDBQT files, detects 15 interaction classes using crystallographically validated distance thresholds, and depends only on NumPy, Matplotlib, BioPython and Requests; RDKit improves the 2D ligand layout when present but is not required. Hydrogen bonds are filtered on the true D{\textendash}H{\textperiodcentered} {\textperiodcentered} {\textperiodcentered} A angle when the structure contains explicit hydrogens, matching PLIP{\textquoteright}s 100{\textopenbullet} criterion on the same evidence, and on distance alone otherwise, with the provenance of each measurement recorded. We benchmarked the package on three complexes chosen for different chemistry: enolase with a phosphonate transition-state analogue (PDB 1ELS), the EGFR kinase with erlotinib (1M17), and aldose reductase with IDD594 (1US0). PandaMap recovers the contacts these structures are known for, including the EGFR hinge hydrogen bond to MET769 and the IDD594 bromine{\textperiodcentered} {\textperiodcentered} {\textperiodcentered} THR113 halogen bond, both at distances identical to PLIP{\textquoteright}s. All detection thresholds, scoring weights and the exact commands used are given in the Supplementary Information, and the release carries a regression suite covering each interaction class. PandaMap 4.3.0 is available on PyPI under the MIT licence.Competing Interest StatementThe authors have declared no competing interest.},
+	URL = {https://www.biorxiv.org/content/early/2026/08/09/2026.08.06.743421},
+	eprint = {https://www.biorxiv.org/content/early/2026/08/09/2026.08.06.743421.full.pdf},
+	journal = {bioRxiv}
+}
 ```
 
 ---
