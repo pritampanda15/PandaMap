@@ -1,113 +1,140 @@
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: HEM:A:301
-Name: HEM
-Type: LIGAND
+  Structure      4jmz.pdb
+  Ligand         HEM  (chain A, residue 301, 43 heavy atoms)
+  Binding site   23 residues in chain A; 11 solvent accessible
+  Interactions   51 contacts of 9 types
 
-------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds          13  ████████████████████████
+  Ionic interactions       3  ██████
+  π-π stacking             4  ████████
+  π-cation interactions    3  ██████
+  Donor-π interactions     1  ██
+  Carbon-π interactions    2  ████
+  Alkyl-π interactions    16  ██████████████████████████████
+  Hydrophobic contacts     5  █████████
+  Water bridges            4  ████████
 
-Interacting Chains: A
-Interacting Residues: 25
+HYDROGEN BONDS (13)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  SER 185 A  OG     HEM:O1A         2.65 Å
+   2  HIS 181 A  ND1    HEM:O2A         2.68 Å
+   3  HIS 181 A  N      HEM:O1A         2.79 Å
+   4  HIS 175 A  NE2    HEM:NC          2.90 Å
+   5  HIS 175 A  NE2    HEM:NB          2.93 Å
+   6  ASN 184 A  ND2    HEM:O2A         3.00 Å
+   7  HIS 175 A  NE2    HEM:ND          3.03 Å
+   8  LYS 179 A  N      HEM:O2D         3.04 Å
+   9  HIS 175 A  NE2    HEM:NA          3.06 Å
+  10  TRP 51 A   NE1    HEM:NC          3.16 Å
+  11  HIS 181 A  O      HEM:O1A         3.20 Å
+  12  LYS 179 A  O      HEM:O2D         3.31 Å
+  13  ARG 48 A   NH1    HEM:NA          3.38 Å
 
-------------------------------
+IONIC INTERACTIONS (3)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 181 A  ND1    HEM:O2A         2.68 Å
+   2  LYS 179 A  N      HEM:O2D         3.04 Å
+   3  ARG 48 A   NH2    HEM:O2A         4.75 Å
 
-Interaction Summary:
-  Hydrogen Bonds: 7
-  Hydrophobic Interactions: 9
-  π-π Stacking: 7
-  Carbon-π Interactions: 7
-  Donor-π Interactions: 2
-  Amide-π Interactions: 1
-  Covalent Bonds: 1
-  Alkyl-π Interactions: 12
-  π-Cation Interactions: 4
+π-π STACKING (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 51 A   CD1    HEM:C3C         3.30 Å
+   2  HIS 175 A  CE1    HEM:C4B         3.51 Å
+   3  PHE 158 A  CZ     HEM:CHC         4.88 Å
+   4  TYR 187 A  CD2    HEM:C3A         5.30 Å
 
-------------------------------
+π-CATION INTERACTIONS (3)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 48 A   NH1    HEM:C4A         3.31 Å  protein cation
+   2  HIS 175 A  NE2    HEM:C4B         3.56 Å  protein cation
+   3  LYS 179 A  N      HEM:C3D         5.47 Å  protein cation
 
-Hydrogen Bonds:
-  1. HIS181A  -- 2.68Å -- HEM
-  2. SER185A  -- 2.65Å -- HEM
-  3. ASN184A  -- 3.00Å -- HEM
-  4. LYS179A  -- 3.04Å -- HEM
-  5. HIS175A  -- 2.90Å -- HEM
-  6. ARG48A  -- 3.38Å -- HEM
-  7. TRP51A  -- 3.16Å -- HEM
+DONOR-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 146 A  O      HEM:C2B         4.81 Å
 
-------------------------------
+CARBON-π INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 51 A   NE1    HEM:C1C         3.13 Å
+   2  HIS 181 A  ND1    HEM:CGA         3.49 Å
 
-Hydrophobic Interactions:
-  1. LEU230A  -- 3.59Å -- HEM
-  2. TRP51A  -- 3.30Å -- HEM
-  3. ALA174A  -- 3.43Å -- HEM
-  4. TYR187A  -- 3.98Å -- HEM
-  5. PRO145A  -- 3.58Å -- HEM
-  6. ALA147A  -- 3.58Å -- HEM
-  7. PHE158A  -- 3.94Å -- HEM
-  8. LEU171A  -- 3.85Å -- HEM
-  9. PRO44A  -- 4.00Å -- HEM
+ALKYL-π INTERACTIONS (16)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  LEU 230 A  CD1    HEM:CHB         3.59 Å
+   2  PRO 145 A  CG     HEM:C3B         3.75 Å
+   3  TRP 51 A   CE2    HEM:CMC         3.82 Å
+   4  PHE 158 A  CE1    HEM:CAB         3.94 Å
+   5  HIS 181 A  CE1    HEM:CGD         3.94 Å
+   6  ALA 174 A  CB     HEM:CHD         3.97 Å
+   7  TYR 187 A  CD2    HEM:CMA         3.98 Å
+   8  PHE 264 A  CE2    HEM:CBC         4.02 Å
+   9  PHE 260 A  CE1    HEM:CBC         4.10 Å
+  10  ALA 147 A  CB     HEM:CHB         4.56 Å
+  11  LEU 171 A  C      HEM:C2C         4.68 Å
+  12  VAL 47 A   CG1    HEM:CHD         4.69 Å
+  13  PRO 44 A   C      HEM:C2D         4.93 Å
+  14  MET 172 A  CA     HEM:C2C         5.03 Å
+  15  LEU 177 A  CB     HEM:C2D         5.16 Å
+  16  HIS 175 A  CE1    HEM:CAB         5.32 Å
 
-------------------------------
+HYDROPHOBIC CONTACTS (5)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ALA 174 A  CB     HEM:CAC         3.43 Å
+   2  PRO 145 A  CG     HEM:CAB         3.58 Å
+   3  ALA 147 A  CA     HEM:CMB         3.58 Å
+   4  LEU 171 A  CB     HEM:CMC         3.85 Å
+   5  PRO 44 A   C      HEM:CMD         4.00 Å
 
-π-π Stacking:
-  1. HIS175A  -- 3.51Å -- HEM
-  2. PHE158A  -- 3.94Å -- HEM
-  3. TRP51A  -- 3.30Å -- HEM
-  4. TYR187A  -- 3.98Å -- HEM
-  5. HIS181A  -- 3.94Å -- HEM
-  6. PHE264A  -- 4.02Å -- HEM
-  7. PHE260A  -- 4.10Å -- HEM
+WATER BRIDGES (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 48 A   NE     HEM:NA          2.77 Å  via HOH 707 (2.77 + 2.69 Å)
+   2  TRP 51 A   NE1    HEM:NB          2.81 Å  via HOH 707 (2.81 + 2.79 Å)
+   3  ASP 37 A   OD2    HEM:O2D         2.89 Å  via HOH 448 (2.69 + 2.89 Å)
+   4  HIS 52 A   NE2    HEM:NA          3.22 Å  via HOH 707 (2.77 + 3.22 Å)
 
-------------------------------
+RESIDUES (23)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  HIS 175 A         7    2.90 Å  yes      hydrogen bond, π-π stacking, π-cation, alkyl-π
+  HIS 181 A         6    2.68 Å  yes      hydrogen bond, ionic, carbon-π, alkyl-π
+  TRP 51 A          5    2.81 Å  -        hydrogen bond, π-π stacking, carbon-π, alkyl-π, water bridge
+  ARG 48 A          4    2.77 Å  yes      hydrogen bond, ionic, π-cation, water bridge
+  LYS 179 A         4    3.04 Å  yes      hydrogen bond, ionic, π-cation
+  ALA 174 A         2    3.43 Å  -        alkyl-π, hydrophobic
+  PRO 145 A         2    3.58 Å  -        alkyl-π, hydrophobic
+  ALA 147 A         2    3.58 Å  -        alkyl-π, hydrophobic
+  LEU 171 A         2    3.85 Å  -        alkyl-π, hydrophobic
+  PHE 158 A         2    3.94 Å  -        π-π stacking, alkyl-π
+  TYR 187 A         2    3.98 Å  yes      π-π stacking, alkyl-π
+  PRO 44 A          2    4.00 Å  -        alkyl-π, hydrophobic
+  SER 185 A         1    2.65 Å  yes      hydrogen bond
+  ASP 37 A          1    2.89 Å  yes      water bridge
+  ASN 184 A         1    3.00 Å  yes      hydrogen bond
+  HIS 52 A          1    3.22 Å  yes      water bridge
+  LEU 230 A         1    3.59 Å  yes      alkyl-π
+  PHE 264 A         1    4.02 Å  -        alkyl-π
+  PHE 260 A         1    4.10 Å  -        alkyl-π
+  VAL 47 A          1    4.69 Å  -        alkyl-π
+  ASP 146 A         1    4.81 Å  yes      donor-π
+  MET 172 A         1    5.03 Å  -        alkyl-π
+  LEU 177 A         1    5.16 Å  -        alkyl-π
 
-Carbon-π Interactions:
-  1. HIS175A  -- 3.51Å -- HEM
-  2. PHE158A  -- 3.94Å -- HEM
-  3. TRP51A  -- 3.13Å -- HEM
-  4. TYR187A  -- 3.98Å -- HEM
-  5. HIS181A  -- 3.49Å -- HEM
-  6. PHE264A  -- 4.02Å -- HEM
-  7. PHE260A  -- 4.10Å -- HEM
-
-------------------------------
-
-Donor-π Interactions:
-  1. ASP146A  -- 3.38Å -- HEM
-  2. ASP37A  -- 5.09Å -- HEM
-
-------------------------------
-
-Amide-π Interactions:
-  1. ASN184A  -- 3.70Å -- HEM
-
-------------------------------
-
-Covalent Bonds:
-  1. HIS175A  -- 2.09Å -- HEM
-
-------------------------------
-
-Alkyl-π Interactions:
-  1. LEU230A  -- 3.59Å -- HEM
-  2. ALA147A  -- 3.58Å -- HEM
-  3. MET172A  -- 4.21Å -- HEM
-  4. PRO145A  -- 3.58Å -- HEM
-  5. VAL47A  -- 4.01Å -- HEM
-  6. ALA174A  -- 3.43Å -- HEM
-  7. VAL154A  -- 4.34Å -- HEM
-  8. LEU171A  -- 3.85Å -- HEM
-  9. LEU267A  -- 4.83Å -- HEM
-  10. LEU177A  -- 4.20Å -- HEM
-  11. PRO44A  -- 4.00Å -- HEM
-  12. VAL45A  -- 4.34Å -- HEM
-
-------------------------------
-
-π-Cation Interactions:
-  1. HIS175A (protein_cation) -- 3.56Å -- HEM
-  2. ARG48A (protein_cation) -- 3.31Å -- HEM
-  3. HIS181A (protein_cation) -- 3.49Å -- HEM
-  4. LYS179A (protein_cation) -- 4.10Å -- HEM
-
-=============================================================================
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

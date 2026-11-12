@@ -1,85 +1,88 @@
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: PAH:A:439
-Name: PAH
-Type: LIGAND
+  Structure      1els.pdb
+  Ligand         PAH  (chain A, residue 439, 9 heavy atoms)
+  Binding site   14 residues in chain A; 8 solvent accessible
+  Interactions   28 contacts of 5 types
 
-------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds         13  ██████████████████████████████
+  Ionic interactions      2  █████
+  Metal coordination      4  █████████
+  Alkyl-π interactions    1  ██
+  Water bridges           8  ██████████████████
 
-Interacting Chains: A
-Interacting Residues: 13
+HYDROGEN BONDS (13)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 246 A  OD2    PAH:O3          2.60 Å
+   2  GLU 168 A  OE2    PAH:N3          2.66 Å
+   3  SER 375 A  N      PAH:O1P         2.82 Å
+   4  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   5  LYS 396 A  NZ     PAH:O2          3.05 Å
+   6  SER 39 A   OG     PAH:O2P         3.06 Å
+   7  GLU 168 A  OE2    PAH:O3          3.10 Å
+   8  GLN 167 A  NE2    PAH:O3          3.10 Å
+   9  LYS 345 A  NZ     PAH:O3P         3.21 Å
+  10  SER 375 A  OG     PAH:O1P         3.21 Å
+  11  ASP 246 A  OD2    PAH:N3          3.28 Å
+  12  GLY 37 A   O      PAH:O3P         3.36 Å
+  13  ASP 320 A  OD2    PAH:O3          3.46 Å
 
-------------------------------
+IONIC INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
 
-Interaction Summary:
-  Hydrogen Bonds: 10
-  Carbon-π Interactions: 1
-  Metal Coordination: 4
-  Ionic Interactions: 2
-  Salt Bridges: 2
-  Alkyl-π Interactions: 1
-  Attractive Charge: 2
-  Repulsion: 5
+METAL COORDINATION (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLY 37 A   O      PAH:MN          2.12 Å
+   2  ASP 320 A  OD2    PAH:MN          2.19 Å
+   3  ASP 246 A  OD2    PAH:MN          2.24 Å
+   4  GLU 295 A  OE2    PAH:MN          2.24 Å
 
-------------------------------
+ALKYL-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 373 A  CE1    PAH:C2          5.35 Å
 
-Hydrogen Bonds:
-  1. GLU168A  -- 2.66Å -- PAH
-  2. ASP246A  -- 2.60Å -- PAH
-  3. GLN167A  -- 3.10Å -- PAH
-  4. ASP320A  -- 3.46Å -- PAH
-  5. LYS396A  -- 3.05Å -- PAH
-  6. SER375A  -- 2.82Å -- PAH
-  7. SER39A  -- 3.06Å -- PAH
-  8. ARG374A  -- 2.98Å -- PAH
-  9. GLY37A  -- 3.36Å -- PAH
-  10. LYS345A  -- 3.21Å -- PAH
+WATER BRIDGES (8)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLU 211 A  OE2    PAH:O2          2.99 Å  via HOH 525 (2.99 + 2.70 Å)
+   2  SER 375 A  OG     PAH:O2P         3.01 Å  via HOH 730 (3.01 + 2.89 Å)
+   3  ASP 246 A  OD2    PAH:O2          3.03 Å  via HOH 653 (3.03 + 2.79 Å)
+   4  GLU 295 A  OE1    PAH:O3          3.05 Å  via HOH 653 (2.66 + 3.05 Å)
+   5  GLU 168 A  OE1    PAH:N3          3.26 Å  via HOH 525 (3.26 + 3.26 Å)
+   6  GLN 167 A  NE2    PAH:N3          3.36 Å  via HOH 768 (2.96 + 3.36 Å)
+   7  SER 39 A   OG     PAH:N3          3.38 Å  via HOH 768 (2.96 + 3.38 Å)
+   8  ASP 321 A  OD1    PAH:O3          3.48 Å  via HOH 668 (3.48 + 3.39 Å)
 
-------------------------------
+RESIDUES (14)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  ASP 246 A         4    2.24 Å  yes      hydrogen bond, metal, water bridge
+  GLU 168 A         3    2.66 Å  yes      hydrogen bond, water bridge
+  SER 375 A         3    2.82 Å  yes      hydrogen bond, water bridge
+  GLY 37 A          2    2.12 Å  -        hydrogen bond, metal
+  ASP 320 A         2    2.19 Å  -        hydrogen bond, metal
+  GLU 295 A         2    2.24 Å  yes      metal, water bridge
+  ARG 374 A         2    2.98 Å  -        hydrogen bond, ionic
+  SER 39 A          2    3.06 Å  yes      hydrogen bond, water bridge
+  GLN 167 A         2    3.10 Å  yes      hydrogen bond, water bridge
+  LYS 345 A         2    3.21 Å  -        hydrogen bond, ionic
+  GLU 211 A         1    2.99 Å  yes      water bridge
+  LYS 396 A         1    3.05 Å  -        hydrogen bond
+  ASP 321 A         1    3.48 Å  yes      water bridge
+  HIS 373 A         1    5.35 Å  -        alkyl-π
 
-Carbon-π Interactions:
-  1. HIS373A  -- 4.29Å -- PAH
-
-------------------------------
-
-Metal Coordination:
-  1. ASP246A  -- 2.24Å -- PAH
-  2. GLU295A  -- 2.24Å -- PAH
-  3. ASP320A  -- 2.19Å -- PAH
-  4. GLY37A  -- 2.12Å -- PAH
-
-------------------------------
-
-Ionic Interactions:
-  1. ARG374A  -- 2.98Å -- PAH
-  2. LYS345A  -- 3.21Å -- PAH
-
-------------------------------
-
-Salt Bridges:
-  1. ARG374A  -- 2.98Å -- PAH
-  2. LYS345A  -- 3.21Å -- PAH
-
-------------------------------
-
-Alkyl-π Interactions:
-  1. HIS373A  -- 5.27Å -- PAH
-
-------------------------------
-
-Attractive Charge:
-  1. ARG374A  -- 2.98Å -- PAH
-  2. LYS345A  -- 3.21Å -- PAH
-
-------------------------------
-
-Repulsion:
-  1. ASP320A  -- 3.46Å -- PAH
-  2. GLU168A  -- 3.10Å -- PAH
-  3. ASP246A  -- 2.60Å -- PAH
-  4. GLU295A  -- 3.95Å -- PAH
-  5. GLU211A  -- 4.34Å -- PAH
-
-=============================================================================
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

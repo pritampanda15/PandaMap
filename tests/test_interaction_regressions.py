@@ -658,7 +658,7 @@ def test_json_export(tmp_path):
     mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
     mapper.detect_interactions()
     out = tmp_path / "site.json"
-    assert mapper.export_interactions_json(str(out), include_affinity=True) == str(out)
+    assert mapper.export_interactions_json(str(out), include_score=True) == str(out)
     data = json.loads(out.read_text(encoding="utf-8"))
     assert data["structure"] == "mixed.pdb"
     assert data["ligand"] == {"name": "LIG", "chain": "B", "number": 1, "n_heavy_atoms": 3}
@@ -668,7 +668,8 @@ def test_json_export(tmp_path):
     assert first["residue"] == {"name": "THR", "number": 113, "chain": "A"}
     assert {"type", "protein_atom", "ligand_atom", "distance", "solvent_accessible"} <= set(first)
     assert data["residues"][0]["n_contacts"] >= 1
-    assert "dG_estimated" in data["binding_affinity"]
+    assert data["interaction_score"]["calibrated"] is False
+    assert data["interaction_score"]["score"] == data["interaction_score"]["dG_estimated"]
 
 
 def test_cli_json_option(tmp_path, monkeypatch):
@@ -681,7 +682,7 @@ def test_cli_json_option(tmp_path, monkeypatch):
                                       "-o", str(out), "--json"])
     assert main() == 0
     data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
-    assert data["ligand"]["name"] == "LIG" and "binding_affinity" not in data
+    assert data["ligand"]["name"] == "LIG" and "interaction_score" not in data
 
 
 @pytest.mark.parametrize("name", ["figure.pdf", "figure.svg"])
@@ -716,3 +717,278 @@ def test_diagram_can_be_drawn_on_an_existing_axes(tmp_path):
     info = draw_interaction_diagram(mapper, ax=ax, theme={"scale": 0.3, "min_font": 5})
     assert info["used_types"] and len(fig.axes) == 1 and not fig.legends
     plt.close(fig)
+
+
+# --------------------------------------------------------------------------
+# 4.4: contact selection, water bridges, score wording
+# --------------------------------------------------------------------------
+
+EXAMPLE_1M17 = os.path.join(os.path.dirname(__file__), "..", "example", "1m17.pdb")
+needs_example = pytest.mark.skipif(not os.path.exists(EXAMPLE_1M17),
+                                   reason="example structure not available")
+
+
+@pytest.fixture(scope="module")
+def erlotinib():
+    mapper = HybridProtLigMapper(EXAMPLE_1M17, ligand_resname="AQ4")
+    mapper.detect_interactions()
+    return mapper
+
+
+def _pairs(mapper, itype):
+    return {(id(c["protein_atom"]), id(c["ligand_atom"])) for c in mapper.interactions[itype]}
+
+
+@needs_example
+def test_charge_contact_is_reported_once(erlotinib):
+    """ASP 831 - N1 was listed as both 'ionic' and 'attractive charge'."""
+    assert erlotinib.interactions["attractive_charge"] == []
+    assert [c["protein_residue"].id[1] for c in erlotinib.interactions["ionic"]] == [831]
+
+
+@needs_example
+def test_carbon_contact_is_not_reported_under_two_names(erlotinib):
+    """Six atom pairs were listed as both alkyl-pi and hydrophobic."""
+    shared = _pairs(erlotinib, "alkyl_pi") & _pairs(erlotinib, "hydrophobic")
+    assert not shared
+    assert not _pairs(erlotinib, "carbon_pi") & _pairs(erlotinib, "pi_pi_stacking")
+
+
+@needs_example
+def test_known_water_bridge_is_found(erlotinib):
+    """Erlotinib N3 is linked to THR 766 through a water in 1M17."""
+    bridges = [(c["protein_residue"].resname, c["protein_residue"].id[1],
+                c["ligand_atom"].get_name()) for c in erlotinib.interactions["water_bridges"]]
+    assert ("THR", 766, "N3") in bridges
+
+
+BIDENTATE = """
+ATOM      1  NH1 ARG A  10       0.000   0.000   0.000  1.00 20.00           N
+ATOM      2  NH2 ARG A  10       1.800   0.000   0.000  1.00 20.00           N
+ATOM      3  CZ  ARG A  10       0.900  -1.000   0.000  1.00 20.00           C
+HETATM    4  O1  LIG B   1       0.000   2.900   0.000  1.00 20.00           O
+HETATM    5  O2  LIG B   1       1.800   2.900   0.000  1.00 20.00           O
+HETATM    6  C1  LIG B   1       0.900   3.600   0.000  1.00 20.00           C
+END
+"""
+
+
+def test_two_hydrogen_bonds_from_one_residue_are_both_kept(tmp_path):
+    """Only the closest contact per residue used to survive, so a bidentate
+    arginine reported one hydrogen bond.  All four N-O pairs are within
+    3.5 A here; the two straight ones are kept, the two diagonals are not."""
+    mapper = HybridProtLigMapper(_write(tmp_path, "bi.pdb", BIDENTATE), ligand_resname="LIG")
+    mapper.detect_interactions()
+    bonds = sorted((c["protein_atom"].get_name(), c["ligand_atom"].get_name())
+                   for c in mapper.interactions["hydrogen_bonds"])
+    assert bonds == [("NH1", "O1"), ("NH2", "O2")]
+
+
+WATER_BRIDGE = """
+ATOM      1  O   GLY A  10       0.000   0.000   0.000  1.00 20.00           O
+ATOM      2  C   GLY A  10      -1.200   0.300   0.000  1.00 20.00           C
+HETATM    3  N1  LIG B   1       3.758   2.631   0.000  1.00 20.00           N
+HETATM    4  C1  LIG B   1       5.100   3.100   0.000  1.00 20.00           C
+HETATM    5  C2  LIG B   1       6.300   2.300   0.000  1.00 20.00           C
+HETATM    6  O   HOH W   1       2.800   0.000   0.000  1.00 20.00           O
+HETATM    7  O   HOH W   2      -9.000  -9.000   0.000  1.00 20.00           O
+END
+"""
+
+
+def test_water_bridge_is_detected_with_both_legs(tmp_path):
+    mapper = HybridProtLigMapper(_write(tmp_path, "wb.pdb", WATER_BRIDGE), ligand_resname="LIG")
+    mapper.detect_interactions()
+    assert mapper.interactions["hydrogen_bonds"] == []          # 4.6 A apart: no direct bond
+    (bridge,) = mapper.interactions["water_bridges"]
+    assert bridge["water_residue"].id[1] == 1
+    assert bridge["distance_protein_water"] == pytest.approx(2.8, abs=0.01)
+    assert bridge["distance_ligand_water"] == pytest.approx(2.8, abs=0.01)
+    assert 105 < bridge["angle"] < 115
+    assert "via HOH 1" in bridge["type"]
+    data = mapper.interactions_as_dict()
+    assert data["summary"]["by_type"] == {"water_bridges": 1}
+
+
+def test_water_in_a_straight_line_is_not_a_bridge(tmp_path):
+    straight = WATER_BRIDGE.replace("3.758   2.631", "5.600   0.000")
+    mapper = HybridProtLigMapper(_write(tmp_path, "wl.pdb", straight), ligand_resname="LIG")
+    mapper.detect_interactions()
+    assert mapper.interactions["water_bridges"] == []
+
+
+def test_score_is_not_presented_as_a_binding_affinity(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    result = mapper.interaction_score()
+    assert result == mapper.estimate_binding_affinity()
+    assert result["calibrated"] is False and result["score"] == result["dG_estimated"]
+    text = (result["interpretation"] + result["note"]).lower()
+    assert "not calibrated" in text and "binder" not in text and "kd" not in text
+
+
+# --------------------------------------------------------------------------
+# 4.4: ligand depiction
+# --------------------------------------------------------------------------
+
+class _Atom:
+    """Minimal stand-in for a Bio.PDB atom."""
+    def __init__(self, name, element, xyz):
+        import numpy as np
+        self._name, self.element, self.coord = name, element, np.array(xyz, dtype=float)
+
+    def get_name(self):
+        return self._name
+
+
+def _ring(n, bond, z=lambda k: 0.0, element="C"):
+    import math
+    radius = bond / (2 * math.sin(math.pi / n))
+    return [_Atom(f"C{k}", element, (radius * math.cos(2 * math.pi * k / n),
+                                     radius * math.sin(2 * math.pi * k / n), z(k)))
+            for k in range(n)]
+
+
+def test_benzene_like_ring_is_aromatic_and_cyclohexane_is_not():
+    from pandamap.ligand2d import layout_ligand
+    benzene = layout_ligand(_ring(6, 1.39))
+    assert len(benzene["aromatic"]) == 1 and not benzene["double"]
+    chair = layout_ligand(_ring(6, 1.53, z=lambda k: 0.25 if k % 2 else -0.25))
+    assert chair["rings"] and not chair["aromatic"] and not chair["double"]
+
+
+def test_short_carbonyl_is_drawn_double_and_long_c_o_is_not():
+    from pandamap.ligand2d import layout_ligand
+    atoms = [_Atom("C1", "C", (0, 0, 0)), _Atom("C2", "C", (1.52, 0, 0)),
+             _Atom("O1", "O", (2.13, 1.05, 0)),          # 1.22 A: carbonyl
+             _Atom("O2", "O", (2.20, -1.20, 0))]         # 1.38 A: single
+    layout = layout_ligand(atoms)
+    assert layout["double"] == {(1, 2)}
+
+
+def test_overlapping_atoms_are_moved_apart():
+    import numpy as np
+    from pandamap.ligand2d import relax_layout
+    pts = np.array([[0, 0], [1, 0], [2, 0], [1, 0.02], [0, 0.03]], dtype=float)
+    bonds = [(0, 1), (1, 2), (2, 3), (3, 4)]
+    relaxed = relax_layout(pts, bonds)
+    gaps = [np.linalg.norm(relaxed[i] - relaxed[j]) for i in range(5) for j in range(i + 1, 5)]
+    assert min(gaps) > 0.6
+
+
+# --------------------------------------------------------------------------
+# 4.4: quiet library, output folder, batch mode, viewer, trajectory, notice
+# --------------------------------------------------------------------------
+
+def test_library_prints_nothing_by_default(tmp_path, capsys):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.run_analysis(output_file=str(tmp_path / "q.png"), dpi=40, use_dssp=False,
+                        diagrams=("modern",))
+    captured = capsys.readouterr()
+    assert captured.out == "" and captured.err == ""
+
+
+def _cli(monkeypatch, *argv):
+    import sys
+    from pandamap.cli import main
+    monkeypatch.setattr(sys, "argv", ["pandamap", *argv])
+    return main()
+
+
+def test_cli_outdir_and_quiet(tmp_path, monkeypatch, capsys):
+    out = tmp_path / "results"
+    assert _cli(monkeypatch, _mixed(tmp_path), "--ligand", "LIG", "--outdir", str(out),
+                "--quiet", "--diagrams", "none", "--csv", "--json", "--report") == 0
+    assert sorted(p.name for p in out.iterdir()) == [
+        "mixed_interactions.csv", "mixed_interactions.json", "mixed_interactions_report.txt"]
+    assert capsys.readouterr().out == ""
+
+
+def test_cli_deltag_is_still_accepted(tmp_path, monkeypatch, capsys):
+    assert _cli(monkeypatch, _mixed(tmp_path), "--ligand", "LIG", "-O", str(tmp_path / "o"),
+                "--diagrams", "none", "--deltaG") == 0
+    assert "not calibrated" in capsys.readouterr().out
+
+
+def test_batch_mode_writes_combined_tables(tmp_path, monkeypatch):
+    import csv
+    good = _mixed(tmp_path)
+    second = _write(tmp_path, "pose2.pdb", MIXED_HETATM_COMPLEX)
+    bad = _write(tmp_path, "empty.pdb", "not a structure\n")
+    out = tmp_path / "batch"
+    assert _cli(monkeypatch, good, second, bad, "--ligand", "LIG", "-O", str(out),
+                "--diagrams", "none", "--quiet") == 0
+    with open(out / "batch_summary.csv", encoding="utf-8") as fh:
+        rows = {r["structure"]: r for r in csv.DictReader(fh)}
+    assert rows["mixed"]["status"] == "ok" and rows["mixed"]["ligand"] == "LIG"
+    assert int(rows["pose2"]["n_interactions"]) == int(rows["mixed"]["n_interactions"]) > 0
+    assert rows["empty"]["status"] == "failed" and "No atoms" in rows["empty"]["error"]
+    with open(out / "batch_interactions.csv", encoding="utf-8") as fh:
+        contacts = list(csv.DictReader(fh))
+    assert {c["structure"] for c in contacts} == {"mixed", "pose2"}
+
+
+def test_analyze_batch_accepts_a_folder(tmp_path):
+    from pandamap import analyze_batch
+    folder = tmp_path / "poses"
+    folder.mkdir()
+    for name in ("a.pdb", "b.pdb"):
+        (folder / name).write_text(textwrap.dedent(MIXED_HETATM_COMPLEX).lstrip("\n"))
+    result = analyze_batch([str(folder)], output_dir=str(tmp_path / "out"),
+                           ligand_resname="LIG", diagrams=())
+    assert [r["structure"] for r in result["results"]] == ["a", "b"]
+    assert os.path.exists(result["summary_csv"])
+
+
+def test_viewer_legend_lists_only_present_types_and_can_be_self_contained(tmp_path, monkeypatch):
+    import pandamap.create_3d_view as viewer
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    mapper.calculate_realistic_solvent_accessibility()
+    present = [t for t, v in mapper.interactions.items() if v]
+
+    online = tmp_path / "online.html"
+    viewer.create_pandamap_3d_viz(mapper, str(online))
+    html = online.read_text(encoding="utf-8")
+    assert "jquery" not in html.lower()
+    assert f"<script src='{viewer.THREEDMOL_URL}'>" in html
+    labels = [viewer.INTERACTION_STYLE[t][0] for t in viewer.INTERACTION_STYLE]
+    shown = [name for name in labels if f"label.textContent = '{name}'" in html]
+    assert shown == [viewer.INTERACTION_STYLE[t][0] for t in viewer.INTERACTION_STYLE
+                     if t in present]
+
+    monkeypatch.setattr(viewer, "_threedmol_source", lambda: "var $3Dmol = {};/*</script>*/")
+    offline = tmp_path / "offline.html"
+    viewer.create_pandamap_3d_viz(mapper, str(offline), self_contained=True)
+    html = offline.read_text(encoding="utf-8")
+    assert "<script src=" not in html and "var $3Dmol = {};" in html
+    assert "/*</script>*/" not in html            # embedded code cannot close the tag early
+
+
+def test_trajectory_analyses_every_model(tmp_path):
+    from pandamap import analyze_trajectory
+    body = textwrap.dedent(MIXED_HETATM_COMPLEX).strip().replace("END", "").strip()
+    two = f"MODEL        1\n{body}\nENDMDL\nMODEL        2\n{body}\nENDMDL\nEND\n"
+    path = tmp_path / "frames.pdb"
+    path.write_text(two)
+    summary = analyze_trajectory(str(path), ligand_resname="LIG",
+                                 output_dir=str(tmp_path / "traj"), dpi=40)
+    assert summary["n_frames_analysed"] == 2
+    assert os.path.exists(summary["summary_csv"])
+
+
+def test_update_notice_wording_and_off_switch(monkeypatch, capsys):
+    from pandamap.utils import versioning
+    message = versioning.update_message("9.9.9", "4.4.0")
+    assert "Please use the latest version for improved utilization of PandaMap" in message
+    assert "pip install --upgrade pandamap" in message
+
+    monkeypatch.setenv(versioning.ENV_DISABLE, "1")
+    assert versioning.check_for_updates() is None
+    assert versioning.check_for_updates_in_background() is None
+
+    monkeypatch.delenv(versioning.ENV_DISABLE)
+    monkeypatch.setattr(versioning, "_latest_version", lambda name: "999.0.0")
+    monkeypatch.setattr(versioning, "_notified", False)
+    assert versioning.check_for_updates() == "999.0.0"
+    assert "999.0.0 is available" in capsys.readouterr().err

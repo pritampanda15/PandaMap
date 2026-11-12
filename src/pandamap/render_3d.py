@@ -17,6 +17,7 @@ It answers "which atom of LEU 694 touches the ligand, and where?".  Because
 the residues are moved apart, line lengths are not to scale; the distances
 printed on the lines are the real ones.
 """
+import logging
 import math
 import os
 from collections import defaultdict
@@ -27,6 +28,8 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import matplotlib.patheffects as path_effects
 from matplotlib.lines import Line2D
+
+logger = logging.getLogger("pandamap")
 
 from .diagram import (INTERACTION_STYLE, ATOM_COLOURS, _PRIORITY, _RING_TYPES,
                       _RESIDUE_CLASS, _OTHER_RESIDUE, _element, _ligand_bonds,
@@ -305,5 +308,5 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
     fig.savefig(output_file, dpi=dpi, facecolor='white')
     plt.close(fig)
 
-    print(f"3D contact view saved to {output_file}")
+    logger.info(f"3D contact view saved to {output_file}")
     return output_file

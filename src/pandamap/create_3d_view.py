@@ -1,17 +1,72 @@
 import os
 import base64
+import logging
 import tempfile
 import numpy as np
 from Bio.PDB import PDBIO
 
-def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surface=True):
-    interaction_colors = {
-        'hydrogen_bonds': 'green', 'carbon_pi': 'gray', 'pi_pi_stacking': 'purple',
-        'donor_pi': 'pink', 'amide_pi': 'brown', 'hydrophobic': 'lightgray',
-        'ionic': 'orange', 'halogen_bonds': 'cyan', 'cation_pi': 'magenta',
-        'metal_coordination': 'gold', 'salt_bridge': 'tomato', 'covalent': 'black',
-        'alkyl_pi': 'steelblue', 'attractive_charge': 'blue', 'pi_cation': 'magenta', 'repulsion': 'red'
-    }
+from .diagram import INTERACTION_STYLE, _RESIDUE_CLASS, _OTHER_RESIDUE
+
+logger = logging.getLogger("pandamap")
+
+THREEDMOL_URL = 'https://3Dmol.org/build/3Dmol-min.js'
+
+# pale stick colour per residue class: contacting residues read as translucent
+# models, so the solid contact atoms and the ligand stand out
+_RESIDUE_TINT = {
+    'Hydrophobic residue': '#b9d79a',
+    'Polar residue': '#a9c9ea',
+    'Positive residue': '#c3b6ec',
+    'Negative residue': '#eeb0b0',
+    'Other residue': '#c9ced3',
+}
+
+
+def _threedmol_source():
+    """The 3Dmol.js library as text, downloaded once and cached, or None."""
+    cache = os.path.join(os.path.expanduser('~'), '.cache', 'pandamap', '3Dmol-min.js')
+    try:
+        if os.path.getsize(cache) > 100000:
+            with open(cache, encoding='utf-8') as fh:
+                return fh.read()
+    except OSError:
+        pass
+    try:
+        import requests
+        response = requests.get(THREEDMOL_URL, timeout=30)
+        response.raise_for_status()
+        text = response.text
+        if len(text) < 100000 or '3Dmol' not in text:
+            raise ValueError('unexpected content')
+        try:
+            os.makedirs(os.path.dirname(cache), exist_ok=True)
+            with open(cache, 'w', encoding='utf-8') as fh:
+                fh.write(text)
+        except OSError:
+            pass
+        return text
+    except Exception as exc:
+        logger.warning("Could not download 3Dmol.js for an offline viewer (%s); "
+                       "the page will load it from the internet instead.", exc)
+        return None
+
+
+def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surface=True,
+                           self_contained=False):
+    """
+    Write the interactive 3D viewer (one HTML file, 3Dmol.js).
+
+    The page opens on the binding site.  Contacting residues are drawn as pale
+    sticks, each contacting atom as a solid labelled sphere, and the legend
+    lists only the interaction types that are present.
+
+    With ``self_contained=True`` the 3Dmol.js library is embedded in the file,
+    so the page works without an internet connection.  The library is
+    downloaded once (from 3Dmol.org) and cached under ``~/.cache/pandamap``.
+    """
+    # same colours and names as the 2D and 3D diagrams
+    interaction_colors = {t: style[1] for t, style in INTERACTION_STYLE.items()}
+    drawn_types = set()
 
     temp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
     temp_pdb.close()  # Windows cannot delete a file that is still open
@@ -32,10 +87,11 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         res_num = str(residue.id[1])
         chain_id = getattr(residue.get_parent(), 'id', 'A')
         resname = residue.get_resname()
+        tint = _RESIDUE_TINT[_RESIDUE_CLASS.get(resname.strip(), _OTHER_RESIDUE)[0]]
 
         js_residues.append(f"""
     viewer.setStyle({{chain: '{chain_id}', resi: {res_num}}},
-                    {{stick: {{colorscheme: 'amino', radius: 0.2, opacity: 0.45}}, cartoon: {{color: 'lightblue'}}}});""")
+                    {{stick: {{color: '{tint}', radius: 0.16}}, cartoon: {{color: 'lightgray', opacity: 0.8}}}});""")
 
         js_residues.append(f"""
     viewer.addSphere({{
@@ -59,7 +115,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         if itype not in interaction_colors or not interactions:
             continue
         color = interaction_colors[itype]
-        is_dashed = itype in ['hydrophobic', 'carbon_pi', 'pi_pi_stacking']
+        is_dashed = INTERACTION_STYLE[itype][2] != '-'
         for interaction in interactions:
             pa = interaction.get('protein_atom')
             la = interaction.get('ligand_atom')
@@ -79,7 +135,8 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
             length = round(np.linalg.norm(np.array(prot_coords) - np.array(lig_coords)), 2)
             if length > 5.0:
                 continue
-            label = itype.replace('_', ' ').title()
+            label = INTERACTION_STYLE[itype][0]
+            drawn_types.add(itype)
             mid_x, mid_y, mid_z = [(p + l) / 2 for p, l in zip(prot_coords, lig_coords)]
 
             # the protein atom that makes the contact: solid, labelled sphere
@@ -148,12 +205,13 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     legend.style.zIndex = '10';
     legend.style.boxShadow = '0 0 5px rgba(0,0,0,0.2)';
     var title = document.createElement('h3');
-    title.textContent = 'Interaction Types';
+    title.textContent = 'Interactions';
+    title.style.margin = '0 0 8px 0'; title.style.fontSize = '15px';
     legend.appendChild(title);
     """
-    for itype in sorted(interaction_colors):
+    for itype in (t for t in INTERACTION_STYLE if t in drawn_types):
         color = interaction_colors[itype]
-        name = itype.replace('_', ' ').title()
+        name = INTERACTION_STYLE[itype][0]
         js_legend += f"""
     var row = document.createElement('div');
     row.style.display = 'flex'; row.style.alignItems = 'center'; row.style.marginBottom = '5px';
@@ -166,11 +224,17 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     """
     js_legend += "document.getElementById('container').appendChild(legend);"
 
+    library_tag = f"<script src='{THREEDMOL_URL}'></script>"
+    if self_contained:
+        source = _threedmol_source()
+        if source:
+            library_tag = "<script>" + source.replace("</script", "<\\/script") + "</script>"
+
     html = f"""<!DOCTYPE html>
 <html><head>
   <title>PandaMap 3D Visualization</title>
-  <script src='https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js'></script>
-  <script src='https://3Dmol.org/build/3Dmol-min.js'></script>
+  <meta charset='utf-8'>
+  {library_tag}
   <style>
     html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }}
     #container {{ width: 100%; height: 100%; position: relative; }}
@@ -218,7 +282,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     }}
 
     function selectLigand(resname) {{
-        viewer.setStyle({{hetflag: true, resn: resname}}, {{stick: {{colorscheme: 'elementColors', radius: 0.3}}}});
+        viewer.setStyle({{hetflag: true, resn: resname}}, {{stick: {{colorscheme: 'default', radius: 0.3}}}});
         viewer.zoomTo({{hetflag: true, resn: resname}});
         viewer.render();
     }}
@@ -232,11 +296,11 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         }});
         }}
 
-    $(document).ready(function() {{
-      viewer = $3Dmol.createViewer($('#container'), {{backgroundColor: 'white'}});
+    document.addEventListener('DOMContentLoaded', function() {{
+      viewer = $3Dmol.createViewer(document.getElementById('container'), {{backgroundColor: 'white'}});
       viewer.addModel(pdbData, 'pdb');
       viewer.setStyle({{hetflag: false}}, {{cartoon: {{color: 'lightgray', opacity: 0.8}}}});
-      viewer.setStyle({{hetflag: true, resn: '{ligand_resname}'}}, {{stick: {{colorscheme: 'elementColors', radius: 0.3}}}});
+      viewer.setStyle({{hetflag: true, resn: '{ligand_resname}'}}, {{stick: {{colorscheme: 'default', radius: 0.3}}}});
       {'viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: "white"}, {hetflag: false});' if show_surface else ''}
       {''.join(js_residues)}
       {''.join(js_solvent)}
@@ -252,5 +316,6 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
 
     with open(output_file, 'w', encoding='utf-8') as f:
         f.write(html)
-    print(f"3D visualization saved to {output_file}")
+    logger.info("3D visualization saved to %s%s", output_file,
+                " (self-contained, works offline)" if "<script src=" not in html else "")
     return output_file

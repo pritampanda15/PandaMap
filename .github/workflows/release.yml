@@ -1,0 +1,33 @@
+name: Publish to PyPI
+
+# Runs when a GitHub Release is published (not on a bare tag push), builds the
+# package from that release's tag and uploads it with PyPI trusted publishing.
+#
+# One-time setup on PyPI: Project "pandamap" -> Settings -> Publishing ->
+# add a trusted publisher with owner "pritampanda15", repository "PandaMap",
+# workflow "release.yml" and environment "pypi". No API token is stored here.
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build
+        run: python -m pip install --upgrade build && python -m build
+      - name: Check the version matches the release tag
+        run: |
+          version=$(python -c "import tomllib;print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "v$version" = "${GITHUB_REF_NAME}" || { echo "pyproject version $version does not match tag ${GITHUB_REF_NAME}"; exit 1; }
+      - name: Publish
+        uses: pypa/gh-action-pypi-publish@release/v1

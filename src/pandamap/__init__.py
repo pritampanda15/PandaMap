@@ -1,27 +1,39 @@
 """
 PandaMap: Protein AND ligAnd interaction MAPper
 
-A Python package for visualizing protein-ligand interactions 
+A Python package for visualizing protein-ligand interactions
 with 2D ligand structure representation and minimal external dependencies.
+
+Importing the package prints nothing.  Progress messages go to the
+``pandamap`` logger; to see them from Python:
+
+    import logging
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+At most once a day a background thread asks PyPI whether a newer PandaMap
+exists and, if so, prints a one-line notice asking you to upgrade.  Set
+``PANDAMAP_NO_UPDATE_CHECK=1`` to turn that off.
 """
 
+import logging
 import warnings
 from importlib.metadata import version
-import threading
-from .utils.versioning import check_for_updates
 
-# Run the check in a background thread
-threading.Thread(target=check_for_updates, daemon=True).start()
-
-
-# Core imports
 from .core import (SimpleLigandStructure, HybridProtLigMapper,
                    analyze_trajectory, list_ligands)
 from .render_3d import render_contacts_3d
+from .batch import analyze_batch
 
-__all__ = ["SimpleLigandStructure", "HybridProtLigMapper",
-           "analyze_trajectory", "list_ligands", "render_contacts_3d"]
-__version__ = "4.4.0"  # Keep this as fallback if importlib fails
+from .utils.versioning import check_for_updates_in_background
+
+logging.getLogger("pandamap").addHandler(logging.NullHandler())
+
+# Tell people on an old release that a newer one exists (non-blocking)
+check_for_updates_in_background()
+
+__all__ = ["SimpleLigandStructure", "HybridProtLigMapper", "analyze_trajectory",
+           "analyze_batch", "list_ligands", "render_contacts_3d"]
+__version__ = "4.4.0"  # fallback when the package metadata is unavailable
 try:
     __version__ = version("pandamap")
 except Exception:
@@ -31,6 +43,3 @@ except Exception:
         UserWarning,
         stacklevel=2
     )
-# Ensure the version is set correctly
-# Check for updates in a background thread
-# This is to avoid blocking the main thread during import
