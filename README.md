@@ -161,7 +161,8 @@ Options:
   --chain ID              Chain of the ligand, when it occurs more than once
   --resnum N              Residue number of the ligand, when it occurs more than once
   --list-ligands          List the candidate ligands in the file and exit
-  -o, --output FILE       Output PNG file path
+  -o, --output FILE       Output image path; the extension selects the format
+                          (.png, .svg, .pdf)
   -r, --report            Generate plain-text interaction report
   --report-file FILE      Path for text report
   --3d                    Generate interactive 3D HTML visualization
@@ -177,7 +178,18 @@ Options:
   --width PX              3D viewer width in pixels (default: 800)
   --height PX             3D viewer height in pixels (default: 600)
   --no-surface            Hide protein surface in 3D viewer
-  --no-3d-cues            Disable depth cues in 2D diagram
+  -d, --diagrams STYLE [STYLE ...]
+                          Which diagrams to draw (default: all):
+                            modern   2D, residues placed next to the ligand
+                                     atoms they contact, coloured by type
+                            classic  the original circular PandaMap diagram
+                            3d       transparent residues around the ligand,
+                                     each contacting atom highlighted
+                          The first is written to --output; the others get a
+                          _classic / _3d suffix
+  --show-nearby           Also show binding-site residues that have no specific
+                          interaction (modern diagram)
+  --no-3d-cues            Disable depth cues in the classic diagram
   --debug                 Print the full traceback when an error occurs
   -v, --version           Show version
   -h, --help              Show help
@@ -199,8 +211,16 @@ mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG")
 # Not sure of the name?  pandamap.list_ligands("complex.pdb")
 mapper.detect_interactions()
 
-# 2D diagram
+# One diagram: style is "modern" (default), "classic" or "3d";
+# use a .svg or .pdf path for vector output
 mapper.visualize(output_file="interactions.png")
+mapper.visualize(output_file="interactions_classic.png", style="classic")
+mapper.visualize(output_file="interactions_3d.png", style="3d")
+
+# All three at once (also what the command line does by default):
+# interactions.png, interactions_classic.png, interactions_3d.png
+mapper.run_analysis(output_file="interactions.png")
+print(mapper.diagram_files)
 
 # Text report — simplest route, identical output to `pandamap --report`
 mapper.run_analysis(output_file="interactions.png",
@@ -373,7 +393,32 @@ Aldose reductase–IDD594 (PDB 1US0). The halogen bond from the ligand bromine t
 Thr113 (cyan, **X**) is one of the contacts recovered by the 4.3 halogen fix;
 cyan haloes mark solvent-accessible residues.
 
-![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_1us0.png)
+![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png)
+
+PandaMap draws three diagrams of the same interactions. By default the
+command line writes all of them; choose with `--diagrams` (for example
+`--diagrams modern`, or `--diagrams classic 3d`).
+
+| Diagram | File | What it shows |
+|---|---|---|
+| `modern` | `<name>_interactions.png` | Each residue sits next to the ligand atoms it contacts; boxes are coloured by residue type, solvent-accessible residues have a blue outline, hydrogen-bond distances are printed |
+| `classic` | `<name>_interactions_classic.png` | The original PandaMap diagram: residues evenly spaced on a circle, solvent-accessibility haloes |
+| `3d` | `<name>_interactions_3d.png` | The ligand as 3D sticks with every contacting residue as a transparent stick model around it; the residue atom making each contact is a solid sphere labelled with its atom name (for example `CD1` of LEU 694) |
+
+**Classic**
+
+![Classic diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png)
+
+**3D contacts**
+
+In the 3D view the residues are moved straight outwards so nothing overlaps,
+which means line lengths are not to scale; the distances printed on the lines
+are the real ones.
+
+![3D contact view](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png)
+
+The interactive viewer (`--3d`) uses the same convention: contacting residues
+are translucent and each contacting atom is a solid, labelled sphere.
 
 Further examples:
 

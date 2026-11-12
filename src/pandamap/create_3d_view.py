@@ -35,7 +35,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
 
         js_residues.append(f"""
     viewer.setStyle({{chain: '{chain_id}', resi: {res_num}}},
-                    {{stick: {{colorscheme: 'amino', radius: 0.2}}, cartoon: {{color: 'lightblue'}}}});""")
+                    {{stick: {{colorscheme: 'amino', radius: 0.2, opacity: 0.45}}, cartoon: {{color: 'lightblue'}}}});""")
 
         js_residues.append(f"""
     viewer.addSphere({{
@@ -81,6 +81,27 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
                 continue
             label = itype.replace('_', ' ').title()
             mid_x, mid_y, mid_z = [(p + l) / 2 for p, l in zip(prot_coords, lig_coords)]
+
+            # the protein atom that makes the contact: solid, labelled sphere
+            prot_res = interaction.get('protein_residue')
+            atom_name = pa.get_name().strip()
+            res_label = (f"{prot_res.get_resname().strip()} {prot_res.id[1]}"
+                         if prot_res is not None else "")
+            js_interactions.append(f"""
+    viewer.addSphere({{
+        center: {{x: {prot_coords[0]}, y: {prot_coords[1]}, z: {prot_coords[2]}}},
+        radius: 0.45, color: '{color}', opacity: 1.0,
+        clickable: true,
+        callback: function() {{
+            showTooltip("{res_label} atom {atom_name}: {label} {length:.2f} Å",
+                        {{x: {prot_coords[0]}, y: {prot_coords[1]}, z: {prot_coords[2]}}});
+        }}
+    }});
+    viewer.addLabel("{atom_name}", {{
+        position: {{x: {prot_coords[0]}, y: {prot_coords[1]}, z: {prot_coords[2]}}},
+        fontSize: 11, fontColor: 'black', backgroundColor: 'white',
+        backgroundOpacity: 0.7, inFront: true
+    }});""")
 
             js_interactions.append(f"""
     viewer.addCylinder({{

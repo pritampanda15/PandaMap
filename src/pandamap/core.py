@@ -50,6 +50,15 @@ COVALENT_LIGAND_ELEMENTS = frozenset(['C', 'N', 'O', 'S', 'P', 'Se', 'B'])
 # present; otherwise a heavy-atom direction test stands in.
 HBOND_DON_ANGLE_MIN = 100.0
 
+# The 2D/3D diagrams PandaMap can draw; run_analysis() writes all of them
+# unless told otherwise.
+DIAGRAM_STYLES = ('modern', 'classic', '3d')
+_DIAGRAM_SUFFIX = {'modern': '_modern', 'classic': '_classic', '3d': '_3d'}
+
+# A metal ion counts as bridging protein and ligand only within this distance
+# (in Angstrom) of a ligand atom.
+METAL_LIGAND_CUTOFF = 3.0
+
 AROMATIC_RING_ATOMS = {
     'PHE': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
     'TYR': frozenset(['CG', 'CD1', 'CD2', 'CE1', 'CE2', 'CZ']),
@@ -1519,6 +1528,11 @@ class HybridProtLigMapper:
         
         # Handle metal coordination
         for metal_atom in self.metal_atoms:
+            # Only a metal that is itself bound to the ligand mediates a
+            # protein-ligand contact; a structural ion elsewhere in the
+            # protein (e.g. a zinc finger 30 A away) is not an interaction.
+            if min(metal_atom - lig_atom for lig_atom in self.ligand_atoms) > METAL_LIGAND_CUTOFF:
+                continue
             for prot_atom in self.protein_atoms:
                 prot_res = prot_atom.get_parent()
                 distance_squared = sum((a-b)**2 for a, b in zip(metal_atom.get_coord(), prot_atom.get_coord()))
@@ -1664,7 +1678,7 @@ class HybridProtLigMapper:
             remaining = sorted(
                 [(r, exposure_scores.get(r, 0.0)) for r in self.interacting_residues
                  if r not in self.solvent_accessible],
-                key=lambda x: x[1], reverse=True
+                key=lambda x: (x[1], x[0]), reverse=True
             )
             for res_id, _ in remaining:
                 if len(self.solvent_accessible) >= min_expected:
@@ -1674,7 +1688,7 @@ class HybridProtLigMapper:
         if len(self.solvent_accessible) > max_expected:
             to_evaluate = sorted(
                 [(r, exposure_scores.get(r, 0.0)) for r in self.solvent_accessible],
-                key=lambda x: x[1]
+                key=lambda x: (x[1], x[0])
             )
             for res_id, _ in to_evaluate[:len(self.solvent_accessible) - max_expected]:
                 self.solvent_accessible.discard(res_id)
@@ -2286,10 +2300,47 @@ class HybridProtLigMapper:
 
         return {r: pos[r].tolist() for r in res_ids}
 
-    def visualize(self, output_file='protein_ligand_interactions.png',figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
+    def visualize(self, output_file='protein_ligand_interactions.png', figsize=None,
+                  dpi=300, title=None, show_3d_cues=True, style='modern',
+                  show_distances=True, show_nearby_residues=False):
         """
         Generate a complete 2D visualization of protein-ligand interactions.
+
+        Parameters:
+        -----------
+        output_file : str
+            Image path; the extension selects the format (.png, .svg, .pdf).
+        style : str
+            'modern' (default): residues are placed next to the ligand atoms
+            they contact, boxes are coloured by residue type and the legend
+            sits below the plot.  'classic': the original circular PandaMap
+            layout.  '3d': the 3D contact view (transparent residues around
+            the ligand, contacting atoms highlighted).
+        show_distances, show_nearby_residues : bool
+            Modern style only: print hydrogen-bond distances; also show
+            binding-site residues without a specific interaction.
+        show_3d_cues : bool
+            Classic style only: depth cues on the ligand.
         """
+        if style not in DIAGRAM_STYLES:
+            raise ValueError(f"Unknown diagram style '{style}'. "
+                             f"Use one of: {', '.join(DIAGRAM_STYLES)}.")
+        if style == '3d':
+            return self.render_contacts_3d(output_file=output_file, dpi=dpi, title=title,
+                                           show_distances=show_distances)
+        if style == 'modern':
+            from .diagram import draw_interaction_diagram
+            return draw_interaction_diagram(
+                self, output_file=output_file, figsize=figsize or (11, 11.6),
+                dpi=dpi, title=title, show_distances=show_distances,
+                show_nearby_residues=show_nearby_residues)
+        return self._visualize_classic(output_file=output_file,
+                                       figsize=figsize or (12, 12), dpi=dpi,
+                                       title=title, show_3d_cues=show_3d_cues)
+
+    def _visualize_classic(self, output_file='protein_ligand_interactions.png',
+                           figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
+        """The original circular-layout diagram (``style='classic'``)."""
         # Create figure
         fig, ax = plt.subplots(figsize=figsize)
         
@@ -2975,6 +3026,16 @@ class HybridProtLigMapper:
         print(f"Interaction CSV written to {csv_file} ({len(rows)} rows)")
         return csv_file
 
+    def render_contacts_3d(self, output_file='contacts_3d.png', **kwargs):
+        """
+        Static 3D render of the binding site: solid ligand, transparent
+        contacting residues, and each contacting atom highlighted, labelled
+        and joined to the ligand atom it touches.  See
+        :func:`pandamap.render_3d.render_contacts_3d` for the options.
+        """
+        from .render_3d import render_contacts_3d
+        return render_contacts_3d(self, output_file=output_file, **kwargs)
+
     def generate_interaction_plots(self, output_file='interaction_report.png', dpi=300):
         """
         Render a four-panel graphical summary of the detected interactions.
@@ -3115,7 +3176,8 @@ class HybridProtLigMapper:
         return output_file
 
     def run_analysis(self, output_file=None, use_dssp=True, generate_report=False,
-                     report_file=None, dpi=300, title=None, show_3d_cues=True):
+                     report_file=None, dpi=300, title=None, show_3d_cues=True,
+                     diagrams=DIAGRAM_STYLES, show_nearby_residues=False):
         """
         Run the complete analysis pipeline.
         
@@ -3125,6 +3187,11 @@ class HybridProtLigMapper:
             Path where the output image will be saved.
         use_dssp : bool
             Whether to use DSSP for solvent accessibility (default: True)
+        diagrams : sequence of str
+            Which diagrams to draw: any of 'modern', 'classic', '3d'
+            (default: all three).  The first is written to ``output_file``,
+            the others next to it with a ``_classic`` / ``_3d`` suffix.  All
+            paths are stored in ``self.diagram_files``.
         generate_report : bool
             Whether to generate a PLIP-like text report (default: False)
         report_file : str, optional
@@ -3182,8 +3249,20 @@ class HybridProtLigMapper:
         print("Generating visualization...")
         # --dpi / --title / --no-3d-cues were accepted by the CLI but never
         # reached visualize(), so they silently did nothing.
-        viz_file = self.visualize(output_file=output_file, dpi=dpi,
-                                  title=title, show_3d_cues=show_3d_cues)
+        # All requested diagrams.  The first one is written to ``output_file``;
+        # the others get a suffix (_classic, _3d) before the extension.
+        if isinstance(diagrams, str):
+            diagrams = (diagrams,)
+        diagrams = list(dict.fromkeys(diagrams)) or ['modern']
+        stem, ext = os.path.splitext(output_file)
+        self.diagram_files = {}
+        for style in diagrams:
+            path = output_file if style == diagrams[0] else \
+                f"{stem}{_DIAGRAM_SUFFIX.get(style, '_' + style)}{ext}"
+            self.diagram_files[style] = self.visualize(
+                output_file=path, dpi=dpi, title=title, show_3d_cues=show_3d_cues,
+                style=style, show_nearby_residues=show_nearby_residues)
+        viz_file = self.diagram_files[diagrams[0]]
         
         # Generate text report if requested
         if generate_report:

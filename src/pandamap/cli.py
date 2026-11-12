@@ -28,7 +28,9 @@ def main():
         description='PandaMap: Visualize protein-ligand interactions from structure files')
     parser.add_argument('structure_file',
         help='Path to structure file (PDB, mmCIF/CIF, or PDBQT format)')
-    parser.add_argument('--output', '-o', help='Output image file path')
+    parser.add_argument('--output', '-o',
+        help='Output image file path; the extension selects the format '
+             '(.png, .svg, .pdf)')
     parser.add_argument('--ligand', '-l',
         help='Ligand residue name to analyze (default: auto-detect the largest '
              'non-solvent HETATM group)')
@@ -60,7 +62,18 @@ def main():
     parser.add_argument('--height', type=int, default=600,
         help='Height of 3D visualization in pixels (default: 600)')
     parser.add_argument('--no-3d-cues', action='store_true',
-        help='Disable 3D cues in 2D visualization')
+        help='Disable depth cues in the classic diagram')
+    parser.add_argument('--diagrams', '-d', nargs='+', default=['all'],
+        choices=['modern', 'classic', '3d', 'all'], metavar='STYLE',
+        help="Which diagrams to draw: 'modern' (2D, residues placed next to the "
+             "ligand atoms they contact), 'classic' (the original circular "
+             "PandaMap diagram), '3d' (transparent residues around the ligand "
+             "with each contacting atom highlighted), or 'all' (default). "
+             "Several can be given, e.g. --diagrams modern 3d. The first is "
+             "written to --output; the others get a _classic / _3d suffix")
+    parser.add_argument('--show-nearby', action='store_true',
+        help='Also show binding-site residues without a specific interaction '
+             '(modern diagram)')
     parser.add_argument('--deltaG', action='store_true',
         help='Estimate binding free energy (ΔG) using empirical scoring')
     parser.add_argument('--csv', nargs='?', const=True, default=False,
@@ -112,6 +125,8 @@ def main():
         args.output_3d = f"{base_name}_3d_visualization.html"
     
     try:
+        diagrams = ['modern', 'classic', '3d'] if 'all' in args.diagrams \
+            else list(dict.fromkeys(args.diagrams))
         # Create the mapper and run the analysis
         mapper = HybridProtLigMapper(args.structure_file, ligand_resname=args.ligand,
                                      ligand_chain=args.chain,
@@ -126,10 +141,14 @@ def main():
             report_file=args.report_file,
             dpi=args.dpi,
             title=args.title,
-            show_3d_cues=not args.no_3d_cues
+            show_3d_cues=not args.no_3d_cues,
+            diagrams=diagrams,
+            show_nearby_residues=args.show_nearby
         )
         
-        print(f"Analysis complete. Visualization saved to: {output_file}")
+        print("Analysis complete. Diagrams saved:")
+        for style, path in mapper.diagram_files.items():
+            print(f"  {style:<8}{path}")
 
         if args.deltaG:
             result = mapper.estimate_binding_affinity()
