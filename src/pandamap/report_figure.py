@@ -16,6 +16,7 @@ family, 5-7 pt text, 8 pt bold lowercase panel letters, thin axes, no
 decoration, and one colour per interaction family used identically in every
 panel.
 """
+import logging
 import os
 
 import numpy as np
@@ -26,6 +27,8 @@ from matplotlib.lines import Line2D
 from matplotlib.ticker import MaxNLocator
 
 from .diagram import INTERACTION_STYLE, draw_interaction_diagram
+
+logger = logging.getLogger("pandamap")
 
 INK = '#424242'
 GRID = '#E6E6E6'
@@ -92,7 +95,7 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
     """
     present = {t: v for t, v in mapper.interactions.items() if v}
     if not present:
-        print("No interactions detected; skipping plots.")
+        logger.warning("No interactions detected; skipping plots.")
         return None
     order = [t for t in _TYPE_ORDER if t in present] + \
             [t for t in present if t not in _TYPE_ORDER]
@@ -145,7 +148,7 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
         if solvent:
             facts.append(f"{exposed} of {len(residues)} contact residues solvent exposed")
         if affinity:
-            facts.append(f"estimated ΔG {affinity['dG_estimated']:.1f} kcal/mol".replace('-', '−'))
+            facts.append(f"interaction score {affinity['score']:.1f}".replace('-', '−'))
         fig.text(0.02, 0.968, "  ·  ".join(facts), fontsize=6, va='top')
 
         # ---- a: the interaction map -------------------------------------------
@@ -256,20 +259,20 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
                                   k.replace('_', ' ').capitalize() for k, _ in items])
             ax_e.invert_yaxis()
             ax_e.tick_params(axis='y', length=0)
-            ax_e.set_xlabel('ΔG contribution (kcal/mol)')
-            total = f"{affinity['dG_estimated']:.2f}".replace('-', '−')
+            ax_e.set_xlabel('Score contribution (kcal/mol scale)')
+            total = f"{affinity['score']:.2f}".replace('-', '−')
             ax_e.text(1.0, 1.02, f"total {total}", transform=ax_e.transAxes, ha='right',
                       va='bottom', fontsize=5.5)
-            fig.text(0.98, 0.012, 'Empirical estimate, ±2–3 kcal/mol; hatched = penalty',
+            fig.text(0.98, 0.012, 'Empirical, uncalibrated; not a binding free energy. Hatched = penalty',
                      fontsize=5, ha='right', va='bottom', color='#6b6b6b')
         else:
             ax_e.axis('off')
-            ax_e.text(0.5, 0.5, 'ΔG estimate unavailable', ha='center', va='center',
+            ax_e.text(0.5, 0.5, 'Interaction score unavailable', ha='center', va='center',
                       transform=ax_e.transAxes, fontsize=6)
-        _panel(fig, ax_e, 'e', 'Estimated ΔG', dx=0.135)
+        _panel(fig, ax_e, 'e', 'Interaction score', dx=0.135)
 
         fig.savefig(output_file, dpi=dpi, facecolor='white')
         plt.close(fig)
 
-    print(f"Graphical interaction report saved to {output_file}")
+    logger.info(f"Graphical interaction report saved to {output_file}")
     return output_file

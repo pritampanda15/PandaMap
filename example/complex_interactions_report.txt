@@ -1,58 +1,74 @@
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: PFL:D:601
-Name: PFL
-Type: LIGAND
+  Structure      complex.pdb
+  Ligand         PFL  (chain D, residue 601, 13 heavy atoms)
+  Binding site   10 residues in chains C, D; 3 solvent accessible
+  Interactions   13 contacts of 6 types
 
-------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds          1  ████
+  π-π stacking            1  ████
+  Donor-π interactions    1  ████
+  Amide-π interactions    1  ████
+  Alkyl-π interactions    7  ██████████████████████████████
+  Hydrophobic contacts    2  █████████
 
-Interacting Chains: D, C
-Interacting Residues: 11
+HYDROGEN BONDS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ILE 228 D  O      PFL:O1          2.75 Å
 
-------------------------------
+π-π STACKING (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  PHE 289 C  CG     PFL:C5          3.66 Å
 
-Interaction Summary:
-  Hydrogen Bonds: 1
-  Hydrophobic Interactions: 4
-  π-π Stacking: 1
-  Carbon-π Interactions: 1
-  Donor-π Interactions: 1
-  Amide-π Interactions: 2
+DONOR-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 282 C  O      PFL:C3          4.95 Å
 
-------------------------------
+AMIDE-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASN 265 C  CB     PFL:C3          5.21 Å
 
-Hydrogen Bonds:
-  1. ILE228D  -- 2.75Å -- PFL
+ALKYL-π INTERACTIONS (7)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  PHE 289 C  CZ     PFL:C12         3.73 Å
+   2  MET 286 C  CG     PFL:C2          3.89 Å
+   3  LEU 285 C  C      PFL:C4          3.95 Å
+   4  PRO 233 D  CG     PFL:C1          4.50 Å
+   5  LEU 232 D  CB     PFL:C1          4.94 Å
+   6  MET 261 C  C      PFL:C4          5.02 Å
+   7  ILE 228 D  C      PFL:C1          5.13 Å
 
-------------------------------
+HYDROPHOBIC CONTACTS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  MET 236 D  CG     PFL:C12         3.55 Å
+   2  PHE 289 C  CB     PFL:C5          3.61 Å
 
-Hydrophobic Interactions:
-  1. MET286C  -- 3.89Å -- PFL
-  2. LEU285C  -- 3.95Å -- PFL
-  3. PHE289C  -- 3.61Å -- PFL
-  4. MET236D  -- 3.55Å -- PFL
+RESIDUES (10)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  PHE 289 C         3    3.61 Å  -        π-π stacking, alkyl-π, hydrophobic
+  ILE 228 D         2    2.75 Å  -        hydrogen bond, alkyl-π
+  MET 236 D         1    3.55 Å  -        hydrophobic
+  MET 286 C         1    3.89 Å  -        alkyl-π
+  LEU 285 C         1    3.95 Å  -        alkyl-π
+  PRO 233 D         1    4.50 Å  yes      alkyl-π
+  LEU 232 D         1    4.94 Å  -        alkyl-π
+  ASP 282 C         1    4.95 Å  yes      donor-π
+  MET 261 C         1    5.02 Å  -        alkyl-π
+  ASN 265 C         1    5.21 Å  yes      amide-π
 
-------------------------------
-
-π-π Stacking:
-  1. PHE289C  -- 3.61Å -- PFL
-
-------------------------------
-
-Carbon-π Interactions:
-  1. PHE289C  -- 3.61Å -- PFL
-
-------------------------------
-
-Donor-π Interactions:
-  1. ASP282C  -- 3.75Å -- PFL
-
-------------------------------
-
-Amide-π Interactions:
-  1. ASN265C  -- 3.69Å -- PFL
-  2. GLN229D  -- 3.35Å -- PFL
-
-=============================================================================
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

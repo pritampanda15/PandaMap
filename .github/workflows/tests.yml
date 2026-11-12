@@ -1,0 +1,33 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install
+        run: python -m pip install --upgrade pip && python -m pip install . pytest
+      - name: Run tests
+        env:
+          PANDAMAP_NO_UPDATE_CHECK: "1"
+        run: python -m pytest -q tests
+      - name: Smoke test the command line
+        env:
+          PANDAMAP_NO_UPDATE_CHECK: "1"
+        run: >
+          pandamap example/1m17.pdb --ligand AQ4 --outdir smoke
+          --report --plots --csv --json --score --dpi 80

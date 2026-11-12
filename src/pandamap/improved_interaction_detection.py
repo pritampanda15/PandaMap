@@ -5,10 +5,13 @@ Includes PLIP-like thresholds and filtering plus text report generation.
 Add this to your core.py module or create a new file and import it.
 """
 
+import logging
 import os
 import math
 import numpy as np
 from collections import defaultdict, namedtuple
+
+logger = logging.getLogger("pandamap")
 
 # Constants for interaction detection (PLIP-like thresholds)
 DISTANCE_CUTOFFS = {
@@ -399,9 +402,9 @@ def generate_plip_report(ligand_info, interactions, output_file=None):
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
                 f.write(text)
-            print(f"Report saved to {output_file}")
+            logger.info(f"Report saved to {output_file}")
         except Exception as e:
-            print(f"Error writing report to file: {str(e)}")
+            logger.warning(f"Error writing report to file: {str(e)}")
 
     return text
 
@@ -537,13 +540,13 @@ def add_interaction_detection_methods(cls):
                     if parent and hasattr(parent, 'id'):
                         ligand_info['chain'] = parent.id
             except Exception as e:
-                print(f"Error getting ligand chain: {str(e)}")
+                logger.warning(f"Error getting ligand chain: {str(e)}")
                 
             try:
                 if hasattr(self.ligand_residue, 'id') and isinstance(self.ligand_residue.id, tuple):
                     ligand_info['position'] = self.ligand_residue.id[1]
             except Exception as e:
-                print(f"Error getting ligand position: {str(e)}")
+                logger.warning(f"Error getting ligand position: {str(e)}")
         else:
             ligand_info = {'hetid': 'UNK', 'chain': 'X', 'position': 0, 
                         'longname': 'Unknown Ligand', 'type': 'LIGAND',
@@ -618,7 +621,7 @@ def add_interaction_detection_methods(cls):
                     processed_interactions[itype].append(interaction_data)
                     
                 except Exception as e:
-                    print(f"Warning: Error processing interaction: {str(e)}")
+                    logger.warning(f"Warning: Error processing interaction: {str(e)}")
                     continue
         
         # Context for the report header and the residue table
@@ -658,7 +661,7 @@ def add_interaction_detection_methods(cls):
                                     #interacting_res.add(f"{resnr}{chain}")
                                     #interacting_chains.add(chain)
         except Exception as e:
-            print(f"Error processing interacting_residues set: {str(e)}")
+            logger.warning(f"Error processing interacting_residues set: {str(e)}")
         
         # Update ligand info with final data
         ligand_info['interacting_chains'] = list(interacting_chains) if interacting_chains else []
@@ -669,7 +672,7 @@ def add_interaction_detection_methods(cls):
             report = generate_plip_report(ligand_info, processed_interactions, output_file)
             return report
         except Exception as e:
-            print(f"Error in report generation: {str(e)}")
+            logger.warning(f"Error in report generation: {str(e)}")
             # Create simple fallback report
             simple_report = [
                 "=============================================================================",
@@ -839,7 +842,7 @@ def add_interaction_detection_methods(cls):
         with open(output_file, 'w', encoding='utf-8') as f:
             f.write(report_text)
         
-        print(f"Enhanced interaction report saved to: {output_file}")
+        logger.info(f"Enhanced interaction report saved to: {output_file}")
         return report_text
     # Add methods to the class
     setattr(cls, 'detect_interactions_improved', detect_interactions_improved)

@@ -4,6 +4,7 @@ Core functionality for PandaMap: A Python package for visualizing
 protein-ligand interactions with 2D ligand structure representation.
 """
 
+import logging
 import os
 import sys
 import math
@@ -30,6 +31,8 @@ from .improved_interaction_detection import add_interaction_detection_methods
 # BioPython imports
 from Bio.PDB import PDBParser, NeighborSearch
 
+logger = logging.getLogger("pandamap")
+
 # Exact ring-atom names for each aromatic amino acid.
 # Only these atoms are considered part of the aromatic pi-system.
 # Halogen-bond donors.  Note that organic fluorine has a negligible sigma-hole
@@ -54,6 +57,18 @@ HBOND_DON_ANGLE_MIN = 100.0
 # unless told otherwise.
 DIAGRAM_STYLES = ('modern', 'classic', '3d')
 _DIAGRAM_SUFFIX = {'modern': '_modern', 'classic': '_classic', '3d': '_3d'}
+
+# Water bridges: both hydrogen bonds within this distance window (Angstrom) and
+# the ligand-water-protein angle within this range (degrees), following PLIP.
+WATER_BRIDGE_MIN, WATER_BRIDGE_MAX = 2.5, 3.5
+WATER_BRIDGE_ANGLE = (71.0, 140.0)
+
+SCORE_INTERPRETATION = ('Empirical interaction score on a kcal/mol scale. It is not '
+                        'calibrated against measured affinities and is not a '
+                        'predicted binding free energy.')
+SCORE_NOTE = ('Use it to compare poses or close analogues of the same ligand, not to '
+              'judge absolute binding strength. For affinities use FEP, MM-GBSA or '
+              'experiment.')
 
 # A metal ion counts as bridging protein and ligand only within this distance
 # (in Angstrom) of a ligand atom.
@@ -87,841 +102,12 @@ except ImportError:
             return "X"  # Unknown amino acid
 
 
-def parse_pdbqt(pdbqt_file):
-    """
-    Convert PDBQT to PDB format by stripping the charge and atom type information.
-    Returns a temporary file path to the converted PDB.
-    """
-    # Create a temporary file for the PDB output
-    temp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
-    temp_pdb_path = temp_pdb.name
-    temp_pdb.close()
-    
-    # Read the PDBQT file and write a modified version without charges and types
-    with open(pdbqt_file, 'r') as f_pdbqt, open(temp_pdb_path, 'w', encoding='utf-8') as f_pdb:
-        for line in f_pdbqt:
-            if line.startswith(('ATOM', 'HETATM')):
-                # Keep the PDB format portion, remove the PDBQT-specific part
-                # PDB format: columns 1-66 are standard PDB format
-                # PDBQT adds charge and atom type in columns 67+
-                f_pdb.write(line[:66] + '\n')
-            elif not line.startswith(('REMARK', 'MODEL', 'ENDMDL', 'TORSDOF')):
-                # Copy most other lines except PDBQT-specific ones
-                f_pdb.write(line)
-    
-    return temp_pdb_path
+# Kept importable from pandamap.core for existing code
+from .structure_io import (parse_pdbqt, MultiFormatParser, _looks_like_mmcif,   # noqa: E402,F401
+                           WATER_RESNAMES, NON_LIGAND_RESNAMES, _describe_ligand,
+                           _ligand_candidates, list_ligands, _select_ligand)
+from .classic_ligand import SimpleLigandStructure                                # noqa: E402,F401
 
-class MultiFormatParser:
-    """
-    Parser class that can handle multiple molecular file formats.
-    Supports: PDB, mmCIF/CIF, PDBQT
-    """
-    def __init__(self):
-        self.pdb_parser = PDBParser(QUIET=True)
-        self.mmcif_parser = MMCIFParser(QUIET=True)
-    
-    def parse_structure(self, file_path):
-        """
-        Parse a molecular structure file and return a BioPython structure object.
-        Automatically detects file format based on extension.
-        
-        Parameters:
-        -----------
-        file_path : str
-            Path to the structure file
-            
-        Returns:
-        --------
-        structure : Bio.PDB.Structure.Structure
-            BioPython structure object
-        """
-        file_ext = os.path.splitext(file_path)[1].lower()
-        
-        if file_ext == '.pdb':
-            return self.pdb_parser.get_structure('complex', file_path)
-        
-        elif file_ext in ('.cif', '.mmcif'):
-            return self.mmcif_parser.get_structure('complex', file_path)
-        
-        elif file_ext == '.pdbqt':
-            # Convert PDBQT to PDB format temporarily
-            temp_pdb_path = parse_pdbqt(file_path)
-            structure = self.pdb_parser.get_structure('complex', temp_pdb_path)
-            
-            # Clean up the temporary file
-            try:
-                os.unlink(temp_pdb_path)
-            except:
-                pass  # Ignore cleanup errors
-                
-            return structure
-        
-        else:
-            # Unknown extension (e.g. .ent, .pdb1, no extension): decide from
-            # the content rather than refusing or prompting the user.
-            if _looks_like_mmcif(file_path):
-                return self.mmcif_parser.get_structure('complex', file_path)
-            return self.pdb_parser.get_structure('complex', file_path)
-
-
-def _looks_like_mmcif(file_path):
-    """True if the first meaningful line of the file is an mmCIF data block."""
-    try:
-        with open(file_path, 'r', encoding='utf-8', errors='replace') as fh:
-            for line in fh:
-                line = line.strip()
-                if line and not line.startswith('#'):
-                    return line.startswith('data_')
-    except OSError:
-        pass
-    return False
-
-
-# HETATM residue names that are never the ligand of interest.
-WATER_RESNAMES = frozenset({'HOH', 'WAT', 'H2O', 'DOD', 'TIP', 'TIP3', 'SOL'})
-# Ions, buffer/cryo additives and modified amino acids: valid when requested
-# explicitly, but skipped when the ligand is auto-detected.
-NON_LIGAND_RESNAMES = frozenset({
-    'NA', 'K', 'LI', 'CL', 'BR', 'IOD', 'MG', 'CA', 'ZN', 'FE', 'FE2', 'MN',
-    'CU', 'CU1', 'CO', 'NI', 'CD', 'HG', 'SR', 'BA', 'CS', 'RB',
-    'SO4', 'PO4', 'NO3', 'ACT', 'ACE', 'NH2', 'NH4', 'FMT', 'CO3', 'SCN', 'AZI',
-    'GOL', 'EDO', 'PEG', 'PGE', 'PG4', '1PE', 'P6G', 'MPD', 'DMS', 'IPA',
-    'EOH', 'MOH', 'BME', 'DTT', 'TRS', 'MES', 'EPE', 'CIT', 'IMD',
-    'MSE', 'SEP', 'TPO', 'PTR', 'CSO', 'CME', 'KCX', 'MLY', 'HYP', 'PCA',
-})
-
-
-def _describe_ligand(residue):
-    return (f"{residue.resname.strip()} (chain {residue.get_parent().id}, "
-            f"residue {residue.id[1]}, {len(residue)} atoms)")
-
-
-def _ligand_candidates(model):
-    """All non-water HETATM residues of a model, largest first."""
-    candidates = [r for r in model.get_residues()
-                  if r.id[0] != ' ' and r.resname.strip().upper() not in WATER_RESNAMES]
-    # sorted() is stable, so equal-sized copies keep file order
-    return sorted(candidates, key=lambda r: -len(r))
-
-
-def list_ligands(structure_file):
-    """
-    List the candidate ligands (non-water HETATM residues) in a structure file.
-
-    Returns a list of dicts with keys ``resname``, ``chain``, ``resnum`` and
-    ``n_atoms``, largest first.  Use it to find the name to pass as
-    ``ligand_resname`` / ``--ligand``.
-    """
-    structure = MultiFormatParser().parse_structure(structure_file)
-    models = list(structure.get_models())
-    if not models:
-        raise ValueError(f"No atoms could be read from {structure_file}. "
-                         "Is it a valid PDB, mmCIF or PDBQT file?")
-    return [{'resname': r.resname.strip(), 'chain': r.get_parent().id,
-             'resnum': r.id[1], 'n_atoms': len(r)}
-            for r in _ligand_candidates(models[0])]
-
-
-def _select_ligand(model, structure_file, resname=None, chain=None, resnum=None):
-    """Pick the single HETATM residue to analyse as the ligand."""
-    candidates = _ligand_candidates(model)
-    if not candidates:
-        raise ValueError(f"No ligand (HETATM) found in the file: {structure_file}")
-    available = ", ".join(_describe_ligand(r) for r in candidates[:15])
-
-    matches = candidates
-    if resname is not None:
-        wanted = str(resname).strip().upper()
-        matches = [r for r in matches if r.resname.strip().upper() == wanted]
-    if chain is not None:
-        matches = [r for r in matches if r.get_parent().id == str(chain)]
-    if resnum is not None:
-        matches = [r for r in matches if r.id[1] == int(resnum)]
-
-    if not matches:
-        wanted = " ".join(
-            part for part in (
-                f"'{resname}'" if resname is not None else "",
-                f"chain {chain}" if chain is not None else "",
-                f"residue {resnum}" if resnum is not None else "",
-            ) if part)
-        raise ValueError(f"Ligand {wanted} not found in {structure_file}. "
-                         f"Available ligands: {available}")
-
-    if resname is None:
-        # Auto-detect: prefer real small molecules over ions and additives.
-        preferred = [r for r in matches
-                     if r.resname.strip().upper() not in NON_LIGAND_RESNAMES]
-        matches = preferred or matches
-        ligand = matches[0]
-        others = [r for r in candidates if r is not ligand]
-        if others and resnum is None:
-            print(f"Auto-selected ligand {_describe_ligand(ligand)}. "
-                  f"Other HETATM groups: "
-                  f"{', '.join(_describe_ligand(r) for r in others[:8])}. "
-                  "Use --ligand / ligand_resname to choose another.")
-        return ligand
-
-    # Several copies of the named ligand: analyse one, in file order.
-    match_ids = {id(r) for r in matches}
-    matches = [r for r in model.get_residues() if id(r) in match_ids]
-    ligand = matches[0]
-    if len(matches) > 1:
-        print(f"Found {len(matches)} copies of {ligand.resname.strip()}; using "
-              f"chain {ligand.get_parent().id} residue {ligand.id[1]}. "
-              "Use --chain / --resnum (ligand_chain / ligand_resnum) to choose another.")
-    return ligand
-
-class SimpleLigandStructure:
-    """
-    Class to create a simplified 2D representation of a ligand structure
-    with enhanced 3D cues without requiring RDKit or other external dependencies.
-    """
-    
-    def __init__(self, ligand_atoms):
-        """
-        Initialize with a list of ligand atoms from a BioPython structure.
-        
-        Parameters:
-        -----------
-        ligand_atoms : list
-            List of BioPython Atom objects from the ligand
-        """
-        self.ligand_atoms = ligand_atoms
-        self.atom_coords = {}
-        self.element_colors = {
-            'C': '#808080',  # Grey
-            'N': '#0000FF',  # Blue
-            'O': '#FF0000',  # Red
-            'S': '#FFFF00',  # Yellow
-            'P': '#FFA500',  # Orange
-            'F': '#00FF00',  # Green
-            'Cl': '#00FF00', # Green
-            'Br': '#A52A2A', # Brown
-            'I': '#A020F0',  # Purple
-            'H': '#FFFFFF'   # White
-        }
-        
-        # Record atom coordinates and elements
-        for atom in ligand_atoms:
-            atom_id = atom.get_id()
-            self.atom_coords[atom_id] = {
-                'element': atom.element,
-                'coord': atom.get_coord()  # 3D coordinates from PDB
-            }
-    
-    def generate_2d_coords(self):
-        """
-        Generate simplified 2D coordinates for the ligand atoms based on their 3D coordinates.
-        This is a very basic projection - in a real application, you would use a proper
-        2D layout algorithm.
-        
-        Returns:
-        --------
-        dict : Dictionary mapping atom IDs to 2D coordinates
-        """
-        if not self.atom_coords:
-            return {}
-
-        # ── Attempt RDKit coordinate generation first ──────────────────────
-        rdkit_coords = self._try_rdkit_2d_coords()
-        if rdkit_coords:
-            return rdkit_coords
-        # ── Fallback: PCA-based projection ─────────────────────────────────
-
-        # Simple projection onto the xy-plane
-        coords_2d = {}
-        
-        # Get all 3D coordinates and find center
-        all_coords = np.array([info['coord'] for info in self.atom_coords.values()])
-        center = np.mean(all_coords, axis=0)
-        
-        # Subtract center to center the molecule
-        centered_coords = all_coords - center
-        
-        # Direct fallback for small molecules (less than 3 atoms)
-        if len(centered_coords) < 3:
-            print("Warning: Not enough atoms for PCA projection. Using simple XY projection.")
-            for atom_id, info in self.atom_coords.items():
-                # Simple scaling of x, y coordinates
-                coords_2d[atom_id] = np.array([info['coord'][0], info['coord'][1]]) * 10.0
-            return coords_2d
-            
-        # Simple PCA-like approach to find main plane
-        try:
-            # Make sure we have enough unique coordinates
-            unique_coords = set()
-            for coord in centered_coords:
-                unique_coords.add(tuple(coord))
-                
-            if len(unique_coords) < 3:
-                raise ValueError("Not enough unique coordinates for PCA")
-            
-            # Calculate covariance matrix
-            covariance_matrix = np.zeros((3, 3))
-            for coord in centered_coords:
-                covariance_matrix += np.outer(coord, coord)
-            covariance_matrix /= len(centered_coords)
-            
-            # Get eigenvectors and eigenvalues
-            eigenvalues, eigenvectors = np.linalg.eigh(covariance_matrix)
-            
-            # Sort by eigenvalue in descending order
-            idx = eigenvalues.argsort()[::-1]
-            eigenvalues = eigenvalues[idx]
-            eigenvectors = eigenvectors[:, idx]
-            
-            # Use the first two eigenvectors to define the plane
-            plane_vectors = eigenvectors[:, :2]
-            
-            # Project the centered coordinates onto the plane
-            projected_coords = np.dot(centered_coords, plane_vectors)
-            
-            # Scale to fit nicely in the visualization
-            max_dim = np.max(np.abs(projected_coords))
-            scaling_factor = 50.0 / max_dim if max_dim > 0 else 1.0
-            projected_coords *= scaling_factor
-            
-            # Store the 2D coordinates
-            for i, atom_id in enumerate(self.atom_coords.keys()):
-                coords_2d[atom_id] = projected_coords[i]
-                
-        except Exception as e:
-            # Fallback if eigendecomposition fails
-            print(f"Warning: Could not compute optimal projection. Using simple XY projection. Error: {str(e)}")
-            for atom_id, info in self.atom_coords.items():
-                # Simple scaling of x, y coordinates
-                coords_2d[atom_id] = np.array([info['coord'][0], info['coord'][1]]) * 10.0
-        
-        return coords_2d
-    
-    def find_bonds(self, distance_threshold=2.0):
-        """
-        Find bonds between atoms based on distance.
-        This is a simplified approach - in reality, you'd use chemical knowledge.
-        
-        Parameters:
-        -----------
-        distance_threshold : float
-            Maximum distance between atoms to be considered bonded (in Angstroms)
-            
-        Returns:
-        --------
-        list : List of tuples (atom_id1, atom_id2) representing bonds
-        """
-        bonds = []
-        atom_ids = list(self.atom_coords.keys())
-        
-        for i in range(len(atom_ids)):
-            for j in range(i+1, len(atom_ids)):
-                atom1_id = atom_ids[i]
-                atom2_id = atom_ids[j]
-                
-                coord1 = self.atom_coords[atom1_id]['coord']
-                coord2 = self.atom_coords[atom2_id]['coord']
-                
-                # Calculate Euclidean distance
-                distance = np.linalg.norm(coord1 - coord2)
-                
-                # If distance is below threshold, consider them bonded
-                if distance < distance_threshold:
-                    bonds.append((atom1_id, atom2_id))
-        
-        return bonds
-    
-    def detect_rings(self, bond_threshold=2.0):
-        """
-        Identify ligand atoms that belong to ring systems using iterative
-        leaf-node pruning on the bond graph (works for any ring size).
-
-        Returns
-        -------
-        set
-            Atom IDs of ring atoms (atoms that are part of at least one cycle).
-        """
-        atom_ids = list(self.atom_coords.keys())
-        bonds = self.find_bonds(distance_threshold=bond_threshold)
-
-        # Build adjacency list
-        adj = {a: [] for a in atom_ids}
-        for a, b in bonds:
-            adj[a].append(b)
-            adj[b].append(a)
-
-        # Degree map (ignore H for ring detection)
-        degree = {a: sum(1 for nb in adj[a]
-                         if self.atom_coords[nb]['element'] not in ('H', ''))
-                  for a in atom_ids
-                  if self.atom_coords[a]['element'] not in ('H', '')}
-
-        # Iteratively prune leaf nodes (degree == 1)
-        changed = True
-        while changed:
-            changed = False
-            for a in list(degree.keys()):
-                if degree[a] == 1:
-                    degree[a] = 0
-                    for nb in adj[a]:
-                        if nb in degree and degree[nb] > 0:
-                            degree[nb] -= 1
-                    changed = True
-
-        # Atoms still with degree >= 2 are in rings
-        return {a for a, d in degree.items() if d >= 2}
-
-    def _try_rdkit_2d_coords(self):
-        """
-        Attempt to generate chemically accurate 2D coordinates using RDKit.
-        Builds an RDKit molecule from bond topology (single bonds assumed) and
-        calls AllChem.Compute2DCoords().  Returns None if RDKit is unavailable
-        or if coordinate generation fails.
-
-        Returns
-        -------
-        dict or None
-            Mapping atom_id → np.ndarray([x, y]) scaled to match PCA output,
-            or None on failure.
-        """
-        try:
-            from rdkit import Chem
-            from rdkit.Chem import AllChem
-
-            atom_ids = list(self.atom_coords.keys())
-            bonds = self.find_bonds()
-
-            mol = Chem.RWMol()
-            idx_map = {}  # atom_id → RDKit atom index
-
-            for atom_id in atom_ids:
-                element = (self.atom_coords[atom_id]['element'] or 'C').capitalize()
-                try:
-                    rdatom = Chem.Atom(element)
-                except Exception:
-                    rdatom = Chem.Atom('C')
-                idx = mol.AddAtom(rdatom)
-                idx_map[atom_id] = idx
-
-            for a1, a2 in bonds:
-                if a1 in idx_map and a2 in idx_map:
-                    try:
-                        mol.AddBond(idx_map[a1], idx_map[a2], Chem.BondType.SINGLE)
-                    except Exception:
-                        pass
-
-            mol = mol.GetMol()
-            AllChem.Compute2DCoords(mol)
-            conf = mol.GetConformer()
-
-            coords_2d = {}
-            for atom_id, idx in idx_map.items():
-                pos = conf.GetAtomPosition(idx)
-                coords_2d[atom_id] = np.array([pos.x, pos.y]) * 30.0  # scale to ~PCA units
-            return coords_2d
-
-        except Exception:
-            return None
-
-    def draw_on_axes(self, ax, center=(0, 0), radius=80, show_3d_cues=True):
-        """
-        Draw a more realistic 3D representation of the ligand on the given axes.
-        
-        Parameters:
-        -----------
-        ax : matplotlib.axes.Axes
-            The axes on which to draw
-        center : tuple
-            The (x, y) coordinates where the center of the molecule should be
-        radius : float
-            The approximate radius the molecule should occupy
-        show_3d_cues : bool
-            Whether to show 3D depth cues (enhanced 3D effect)
-        """
-        # Generate 2D coordinates
-        coords_2d = self.generate_2d_coords()
-        
-        if not coords_2d:
-            # If we couldn't generate coordinates, draw a simple placeholder
-            print("Warning: Could not generate ligand coordinates. Drawing placeholder.")
-            circle = Circle(center, radius/2, fill=False, edgecolor='black', linestyle='-')
-            ax.add_patch(circle)
-            ax.text(center[0], center[1], "Ligand", ha='center', va='center')
-            return {}
-            
-        # Find bonds
-        bonds = self.find_bonds()
-        
-        # Scale coordinates to fit within the specified radius.
-        #
-        # Previously this used max(|coord|) over both axes of *un-centred*
-        # coordinates, so an off-centre layout (RDKit emits these routinely)
-        # was scaled by its distance from the origin rather than its true
-        # size, shrinking the depiction.  Centre on the bounding box first,
-        # then scale by the larger half-range.
-        all_coords = np.array(list(coords_2d.values()), dtype=float)
-        bbox_centre = (all_coords.max(axis=0) + all_coords.min(axis=0)) / 2.0
-        all_coords = all_coords - bbox_centre
-        coords_2d = {aid: np.asarray(c, dtype=float) - bbox_centre
-                     for aid, c in coords_2d.items()}
-        max_extent = np.max(np.abs(all_coords))
-        if max_extent <= 0:
-            max_extent = 1.0
-        scaling_factor = radius / (max_extent * 1.2)  # Leave some margin
-
-        # Atom marker radius must track the drawn bond length, otherwise a
-        # ligand with many atoms is scaled down until neighbouring circles
-        # overlap and the depiction collapses into an unreadable blob.
-        bond_lengths = [
-            np.linalg.norm((coords_2d[a] - coords_2d[b]) * scaling_factor)
-            for a, b in bonds if a in coords_2d and b in coords_2d
-        ]
-        if bond_lengths:
-            median_bond = float(np.median(bond_lengths))
-        else:
-            median_bond = radius / 4.0
-        # 0.30 x bond length keeps a clear gap between bonded atoms.
-        atom_unit = float(np.clip(median_bond * 0.30, 2.0, 11.0))
-        
-        # Create a mapping of atom IDs to positions in the plot
-        atom_positions = {}
-        
-        # Calculate approximate z-depth for 3D cues
-        z_values = {}
-        if show_3d_cues:
-            # Extract z-coordinates from 3D structure
-            for atom_id, info in self.atom_coords.items():
-                z_values[atom_id] = info['coord'][2]
-            
-            # Normalize z-values to 0-1 range
-            if len(z_values) > 0:
-                z_min = min(z_values.values())
-                z_max = max(z_values.values())
-                z_range = z_max - z_min
-                if z_range > 0:
-                    for atom_id in z_values:
-                        z_values[atom_id] = (z_values[atom_id] - z_min) / z_range
-                else:
-                    for atom_id in z_values:
-                        z_values[atom_id] = 0.5
-        
-        # Sort atoms by Z-depth for proper occlusion
-        atom_ids = list(coords_2d.keys())
-        if show_3d_cues and z_values:
-            # Sort from back to front (furthest first, closest last)
-            atom_ids.sort(key=lambda atom_id: z_values.get(atom_id, 0.5))
-        
-        # Dictionary to store atom indices (for bond reference)
-        atom_indices = {atom_id: i for i, atom_id in enumerate(atom_ids)}
-        
-        # Enhanced shadow effect if 3D cues are enabled
-        if show_3d_cues:
-            # Add a subtle shadow below the molecule
-            shadow_offset = 15  # pixels
-            shadow_alpha = 0.15
-            for atom_id in atom_ids:
-                pos = coords_2d[atom_id] * scaling_factor + center
-                pos_shadow = (pos[0] + shadow_offset, pos[1] + shadow_offset)
-                
-                element = self.atom_coords[atom_id]['element']
-                
-                # Determine size based on element and z-position
-                base_size = atom_unit if element in ['C', 'H'] else atom_unit * 1.22
-                z = z_values.get(atom_id, 0.5)
-                size_factor = 0.8 + 0.4 * z  # Larger when closer
-                size = base_size * size_factor
-                
-                # Draw shadow
-                shadow = Circle(pos_shadow, size * 1.1, facecolor='black', 
-                            edgecolor=None, alpha=shadow_alpha, zorder=1.8)
-                ax.add_patch(shadow)
-        
-        # Draw bonds with enhanced 3D representation
-        for atom1_id, atom2_id in bonds:
-            pos1 = coords_2d[atom1_id] * scaling_factor + center
-            pos2 = coords_2d[atom2_id] * scaling_factor + center
-            
-            # Get z-values if available
-            z1 = z_values.get(atom1_id, 0.5) if show_3d_cues else 0.5
-            z2 = z_values.get(atom2_id, 0.5) if show_3d_cues else 0.5
-            
-            # Calculate bond midpoint
-            midpoint = ((pos1[0] + pos2[0])/2, (pos1[1] + pos2[1])/2)
-            
-            # Calculate bond vector and perpendicular
-            dx = pos2[0] - pos1[0]
-            dy = pos2[1] - pos1[1]
-            bond_length = np.sqrt(dx*dx + dy*dy)
-            
-            if bond_length > 0:
-                # Unit vector along bond
-                ux, uy = dx/bond_length, dy/bond_length
-                # Perpendicular unit vector
-                px, py = -uy, ux
-            else:
-                ux, uy = 1, 0
-                px, py = 0, 1
-                
-            # If showing 3D cues and significant z-difference
-            if show_3d_cues and abs(z1 - z2) > 0.2:
-                # Determine which atom is closer to viewer
-                if z1 > z2:  # atom1 is closer
-                    # Create wedge (thicker near atom1)
-                    wedge_width = 3.5  # max width of wedge
-                    
-                    # Wedge points
-                    wedge_points = [
-                        (pos1[0] + px * wedge_width, pos1[1] + py * wedge_width),
-                        (pos1[0] - px * wedge_width, pos1[1] - py * wedge_width),
-                        (pos2[0] - px * wedge_width * 0.2, pos2[1] - py * wedge_width * 0.2),
-                        (pos2[0] + px * wedge_width * 0.2, pos2[1] + py * wedge_width * 0.2)
-                    ]
-                    
-                    # Draw filled wedge with gradient fill
-                    wedge = plt.Polygon(wedge_points, closed=True, 
-                                    facecolor='black', alpha=0.7, zorder=2.5)
-                    ax.add_patch(wedge)
-                    
-                elif z2 > z1:  # atom2 is closer
-                    # Create wedge (thicker near atom2)
-                    wedge_width = 3.5  # max width of wedge
-                    
-                    # Wedge points
-                    wedge_points = [
-                        (pos2[0] + px * wedge_width, pos2[1] + py * wedge_width),
-                        (pos2[0] - px * wedge_width, pos2[1] - py * wedge_width),
-                        (pos1[0] - px * wedge_width * 0.2, pos1[1] - py * wedge_width * 0.2),
-                        (pos1[0] + px * wedge_width * 0.2, pos1[1] + py * wedge_width * 0.2)
-                    ]
-                    
-                    # Draw filled wedge
-                    wedge = plt.Polygon(wedge_points, closed=True, 
-                                    facecolor='black', alpha=0.7, zorder=2.5)
-                    ax.add_patch(wedge)
-                else:
-                    # Regular bond (in plane)
-                    line = Line2D([pos1[0], pos2[0]], [pos1[1], pos2[1]], 
-                                color='black', linewidth=2.0, zorder=2)
-                    ax.add_line(line)
-            else:
-                # Regular bond
-                line = Line2D([pos1[0], pos2[0]], [pos1[1], pos2[1]], 
-                            color='black', linewidth=2.0, zorder=2)
-                ax.add_line(line)
-        
-        # Draw atoms with enhanced 3D appearance
-        for atom_id in atom_ids:
-            # Scale and shift the position
-            pos = coords_2d[atom_id] * scaling_factor + center
-            atom_positions[atom_id] = pos
-            
-            element = self.atom_coords[atom_id]['element']
-            base_color = self.element_colors.get(element, 'gray')
-            
-            # Get the normalized z value (0=back, 1=front)
-            z = z_values.get(atom_id, 0.5) if show_3d_cues else 0.5
-            
-            # Determine size based on element and z-position
-            base_size = atom_unit if element in ['C', 'H'] else atom_unit * 1.22
-            size_factor = 0.8 + 0.4 * z  # Larger when closer
-            size = base_size * size_factor
-            
-            # Adjust color based on z-position (darker in back, brighter in front)
-            if show_3d_cues:
-                # Parse the hex color to RGB
-                if base_color.startswith('#'):
-                    r = int(base_color[1:3], 16) / 255.0
-                    g = int(base_color[3:5], 16) / 255.0
-                    b = int(base_color[5:7], 16) / 255.0
-                else:
-                    # Just use the base color for named colors
-                    r, g, b = matplotlib.colors.to_rgb(base_color)
-                
-                # Adjust color based on depth
-                brightness_factor = 0.6 + 0.4 * z  # Brighter in front
-                r = min(1.0, r * brightness_factor)
-                g = min(1.0, g * brightness_factor)
-                b = min(1.0, b * brightness_factor)
-                color = (r, g, b)
-            else:
-                color = base_color
-            
-            # Draw atom with 3D effect (gradient fill)
-            if show_3d_cues:
-                # First draw a shadow/outline for 3D effect
-                outline = Circle(pos, size + 1, facecolor='black', alpha=0.2, zorder=3.8)
-                ax.add_patch(outline)
-                
-                # Main atom circle
-                atom_circle = Circle(pos, size, facecolor=color, edgecolor='black', 
-                                    linewidth=1, alpha=1.0, zorder=4)
-                ax.add_patch(atom_circle)
-                
-                # Highlight to give 3D appearance (small white circle in upper left)
-                if element != 'H':  # Skip highlight for hydrogen
-                    highlight_offset = size * 0.3
-                    highlight_size = size * 0.35
-                    highlight_pos = (pos[0] - highlight_offset, pos[1] - highlight_offset)
-                    highlight = Circle(highlight_pos, highlight_size, facecolor='white', 
-                                    alpha=0.5, zorder=4.5)
-                    ax.add_patch(highlight)
-            else:
-                # Simple 2D representation
-                atom_circle = Circle(pos, size, facecolor=color, edgecolor='black', 
-                                linewidth=1, alpha=0.8, zorder=3)
-                ax.add_patch(atom_circle)
-            
-            # Add element label (except for carbon)
-            if element != 'C':
-                # Adjust text color for contrast
-                text_color = 'white' if element != 'S' else 'black'
-                text = ax.text(pos[0], pos[1], element, ha='center', va='center', 
-                            fontsize=8, fontweight='bold', color=text_color, zorder=5)
-                if show_3d_cues:
-                    # Add subtle drop shadow for better text visibility
-                    text.set_path_effects([
-                        path_effects.withStroke(linewidth=2, foreground='black', alpha=0.7)
-                    ])
-        
-        return atom_positions
-    
-    def adjust_2d_coordinates_for_better_3d(self, coords_2d, atom_ids, rotation_angle=30):
-        """
-        Apply a slight rotation and perspective to the 2D coordinates
-        to enhance the 3D perception of the molecule.
-        
-        Parameters:
-        -----------
-        coords_2d : dict
-            Dictionary mapping atom IDs to their 2D coordinates
-        atom_ids : list
-            List of atom IDs 
-        rotation_angle : float
-            Rotation angle in degrees (default: 30)
-        
-        Returns:
-        --------
-        dict : Dictionary mapping atom IDs to adjusted 2D coordinates
-        """
-        if not coords_2d:
-            return {}
-        
-        # Convert to radians
-        theta = np.radians(rotation_angle)
-        
-        # Calculate center of the molecule
-        positions = np.array([coords_2d[atom_id] for atom_id in atom_ids])
-        center = np.mean(positions, axis=0)
-        
-        # Initialize result dictionary
-        adjusted_coords = {}
-        
-        # Apply rotation around y-axis
-        for atom_id in atom_ids:
-            x, y = coords_2d[atom_id]
-            
-            # Center coordinates
-            x_centered = x - center[0]
-            y_centered = y - center[1]
-            
-            # Apply rotation (isometric-like projection)
-            x_rot = x_centered * np.cos(theta)
-            y_rot = y_centered
-            
-            # Add back center offset
-            x_new = x_rot + center[0]
-            y_new = y_rot + center[1]
-            
-            adjusted_coords[atom_id] = np.array([x_new, y_new])
-        
-        return adjusted_coords
-
-    def calculate_enhanced_bond_information(self, bonds, coords_2d, z_values):
-        """
-        Calculate enhanced bond information for better 3D representation.
-        
-        Parameters:
-        -----------
-        bonds : list
-            List of bond pairs (atom_id1, atom_id2)
-        coords_2d : dict
-            Dictionary mapping atom IDs to 2D coordinates
-        z_values : dict
-            Dictionary mapping atom IDs to normalized z values
-        
-        Returns:
-        --------
-        list : List of dictionaries with enhanced bond information
-        """
-        enhanced_bonds = []
-        
-        for atom1_id, atom2_id in bonds:
-            # Get bond endpoints
-            pos1 = coords_2d[atom1_id]
-            pos2 = coords_2d[atom2_id]
-            
-            # Get z-values
-            z1 = z_values.get(atom1_id, 0.5)
-            z2 = z_values.get(atom2_id, 0.5)
-            
-            # Calculate midpoint
-            midpoint = ((pos1[0] + pos2[0])/2, (pos1[1] + pos2[1])/2)
-            
-            # Calculate bond vector and perpendicular
-            dx = pos2[0] - pos1[0]
-            dy = pos2[1] - pos1[1]
-            bond_length = np.sqrt(dx*dx + dy*dy)
-            
-            # Calculate unit vectors
-            if bond_length > 0:
-                ux, uy = dx/bond_length, dy/bond_length
-                px, py = -uy, ux  # Perpendicular
-            else:
-                ux, uy = 1, 0
-                px, py = 0, 1
-            
-            # Calculate z difference and determine bond type
-            z_diff = z2 - z1
-            
-            if abs(z_diff) > 0.2:
-                # 3D bond (significant z difference)
-                if z_diff > 0:  # atom2 is closer to viewer
-                    bond_type = 'forward'  # Coming toward viewer
-                    closer_atom_id = atom2_id
-                    farther_atom_id = atom1_id
-                else:  # atom1 is closer
-                    bond_type = 'backward'  # Going away from viewer
-                    closer_atom_id = atom1_id
-                    farther_atom_id = atom2_id
-            else:
-                # Planar bond (small z difference)
-                bond_type = 'planar'
-                closer_atom_id = atom1_id if z1 > z2 else atom2_id
-                farther_atom_id = atom2_id if z1 > z2 else atom1_id
-            
-            # Calculate average z value for bond (for drawing order)
-            z_avg = (z1 + z2) / 2
-            
-            enhanced_bonds.append({
-                'atom1_id': atom1_id,
-                'atom2_id': atom2_id,
-                'pos1': pos1,
-                'pos2': pos2,
-                'midpoint': midpoint,
-                'bond_length': bond_length,
-                'unit_vector': (ux, uy),
-                'perp_vector': (px, py),
-                'z1': z1,
-                'z2': z2,
-                'z_avg': z_avg,
-                'z_diff': z_diff,
-                'bond_type': bond_type,
-                'closer_atom_id': closer_atom_id,
-                'farther_atom_id': farther_atom_id
-            })
-        
-        # Sort bonds by z-average (paint back-to-front)
-        enhanced_bonds.sort(key=lambda b: b['z_avg'])
-        
-        return enhanced_bonds
 
 class HybridProtLigMapper:
     """
@@ -981,6 +167,7 @@ class HybridProtLigMapper:
         # Store atom information including metals
         self.metal_atoms = []
         self.halogen_atoms = []
+        self.water_atoms = []
         
         # Exactly one HETATM residue is the ligand.  (Previously, with no
         # ligand name given, every HETATM group - waters and ions included -
@@ -1003,6 +190,10 @@ class HybridProtLigMapper:
                             self.halogen_atoms.append(atom)
                     if self.ligand_residue is None:
                         self.ligand_residue = residue
+                elif residue.resname.strip().upper() in WATER_RESNAMES:
+                    # Waters can bridge ligand and protein (see water bridges)
+                    self.water_atoms.extend(
+                        a for a in residue if (a.element or '').strip().upper() == 'O')
                 else:
                     # Check for metal ions (typically single-atom HETATM residues)
                     if len(list(residue.get_atoms())) == 1:
@@ -1037,7 +228,8 @@ class HybridProtLigMapper:
             'alkyl_pi': [],        # NEW: Alkyl-Pi interactions
             'attractive_charge': [], # NEW: Attractive charge interactions
             'pi_cation': [],         # NEW: Pi-cation interactions
-            'repulsion': []         # NEW: Repulsion interactions
+            'repulsion': [],        # NEW: Repulsion interactions
+            'water_bridges': []     # ligand ... water ... protein hydrogen bonds
         }
         
         # Will store residues that interact with the ligand
@@ -1216,7 +408,8 @@ class HybridProtLigMapper:
             'alkyl_pi': [],
             'attractive_charge': [],
             'pi_cation': [],
-            'repulsion': []
+            'repulsion': [],
+            'water_bridges': []
         }
         
         # Helper functions
@@ -1360,20 +553,12 @@ class HybridProtLigMapper:
                         }
                         all_interactions['alkyl_pi'].append(interaction_info)
     
-                # 3. Attractive charge interactions - between oppositely charged groups
-                if distance <= ionic_cutoff:
-                    is_prot_pos = prot_res.resname in pos_charged and prot_atom.element == 'N'
-                    is_prot_neg = prot_res.resname in neg_charged and prot_atom.element == 'O'
-                    
-                    if (is_prot_pos and is_lig_neg_charged) or (is_prot_neg and is_lig_pos_charged):
-                        interaction_info = {
-                            'ligand_atom': lig_atom,
-                            'protein_atom': prot_atom,
-                            'protein_residue': prot_res,
-                            'distance': distance
-                        }
-                        all_interactions['attractive_charge'].append(interaction_info)
-    
+                # 3. Oppositely charged groups are recorded once, as 'ionic'
+                # (section 7).  An identical test used to file every such
+                # contact a second time under 'attractive_charge', which
+                # inflated the contact count and the score.  The key is kept
+                # (always empty) so existing code that reads it keeps working.
+
                 # 4. Repulsion interactions - between likely same-charged groups
                 # Fixed 4.0 Å cutoff: same-sign charges within this distance
                 # produce genuine electrostatic repulsion (independent of ionic_cutoff).
@@ -1550,18 +735,103 @@ class HybridProtLigMapper:
                     }
                     all_interactions['metal_coordination'].append(interaction_info)
         
-        # Filter redundant interactions to get one per residue
-        for itype, interactions in all_interactions.items():
-            # Group by residue ID
+        # ---- water bridges: ligand N/O ... water ... protein N/O ----------
+        for water in self.water_atoms:
+            lig_side = [(a, water - a) for a in self.ligand_atoms
+                        if a.element in ('N', 'O')
+                        and WATER_BRIDGE_MIN <= water - a <= WATER_BRIDGE_MAX]
+            if not lig_side:
+                continue
+            for prot_atom in ns.search(water.get_coord(), WATER_BRIDGE_MAX):
+                d_prot = prot_atom - water
+                if prot_atom.element not in ('N', 'O') or d_prot < WATER_BRIDGE_MIN:
+                    continue
+                prot_res = prot_atom.get_parent()
+                for lig_atom, d_lig in lig_side:
+                    u = lig_atom.get_coord() - water.get_coord()
+                    v = prot_atom.get_coord() - water.get_coord()
+                    cos = float(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)))
+                    omega = math.degrees(math.acos(max(-1.0, min(1.0, cos))))
+                    if not WATER_BRIDGE_ANGLE[0] <= omega <= WATER_BRIDGE_ANGLE[1]:
+                        continue
+                    water_res = water.get_parent()
+                    self.interacting_residues.add((prot_res.resname, prot_res.id[1]))
+                    all_interactions['water_bridges'].append({
+                        'ligand_atom': lig_atom,
+                        'protein_atom': prot_atom,
+                        'protein_residue': prot_res,
+                        # the longer of the two hydrogen bonds limits the bridge
+                        'distance': max(d_prot, d_lig),
+                        'distance_protein_water': d_prot,
+                        'distance_ligand_water': d_lig,
+                        'angle': omega,
+                        'water_residue': water_res,
+                        'type': f"via {water_res.resname.strip()} {water_res.id[1]} "
+                                f"({d_lig:.2f} + {d_prot:.2f} Å)",
+                    })
+
+        self.interactions = self._select_contacts(all_interactions)
+
+    # Types where each distinct atom pair is a separate, directional contact:
+    # a residue can make two hydrogen bonds, or coordinate a metal twice.
+    _ATOM_PAIR_TYPES = ('hydrogen_bonds', 'halogen_bonds', 'metal_coordination', 'covalent')
+    # Carbon-carbon contact classes, most specific first.  One atom pair is
+    # reported under the first class that matches and not again further down.
+    _CARBON_CONTACT_ORDER = ('pi_pi_stacking', 'alkyl_pi', 'carbon_pi', 'hydrophobic')
+
+    @staticmethod
+    def _residue_key(contact):
+        res = contact['protein_residue']
+        parent = res.get_parent()
+        return (parent.id if parent is not None else '', res.resname, res.id)
+
+    def _select_contacts(self, all_interactions):
+        """
+        Reduce the raw atom-atom hits to the contacts that are reported.
+
+        * Directional, atom-specific types (hydrogen bonds, halogen bonds,
+          metal coordination, covalent bonds): every distinct pair is kept,
+          closest first, unless both of its atoms already take part in a
+          shorter contact of the same type with the same residue.  A bidentate
+          arginine therefore reports two hydrogen bonds, not one and not four.
+        * All other types describe a group-level contact: the closest atom
+          pair per residue is kept.
+        * The same atom pair is never reported under two carbon-contact
+          classes (for example alkyl-pi and hydrophobic).
+        """
+        selected = {}
+        for itype, hits in all_interactions.items():
             by_residue = {}
-            for interaction in interactions:
-                res_id = (interaction['protein_residue'].resname, interaction['protein_residue'].id[1])
-                if res_id not in by_residue or by_residue[res_id]['distance'] > interaction['distance']:
-                    by_residue[res_id] = interaction
-            
-            # Add only the best (closest) interaction for each residue
-            self.interactions[itype] = list(by_residue.values())
-    
+            for hit in hits:
+                by_residue.setdefault(self._residue_key(hit), []).append(hit)
+            kept = []
+            for group in by_residue.values():
+                group.sort(key=lambda h: h['distance'])
+                if itype in self._ATOM_PAIR_TYPES:
+                    used_prot, used_lig = set(), set()
+                    for hit in group:
+                        p, l = id(hit['protein_atom']), id(hit['ligand_atom'])
+                        if p in used_prot and l in used_lig:
+                            continue
+                        used_prot.add(p)
+                        used_lig.add(l)
+                        kept.append(hit)
+                else:
+                    kept.append(group[0])
+            selected[itype] = kept
+
+        seen_pairs = set()
+        for itype in self._CARBON_CONTACT_ORDER:
+            unique = []
+            for hit in selected.get(itype, []):
+                pair = (id(hit['protein_atom']), id(hit['ligand_atom']))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+                unique.append(hit)
+            selected[itype] = unique
+        return selected
+
     def calculate_realistic_solvent_accessibility(self, probe_radius=1.4, exposure_threshold=0.25, max_percent=0.5):
         """
         Realistic solvent accessibility calculation with proper constraints on number of accessible residues.
@@ -1854,7 +1124,7 @@ class HybridProtLigMapper:
                         self.solvent_accessible.add(res_key)
                         
         except Exception as e:
-            print(f"Warning: DSSP calculation failed. Falling back to geometric estimation. Error: {str(e)}")
+            logger.warning(f"Warning: DSSP calculation failed. Falling back to geometric estimation. Error: {str(e)}")
             self.estimate_solvent_accessibility()
         
         return self.solvent_accessible
@@ -2025,7 +1295,7 @@ class HybridProtLigMapper:
         dict
             Dictionary mapping residue IDs to their SASA values
         """
-        print("Calculating Solvent Accessible Surface Areas...")
+        logger.info("Calculating Solvent Accessible Surface Areas...")
         
         # Step 1: Generate points on a unit sphere (Fibonacci sphere method)
         points = []
@@ -2198,8 +1468,8 @@ class HybridProtLigMapper:
                         pass
                         
                 except Exception as e:
-                    print(f"Error using external SASA tool: {str(e)}")
-                    print("Falling back to geometric method")
+                    logger.warning(f"Error using external SASA tool: {str(e)}")
+                    logger.info("Falling back to geometric method")
                     self.calculate_realistic_solvent_accessibility()
                 
                 return self.solvent_accessible    
@@ -2385,7 +1655,7 @@ class HybridProtLigMapper:
         # Place interacting residues in a circle around the ligand
         n_residues = len(self.interacting_residues)
         if n_residues == 0:
-            print("Warning: No interacting residues detected.")
+            logger.warning("Warning: No interacting residues detected.")
             n_residues = 1
             
         # Calculate positions for residues
@@ -2749,7 +2019,7 @@ class HybridProtLigMapper:
         plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
         plt.close()
         
-        print(f"Interaction diagram saved to {output_file}")
+        logger.info(f"Interaction diagram saved to {output_file}")
         return output_file
     
     
@@ -2792,7 +2062,10 @@ class HybridProtLigMapper:
 
     def estimate_binding_affinity(self):
         """
-        Compute an empirical binding affinity estimate (ΔG, kcal/mol).
+        Compute an empirical interaction score on a kcal/mol scale.
+
+        Despite the historical method name this is NOT a predicted binding
+        free energy: see ``interaction_score`` and the 'calibrated' flag.
 
         Three scientifically grounded improvements over a simple count-based sum:
 
@@ -2811,16 +2084,18 @@ class HybridProtLigMapper:
            restricting the ligand on binding (Böhm 1994; AutoDock empirical).
 
         Limitations: weights are not regression-fitted to a PDB benchmark;
-        expect ±2–3 kcal/mol systematic error. Not a substitute for FEP or
-        MM-GBSA. Qualitative labels are thermodynamically calibrated at 298 K:
-        ΔG = −RT·ln(Kd), RT = 0.593 kcal/mol.
+        the score does not track measured affinities and carries no Kd label.
+        Not a substitute for FEP or MM-GBSA.
 
         Returns
         -------
         dict with keys:
-            'dG_estimated'   : float — estimated ΔG in kcal/mol
+            'score'          : float — the interaction score
+            'dG_estimated'   : float — the same number (older name)
             'breakdown'      : dict  — per-type contribution after deduplication
-            'interpretation' : str   — qualitative Kd label (298 K)
+            'calibrated'     : False
+            'interpretation' : str   — what the number is and is not
+            'note'           : str   — how to use it
         """
         # Empirical weights (kcal/mol per unique interacting residue)
         # Based on Böhm 1994 J Comput Aided Mol Des and X-Score Wang 2002.
@@ -2915,25 +2190,27 @@ class HybridProtLigMapper:
                 'contribution_kcal_mol': round(rotor_penalty, 2),
             }
 
-        # Thermodynamically calibrated labels at 298 K (ΔG = −RT·ln Kd,
-        # RT = 0.593 kcal/mol). -10 kcal/mol ≈ 50 nM; -14 kcal/mol ≈ 30 pM.
-        if dG < -12:
-            label = 'Very strong binder (Kd ~nM or better; e.g. tight-binding drugs)'
-        elif dG < -9:
-            label = 'Strong binder (Kd ~nM–µM range)'
-        elif dG < -6:
-            label = 'Moderate binder (Kd ~µM range)'
-        elif dG < -3:
-            label = 'Weak binder (Kd ~mM range)'
-        else:
-            label = 'Very weak / no binding expected'
-
+        # No binding-strength label is attached.  The weights are literature
+        # values, not fitted to measured affinities, and the sum does not
+        # track them: erlotinib-EGFR (PDB 1M17, a nanomolar complex) scores
+        # close to zero.  Earlier releases mapped this number to Kd ranges
+        # ("very weak / no binding expected"), which was misleading.
+        score = round(dG, 2)
         return {
-            'dG_estimated': round(dG, 2),
+            'score': score,
+            'dG_estimated': score,      # same number; kept for older scripts
             'breakdown': breakdown,
-            'interpretation': label,
-            'note': 'Empirical estimate ±2–3 kcal/mol; not a substitute for FEP/MM-GBSA.',
+            'calibrated': False,
+            'interpretation': SCORE_INTERPRETATION,
+            'note': SCORE_NOTE,
         }
+
+    def interaction_score(self):
+        """
+        Empirical interaction score (kcal/mol scale).  Preferred name for
+        ``estimate_binding_affinity``; both return the same dictionary.
+        """
+        return self.estimate_binding_affinity()
 
     def filter_interactions_directly(self):
         """Emergency filter to remove chemically implausible interactions."""
@@ -3044,25 +2321,27 @@ class HybridProtLigMapper:
                                key=lambda r: (-r['n_contacts'], r['closest_distance'])),
         }
 
-    def export_interactions_json(self, json_file='interactions.json', include_affinity=False):
+    def export_interactions_json(self, json_file='interactions.json', include_score=False,
+                                 include_affinity=False):
         """
         Write the analysis as JSON (see ``interactions_as_dict`` for the
-        layout).  With ``include_affinity`` the empirical ΔG estimate is added
-        under ``binding_affinity``.  Returns the path written.
+        layout).  With ``include_score`` the empirical interaction score is
+        added under ``interaction_score`` (``include_affinity`` is the older
+        name for the same switch).  Returns the path written.
         """
         import json as _json
 
         data = self.interactions_as_dict()
-        if include_affinity:
+        if include_score or include_affinity:
             try:
-                data['binding_affinity'] = _json.loads(
+                data['interaction_score'] = _json.loads(
                     _json.dumps(self.estimate_binding_affinity(), default=float))
             except Exception as exc:
-                data['binding_affinity'] = {'error': str(exc)}
+                data['interaction_score'] = {'error': str(exc)}
         with open(json_file, 'w', encoding='utf-8') as fh:
             _json.dump(data, fh, indent=2, ensure_ascii=False)
             fh.write('\n')
-        print(f"Interaction JSON written to {json_file} "
+        logger.info(f"Interaction JSON written to {json_file} "
               f"({data['summary']['n_interactions']} interactions)")
         return json_file
 
@@ -3113,7 +2392,7 @@ class HybridProtLigMapper:
             writer = _csv.DictWriter(fh, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
-        print(f"Interaction CSV written to {csv_file} ({len(rows)} rows)")
+        logger.info(f"Interaction CSV written to {csv_file} ({len(rows)} rows)")
         return csv_file
 
     def render_contacts_3d(self, output_file='contacts_3d.png', **kwargs):
@@ -3157,7 +2436,8 @@ class HybridProtLigMapper:
             Whether to use DSSP for solvent accessibility (default: True)
         diagrams : sequence of str
             Which diagrams to draw: any of 'modern', 'classic', '3d'
-            (default: all three).  The first is written to ``output_file``,
+            (default: all three); an empty tuple draws nothing.  The first is
+            written to ``output_file``,
             the others next to it with a ``_classic`` / ``_3d`` suffix.  All
             paths are stored in ``self.diagram_files``.
         generate_report : bool
@@ -3171,13 +2451,13 @@ class HybridProtLigMapper:
             output_file = f"{base_name}_interactions.png"
         
         # Detect protein-ligand interactions
-        print("Detecting interactions...")
+        logger.info("Detecting interactions...")
         self.detect_interactions() 
         
-        print(f"Before filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
+        logger.info(f"Before filtering: {sum(len(ints) for ints in self.interactions.values())} total interactions")
         
         # Calculate solvent accessibility
-        print("Calculating solvent accessibility...")
+        logger.info("Calculating solvent accessibility...")
         try:
             import shutil as _shutil
             dssp_exe = _shutil.which('mkdssp') or _shutil.which('dssp')
@@ -3186,42 +2466,43 @@ class HybridProtLigMapper:
                 self.calculate_realistic_solvent_accessibility()
             elif use_dssp:
                 # Try DSSP first
-                print("Trying DSSP method first...")
+                logger.info("Trying DSSP method first...")
                 self.calculate_dssp_solvent_accessibility(dssp_executable=dssp_exe)
                 
                 # Check if DSSP found too many solvent accessible residues
                 if len(self.solvent_accessible) > len(self.interacting_residues) * 0.5:
-                    print("DSSP found too many solvent accessible residues, using realistic method")
+                    logger.info("DSSP found too many solvent accessible residues, using realistic method")
                     self.calculate_realistic_solvent_accessibility()
                 # Check if DSSP found too few or no solvent accessible residues
                 elif len(self.solvent_accessible) < 2:
-                    print("DSSP didn't find enough solvent accessible residues, using realistic method")
+                    logger.info("DSSP didn't find enough solvent accessible residues, using realistic method")
                     self.calculate_realistic_solvent_accessibility()
             else:
                 # Use our realistic method
                 self.calculate_realistic_solvent_accessibility()
         except Exception as e:
-            print(f"Error calculating solvent accessibility: {str(e)}")
-            print("Falling back to realistic method")
+            logger.warning(f"Error calculating solvent accessibility: {str(e)}")
+            logger.info("Falling back to realistic method")
             self.calculate_realistic_solvent_accessibility(exposure_threshold=0.2)
         
         # Make sure we don't have all residues marked as solvent accessible
         if len(self.solvent_accessible) == len(self.interacting_residues):
-            print("WARNING: All residues marked as solvent accessible - this is likely incorrect")
-            print("Applying stricter filtering")
+            logger.warning("WARNING: All residues marked as solvent accessible - this is likely incorrect")
+            logger.info("Applying stricter filtering")
             
             # Keep only 40% max of interacting residues as solvent accessible
             self.calculate_realistic_solvent_accessibility(exposure_threshold=0.3, max_percent=0.4)
         
         # Generate visualization
-        print("Generating visualization...")
+        logger.info("Generating visualization...")
         # --dpi / --title / --no-3d-cues were accepted by the CLI but never
         # reached visualize(), so they silently did nothing.
         # All requested diagrams.  The first one is written to ``output_file``;
         # the others get a suffix (_classic, _3d) before the extension.
         if isinstance(diagrams, str):
             diagrams = (diagrams,)
-        diagrams = list(dict.fromkeys(diagrams)) or ['modern']
+        # an empty selection (diagrams=()) runs the analysis without drawing
+        diagrams = list(dict.fromkeys(diagrams or ()))
         stem, ext = os.path.splitext(output_file)
         self.diagram_files = {}
         for style in diagrams:
@@ -3230,7 +2511,7 @@ class HybridProtLigMapper:
             self.diagram_files[style] = self.visualize(
                 output_file=path, dpi=dpi, title=title, show_3d_cues=show_3d_cues,
                 style=style, show_nearby_residues=show_nearby_residues)
-        viz_file = self.diagram_files[diagrams[0]]
+        viz_file = self.diagram_files[diagrams[0]] if diagrams else None
         
         # Generate text report if requested
         if generate_report:
@@ -3238,201 +2519,19 @@ class HybridProtLigMapper:
                 base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
                 report_file = f"{base_name}_interactions_report.txt"
             
-            print("Generating interaction report...")
+            logger.info("Generating interaction report...")
             try:
                 if hasattr(self, 'generate_interaction_report'):
                     self.generate_interaction_report(output_file=report_file)
                 else:
-                    print("Warning: Report generation not available, skipping.")
+                    logger.warning("Warning: Report generation not available, skipping.")
             except Exception as e:
-                print(f"Error generating report: {str(e)}")
+                logger.warning(f"Error generating report: {str(e)}")
         
         return viz_file
-    
-def analyze_trajectory(structure_file, ligand_resname=None,
-                       output_dir='.', dpi=300,
-                       generate_reports=False,
-                       frame_step=1):
-    """
-    Analyse every structural model (frame) in a multi-model PDB/mmCIF file and
-    aggregate interaction statistics across the ensemble.
-
-    Multi-model PDB files are produced by NMR refinement, conformational
-    sampling, or converted from MD trajectories (e.g., via MDAnalysis or
-    GROMACS trjconv).  For true MD trajectories in DCD/XTC format, convert
-    to multi-model PDB first:
-        ``gmx trjconv -f traj.xtc -s topol.tpr -o traj_frames.pdb``
-        ``mdconvert traj.dcd -o traj_frames.pdb``
-
-    Parameters
-    ----------
-    structure_file : str
-        Path to a multi-model PDB or mmCIF file.
-    ligand_resname : str, optional
-        Three-letter residue name of the ligand (auto-detected if None).
-    output_dir : str
-        Directory for per-frame PNGs and an aggregated summary CSV.
-    dpi : int
-        Resolution for per-frame PNG images.
-    generate_reports : bool
-        If True, generate a text report for each frame.
-    frame_step : int
-        Analyse every Nth frame (1 = every frame, 2 = every other, etc.).
-
-    Returns
-    -------
-    dict
-        'per_frame'   : list of per-frame result dicts (frame_idx, interactions, dG)
-        'mean_counts' : dict of interaction_type → mean count across frames
-        'occupancy'   : dict of residue_id → fraction of frames it appears
-        'summary_csv' : path to the written CSV file
-    """
-    import csv
-
-    os.makedirs(output_dir, exist_ok=True)
-
-    # Count models in the file
-    parser = MultiFormatParser()
-    structure = parser.parse_structure(structure_file)
-    models = list(structure.get_models())
-
-    if len(models) == 0:
-        raise ValueError(f"No structural models found in {structure_file}")
-
-    if len(models) == 1:
-        print("Warning: Only one model found. "
-              "For trajectory analysis supply a multi-model PDB file.")
-
-    # Per-frame results
-    per_frame = []
-    residue_frame_counts = defaultdict(int)
-    interaction_sums = defaultdict(int)
-    n_analysed = 0
-
-    # Write a single-model PDB from each model for HybridProtLigMapper
-    tmp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
-    tmp_path = tmp_pdb.name
-    tmp_pdb.close()
-
-    for model_idx, model in enumerate(models):
-        if model_idx % frame_step != 0:
-            continue
-
-        # Write this model to a temporary single-model PDB
-        from Bio.PDB import PDBIO, Select
-
-        class SingleModelSelect(Select):
-            def __init__(self, target_model_id):
-                self._mid = target_model_id
-            def accept_model(self, m):
-                return 1 if m.id == self._mid else 0
-
-        io = PDBIO()
-        io.set_structure(structure)
-        io.save(tmp_path, select=SingleModelSelect(model.id))
-
-        # Run PandaMap on this frame
-        try:
-            mapper = HybridProtLigMapper(tmp_path, ligand_resname=ligand_resname)
-            mapper.detect_interactions()
-            affinity = mapper.estimate_binding_affinity()
-
-            frame_counts = {k: len(v) for k, v in mapper.interactions.items()}
-            for itype, cnt in frame_counts.items():
-                interaction_sums[itype] += cnt
-
-            for res_id in mapper.interacting_residues:
-                residue_frame_counts[res_id] += 1
-
-            frame_result = {
-                'frame_idx': model_idx,
-                'model_id': model.id,
-                'interaction_counts': frame_counts,
-                'dG_estimated': affinity['dG_estimated'],
-                'interacting_residues': list(mapper.interacting_residues),
-            }
-
-            # Optionally generate visualisation
-            png_path = os.path.join(
-                output_dir,
-                f"{os.path.splitext(os.path.basename(structure_file))[0]}_frame{model_idx:04d}.png"
-            )
-            try:
-                mapper.calculate_realistic_solvent_accessibility()
-                mapper.visualize(output_file=png_path, dpi=dpi,
-                                 title=f"Frame {model_idx}")
-                frame_result['png'] = png_path
-            except Exception as viz_err:
-                frame_result['png'] = None
-                print(f"  Frame {model_idx} visualisation skipped: {viz_err}")
-
-            if generate_reports:
-                rpt_path = os.path.join(
-                    output_dir,
-                    f"{os.path.splitext(os.path.basename(structure_file))[0]}_frame{model_idx:04d}.txt"
-                )
-                try:
-                    if hasattr(mapper, 'generate_interaction_report'):
-                        mapper.generate_interaction_report(output_file=rpt_path)
-                        frame_result['report'] = rpt_path
-                except Exception:
-                    pass
-
-            per_frame.append(frame_result)
-            n_analysed += 1
-            print(f"Frame {model_idx:4d}/{len(models)-1}  "
-                  f"ΔG≈{affinity['dG_estimated']:+.1f} kcal/mol  "
-                  f"residues={len(mapper.interacting_residues)}")
-
-        except Exception as frame_err:
-            print(f"Frame {model_idx} failed: {frame_err}")
-
-    # Clean up temporary PDB
-    try:
-        os.unlink(tmp_path)
-    except Exception:
-        pass
-
-    if n_analysed == 0:
-        raise RuntimeError("No frames could be analysed successfully.")
-
-    # Compute aggregate statistics
-    mean_counts = {k: round(v / n_analysed, 2)
-                   for k, v in interaction_sums.items()}
-    total_frames = n_analysed
-    occupancy = {res_id: round(cnt / total_frames, 3)
-                 for res_id, cnt in residue_frame_counts.items()}
-
-    # Write summary CSV
-    csv_path = os.path.join(
-        output_dir,
-        f"{os.path.splitext(os.path.basename(structure_file))[0]}_trajectory_summary.csv"
-    )
-    fieldnames = ['frame_idx', 'model_id', 'dG_estimated'] + \
-                 list(interaction_sums.keys())
-    with open(csv_path, 'w', newline='', encoding='utf-8') as fh:
-        writer = csv.DictWriter(fh, fieldnames=fieldnames,
-                                extrasaction='ignore')
-        writer.writeheader()
-        for fr in per_frame:
-            row = {
-                'frame_idx': fr['frame_idx'],
-                'model_id': fr['model_id'],
-                'dG_estimated': fr['dG_estimated'],
-            }
-            row.update(fr['interaction_counts'])
-            writer.writerow(row)
-
-    print(f"\nTrajectory analysis complete: {n_analysed} frames analysed.")
-    print(f"Summary CSV written to: {csv_path}")
-
-    return {
-        'per_frame': per_frame,
-        'mean_counts': mean_counts,
-        'occupancy': occupancy,
-        'summary_csv': csv_path,
-        'n_frames_analysed': n_analysed,
-    }
 
 
+# Attach the report methods to the mapper class
 HybridProtLigMapper = add_interaction_detection_methods(HybridProtLigMapper)
+
+from .trajectory import analyze_trajectory                                       # noqa: E402,F401

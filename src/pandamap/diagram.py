@@ -12,6 +12,7 @@ Layout rules
   carries one badge per interaction type.
 * The legend sits below the plot and lists only what is present.
 """
+import logging
 import math
 import os
 from collections import defaultdict, deque
@@ -21,13 +22,18 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from matplotlib.patches import FancyBboxPatch
+from matplotlib.patches import Circle, FancyBboxPatch
+
+from .ligand2d import element_of, find_bonds, layout_ligand, smallest_ring
+
+logger = logging.getLogger("pandamap")
 
 # interaction type -> (legend label, colour, line style, badge text), in priority order
 INTERACTION_STYLE = {
     'covalent': ('Covalent', '#212529', '-', 'cov'),
     'metal_coordination': ('Metal coordination', '#b8860b', '-', 'M'),
     'hydrogen_bonds': ('Hydrogen bond', '#1a8f3c', '-', 'H'),
+    'water_bridges': ('Water bridge', '#0b7285', '-', 'W'),
     'salt_bridge': ('Salt bridge', '#d9480f', '-', 'S'),
     'ionic': ('Ionic', '#e8590c', '-', 'I'),
     'attractive_charge': ('Attractive charge', '#1c7ed6', '-', '+'),
@@ -58,10 +64,6 @@ _OTHER_RESIDUE = ('Other residue', '#f1f3f5')
 
 ATOM_COLOURS = {'N': '#2845c7', 'O': '#d62828', 'S': '#b8930a', 'P': '#e8590c',
                 'F': '#2b8a3e', 'CL': '#2b8a3e', 'BR': '#8b3a3a', 'I': '#7b2cbf'}
-_COVALENT_RADII = {'H': 0.31, 'B': 0.84, 'C': 0.76, 'N': 0.71, 'O': 0.66, 'F': 0.57,
-                   'SI': 1.11, 'P': 1.07, 'S': 1.05, 'CL': 1.02, 'SE': 1.20,
-                   'BR': 1.20, 'I': 1.39}
-
 _SOLVENT_EDGE = '#3b9ad9'
 _BOX_W, _BOX_H = 2.25, 0.86          # residue box, data units
 _R_LIGAND = 3.4                      # half-extent of the ligand drawing
@@ -69,49 +71,8 @@ _R_RESIDUES = 8.6                    # minimum radius of the residue ring
 _MERGE_DISTANCE = 2.3                # targets closer than this share one line
 _MERGE_ANGLE = 13                    # ... or lines closer than this many degrees
 
-
-def _element(atom):
-    return (atom.element or atom.get_name()[:1]).strip().upper()
-
-
-def _ligand_bonds(atoms):
-    """Index pairs of covalently bonded atoms, from 3D distances."""
-    bonds = []
-    for i, a in enumerate(atoms):
-        ra = _COVALENT_RADII.get(_element(a), 1.3)
-        for j in range(i + 1, len(atoms)):
-            b = atoms[j]
-            limit = ra + _COVALENT_RADII.get(_element(b), 1.3) + 0.45
-            if np.linalg.norm(a.coord - b.coord) < limit:
-                bonds.append((i, j))
-    return bonds
-
-
-def _smallest_ring(start, neighbours, max_size=8):
-    """Atom indices of the smallest ring through ``start`` (empty if none)."""
-    best = []
-    for first in neighbours[start]:
-        # shortest path first -> start that does not use the direct bond
-        parent = {first: None}
-        queue = deque([first])
-        while queue:
-            node = queue.popleft()
-            if node == start:
-                break
-            for nxt in neighbours[node]:
-                if nxt in parent or (node == first and nxt == start):
-                    continue
-                parent[nxt] = node
-                queue.append(nxt)
-        if start not in parent:
-            continue
-        ring, node = [], start
-        while node is not None:
-            ring.append(node)
-            node = parent[node]
-        if 3 <= len(ring) <= max_size and (not best or len(ring) < len(best)):
-            best = ring
-    return best
+# shared with the 3D contact view
+_element, _ligand_bonds, _smallest_ring = element_of, find_bonds, smallest_ring
 
 
 def _spread_angles(preferred, min_gap):
@@ -183,16 +144,14 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     Returns the path written.
     """
     # ---- ligand layout ---------------------------------------------------
-    from .core import SimpleLigandStructure
-
     all_atoms = list(mapper.ligand_atoms)
     heavy = [a for a in all_atoms if _element(a) != 'H'] or all_atoms
-    coords_2d = SimpleLigandStructure(heavy).generate_2d_coords()
-    pts = np.array([coords_2d[a.get_id()] for a in heavy], dtype=float)
-    pts -= pts.mean(axis=0)
+    layout = layout_ligand(heavy)
+    pts = np.array(layout['coords'], dtype=float)
     extent = np.abs(pts).max()
-    if extent > 0:
-        pts *= _R_LIGAND / extent
+    unit = _R_LIGAND / extent if extent > 0 else 1.0     # drawing units per bond length
+    unit = min(unit, 1.15)                               # small ligands are not blown up
+    pts *= unit
     index = {id(a): i for i, a in enumerate(heavy)}
     heavy_xyz = np.array([a.coord for a in heavy])
 
@@ -204,11 +163,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
             i = int(np.argmin(np.linalg.norm(heavy_xyz - atom.coord, axis=1)))
         return i
 
-    bonds = _ligand_bonds(heavy)
-    neighbours = defaultdict(list)
-    for i, j in bonds:
-        neighbours[i].append(j)
-        neighbours[j].append(i)
+    bonds, neighbours = layout['bonds'], layout['neighbours']
 
     ligand_ids = {id(a) for a in all_atoms}
     partners = {}                     # non-ligand partner atoms (metal ions)
@@ -312,9 +267,29 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     ax.axis('off')
 
     # ---- ligand ------------------------------------------------------------
+    ring_centres = [pts[ring].mean(axis=0) for ring in layout['rings']]
     for i, j in bonds:
         ax.plot([pts[i][0], pts[j][0]], [pts[i][1], pts[j][1]], color=ink,
                 lw=2.6 * font, solid_capstyle='round', zorder=3)
+        if (i, j) in layout['double'] or (j, i) in layout['double']:
+            # second line of a double bond: shorter, on the side of the ring
+            # the bond belongs to (or of the rest of the molecule)
+            d = pts[j] - pts[i]
+            normal = np.array([-d[1], d[0]]) / (np.linalg.norm(d) or 1.0)
+            mid = (pts[i] + pts[j]) / 2
+            inside = [c for ring, c in zip(layout['rings'], ring_centres)
+                      if i in ring and j in ring]
+            towards = (inside[0] if inside else pts.mean(axis=0)) - mid
+            if np.dot(normal, towards) < 0:
+                normal = -normal
+            p, q = pts[i] + d * 0.14 + normal * 0.17 * unit, pts[j] - d * 0.14 + normal * 0.17 * unit
+            ax.plot([p[0], q[0]], [p[1], q[1]], color=ink, lw=1.9 * font,
+                    solid_capstyle='round', zorder=3)
+    for ring in layout['aromatic']:
+        centre_xy = pts[ring].mean(axis=0)
+        radius = np.linalg.norm(pts[ring] - centre_xy, axis=1).mean()
+        ax.add_patch(Circle(centre_xy, radius * 0.58, fill=False, ec=ink,
+                            lw=1.5 * font, zorder=3))
     for i, atom in enumerate(heavy):
         element = _element(atom)
         if element != 'C' or not neighbours[i]:
@@ -450,5 +425,5 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     fig.savefig(output_file, dpi=dpi, facecolor='white')
     plt.close(fig)
 
-    print(f"Interaction diagram saved to {output_file}")
+    logger.info(f"Interaction diagram saved to {output_file}")
     return output_file

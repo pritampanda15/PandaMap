@@ -1,87 +1,95 @@
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: AQ4:A:999
-Name: AQ4
-Type: LIGAND
+  Structure      1m17.pdb
+  Ligand         AQ4  (chain A, residue 999, 29 heavy atoms)
+  Binding site   15 residues in chain A; 8 solvent accessible
+  Interactions   19 contacts of 8 types
 
-------------------------------
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds           4  ███████████████
+  Ionic interactions       1  ████
+  π-cation interactions    1  ████
+  Donor-π interactions     2  ████████
+  Amide-π interactions     1  ████
+  Alkyl-π interactions     8  ██████████████████████████████
+  Hydrophobic contacts     1  ████
+  Water bridges            1  ████
 
-Interacting Chains: A
-Interacting Residues: 18
+HYDROGEN BONDS (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  MET 769 A  N      AQ4:N2          2.70 Å
+   2  PRO 770 A  O      AQ4:O4          3.21 Å
+   3  GLY 772 A  N      AQ4:O4          3.24 Å
+   4  LEU 694 A  O      AQ4:O2          3.27 Å
 
-------------------------------
+IONIC INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 831 A  OD2    AQ4:N1          5.43 Å
 
-Interaction Summary:
-  Hydrogen Bonds: 4
-  Hydrophobic Interactions: 6
-  π-π Stacking: 1
-  Carbon-π Interactions: 1
-  Donor-π Interactions: 2
-  Amide-π Interactions: 1
-  Alkyl-π Interactions: 13
-  π-Cation Interactions: 1
+π-CATION INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  LYS 721 A  NZ     AQ4:C22         3.70 Å  protein cation
 
-------------------------------
+DONOR-π INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 831 A  OD2    AQ4:C21         3.11 Å
+   2  GLU 738 A  OE2    AQ4:C22         3.81 Å
 
-Hydrogen Bonds:
-  1. LEU694A  -- 3.27Å -- AQ4
-  2. PRO770A  -- 3.21Å -- AQ4
-  3. GLY772A  -- 3.24Å -- AQ4
-  4. MET769A  -- 2.70Å -- AQ4
+AMIDE-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLN 767 A  O      AQ4:C19         3.15 Å
 
-------------------------------
+ALKYL-π INTERACTIONS (8)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ALA 719 A  CB     AQ4:C19         3.31 Å
+   2  LEU 820 A  CD1    AQ4:C6          3.52 Å
+   3  LEU 694 A  CD1    AQ4:C13         3.56 Å
+   4  LEU 768 A  CA     AQ4:C19         3.75 Å
+   5  MET 769 A  CG     AQ4:C19         3.78 Å
+   6  VAL 702 A  CG1    AQ4:C8          4.38 Å
+   7  PRO 770 A  CA     AQ4:C17         4.98 Å
+   8  MET 742 A  CE     AQ4:C22         5.23 Å
 
-Hydrophobic Interactions:
-  1. LEU764A  -- 3.43Å -- AQ4
-  2. LEU820A  -- 3.52Å -- AQ4
-  3. LEU694A  -- 3.56Å -- AQ4
-  4. MET769A  -- 3.78Å -- AQ4
-  5. LEU768A  -- 3.75Å -- AQ4
-  6. ALA719A  -- 3.31Å -- AQ4
+HYDROPHOBIC CONTACTS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  LEU 764 A  CB     AQ4:C1          3.43 Å
 
-------------------------------
+WATER BRIDGES (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  THR 766 A  OG1    AQ4:N3          3.10 Å  via HOH 10 (2.78 + 3.10 Å)
 
-π-π Stacking:
-  1. PHE771A  -- 4.54Å -- AQ4
+RESIDUES (15)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  MET 769 A         2    2.70 Å  -        hydrogen bond, alkyl-π
+  ASP 831 A         2    3.11 Å  yes      ionic, donor-π
+  PRO 770 A         2    3.21 Å  -        hydrogen bond, alkyl-π
+  LEU 694 A         2    3.27 Å  -        hydrogen bond, alkyl-π
+  THR 766 A         1    3.10 Å  yes      water bridge
+  GLN 767 A         1    3.15 Å  yes      amide-π
+  GLY 772 A         1    3.24 Å  yes      hydrogen bond
+  ALA 719 A         1    3.31 Å  -        alkyl-π
+  LEU 764 A         1    3.43 Å  -        hydrophobic
+  LEU 820 A         1    3.52 Å  -        alkyl-π
+  LYS 721 A         1    3.70 Å  yes      π-cation
+  LEU 768 A         1    3.75 Å  yes      alkyl-π
+  GLU 738 A         1    3.81 Å  yes      donor-π
+  VAL 702 A         1    4.38 Å  yes      alkyl-π
+  MET 742 A         1    5.23 Å  -        alkyl-π
 
-------------------------------
-
-Carbon-π Interactions:
-  1. PHE771A  -- 4.28Å -- AQ4
-
-------------------------------
-
-Donor-π Interactions:
-  1. GLU738A  -- 3.81Å -- AQ4
-  2. ASP831A  -- 3.11Å -- AQ4
-
-------------------------------
-
-Amide-π Interactions:
-  1. GLN767A  -- 3.15Å -- AQ4
-
-------------------------------
-
-Alkyl-π Interactions:
-  1. ILE765A  -- 4.63Å -- AQ4
-  2. ALA719A  -- 3.31Å -- AQ4
-  3. LEU764A  -- 3.43Å -- AQ4
-  4. ILE720A  -- 5.38Å -- AQ4
-  5. MET742A  -- 4.79Å -- AQ4
-  6. LEU753A  -- 5.26Å -- AQ4
-  7. VAL702A  -- 4.38Å -- AQ4
-  8. LEU820A  -- 3.52Å -- AQ4
-  9. LEU694A  -- 3.56Å -- AQ4
-  10. MET769A  -- 3.78Å -- AQ4
-  11. LEU768A  -- 3.75Å -- AQ4
-  12. PRO770A  -- 4.98Å -- AQ4
-  13. PHE771A  -- 4.28Å -- AQ4
-
-------------------------------
-
-π-Cation Interactions:
-  1. LYS721A (protein_cation) -- 3.70Å -- AQ4
-
-=============================================================================
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================
