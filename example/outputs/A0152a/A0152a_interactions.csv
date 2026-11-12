@@ -1,0 +1,7 @@
+interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
+alkyl_pi,PRO,91,A,CA,C1,C,3.98,False,
+alkyl_pi,ALA,86,A,CB,C1,C,4.19,False,
+donor_pi,GLU,88,A,O,C3,C,2.96,True,
+hydrophobic,TYR,89,A,C,C4,C,3.41,False,
+hydrophobic,TYR,90,A,C,C2,C,3.61,True,
+ionic,GLU,88,A,O,N,N,5.0,True,

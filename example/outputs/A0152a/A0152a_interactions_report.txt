@@ -1,0 +1,52 @@
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
+
+  Structure      A0152a.pdb
+  Ligand         LIG  (chain A, residue 147, 17 heavy atoms)
+  Binding site   5 residues in chain A; 2 solvent accessible
+  Interactions   6 contacts of 4 types
+
+SUMMARY
+------------------------------------------------------------------------------
+  Ionic interactions      1  ███████████████
+  Donor-π interactions    1  ███████████████
+  Alkyl-π interactions    2  ██████████████████████████████
+  Hydrophobic contacts    2  ██████████████████████████████
+
+IONIC INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLU 88 A   O      LIG:N           5.00 Å
+
+DONOR-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLU 88 A   O      LIG:C3          2.96 Å
+
+ALKYL-π INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  PRO 91 A   CA     LIG:C1          3.98 Å
+   2  ALA 86 A   CB     LIG:C1          4.19 Å
+
+HYDROPHOBIC CONTACTS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TYR 89 A   C      LIG:C4          3.41 Å
+   2  TYR 90 A   C      LIG:C2          3.61 Å
+
+RESIDUES (5)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  GLU 88 A          2    2.96 Å  yes      ionic, donor-π
+  TYR 89 A          1    3.41 Å  -        hydrophobic
+  TYR 90 A          1    3.61 Å  yes      hydrophobic
+  PRO 91 A          1    3.98 Å  -        alkyl-π
+  ALA 86 A          1    4.19 Å  -        alkyl-π
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

@@ -1,0 +1,191 @@
+{
+  "pandamap_version": "4.4.0",
+  "structure": "A0152a.pdb",
+  "ligand": {
+    "name": "LIG",
+    "chain": "A",
+    "number": 147,
+    "n_heavy_atoms": 17
+  },
+  "units": {
+    "distance": "angstrom",
+    "angle": "degree"
+  },
+  "summary": {
+    "n_interactions": 6,
+    "n_residues": 5,
+    "by_type": {
+      "alkyl_pi": 2,
+      "donor_pi": 1,
+      "hydrophobic": 2,
+      "ionic": 1
+    }
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "PRO",
+        "number": 91,
+        "chain": "A"
+      },
+      "protein_atom": "CA",
+      "ligand_atom": "C1",
+      "ligand_element": "C",
+      "distance": 3.981,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "ALA",
+        "number": 86,
+        "chain": "A"
+      },
+      "protein_atom": "CB",
+      "ligand_atom": "C1",
+      "ligand_element": "C",
+      "distance": 4.193,
+      "solvent_accessible": false
+    },
+    {
+      "type": "donor_pi",
+      "residue": {
+        "name": "GLU",
+        "number": 88,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "C3",
+      "ligand_element": "C",
+      "distance": 2.96,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "TYR",
+        "number": 89,
+        "chain": "A"
+      },
+      "protein_atom": "C",
+      "ligand_atom": "C4",
+      "ligand_element": "C",
+      "distance": 3.406,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "TYR",
+        "number": 90,
+        "chain": "A"
+      },
+      "protein_atom": "C",
+      "ligand_atom": "C2",
+      "ligand_element": "C",
+      "distance": 3.609,
+      "solvent_accessible": true
+    },
+    {
+      "type": "ionic",
+      "residue": {
+        "name": "GLU",
+        "number": 88,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "N",
+      "ligand_element": "N",
+      "distance": 4.997,
+      "solvent_accessible": true
+    }
+  ],
+  "residues": [
+    {
+      "name": "GLU",
+      "number": 88,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 2.96,
+      "types": [
+        "donor_pi",
+        "ionic"
+      ]
+    },
+    {
+      "name": "TYR",
+      "number": 89,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.406,
+      "types": [
+        "hydrophobic"
+      ]
+    },
+    {
+      "name": "TYR",
+      "number": 90,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.609,
+      "types": [
+        "hydrophobic"
+      ]
+    },
+    {
+      "name": "PRO",
+      "number": 91,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.981,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "ALA",
+      "number": 86,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 4.193,
+      "types": [
+        "alkyl_pi"
+      ]
+    }
+  ],
+  "interaction_score": {
+    "score": 1.340000033378601,
+    "dG_estimated": 1.340000033378601,
+    "breakdown": {
+      "ionic": {
+        "unique_residues": 1,
+        "weight": -1.8,
+        "contribution_kcal_mol": -0.44999998807907104
+      },
+      "hydrophobic": {
+        "unique_residues": 2,
+        "weight": -0.3,
+        "contribution_kcal_mol": -0.5299999713897705
+      },
+      "donor_pi": {
+        "unique_residues": 1,
+        "weight": -0.2,
+        "contribution_kcal_mol": -0.2
+      },
+      "alkyl_pi": {
+        "unique_residues": 2,
+        "weight": -0.2,
+        "contribution_kcal_mol": -0.3700000047683716
+      }
+    },
+    "calibrated": false,
+    "interpretation": "Empirical interaction score on a kcal/mol scale. It is not calibrated against measured affinities and is not a predicted binding free energy.",
+    "note": "Use it to compare poses or close analogues of the same ligand, not to judge absolute binding strength. For affinities use FEP, MM-GBSA or experiment."
+  }
+}

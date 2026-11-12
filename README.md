@@ -58,7 +58,8 @@ That one command writes three diagrams of the same binding site:
 | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png" width="270"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png" width="270"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png" width="270"> |
 | Residues sit next to the ligand atoms they contact | The original PandaMap layout | Which atom of each residue touches the ligand |
 
-<sub>EGFR kinase with erlotinib (PDB 1M17, ligand AQ4). The file is in `example/`.</sub>
+<sub>EGFR kinase with erlotinib (PDB 1M17, ligand AQ4). The file is in `example/`, and the
+[example gallery](https://github.com/pritampanda15/PandaMap/tree/main/example) shows every output for five structures.</sub>
 
 ## Contents
 
@@ -111,6 +112,9 @@ pandamap example/1m17.pdb --ligand AQ4 --report --outdir results --quiet
 # Batch mode: a folder (or several files) in, two combined tables out
 pandamap example/ --outdir screen --diagrams none
 ```
+
+To see the results without running anything, open the
+[example gallery](https://github.com/pritampanda15/PandaMap/tree/main/example).
 
 Not sure what the ligand is called? `pandamap complex.pdb --list-ligands`.
 Leave `--ligand` out and PandaMap picks the largest ligand for you.

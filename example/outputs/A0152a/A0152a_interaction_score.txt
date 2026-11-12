@@ -1,0 +1,11 @@
+
+--- Empirical interaction score ---
+  Score: 1.34 (kcal/mol scale, not calibrated)
+  Empirical interaction score on a kcal/mol scale. It is not calibrated against measured affinities and is not a predicted binding free energy.
+  Use it to compare poses or close analogues of the same ligand, not to judge absolute binding strength. For affinities use FEP, MM-GBSA or experiment.
+  Breakdown:
+    ionic (n=1): -0.45
+    hydrophobic (n=2): -0.53
+    donor_pi (n=1): -0.20
+    alkyl_pi (n=2): -0.37
+----------------------------------
