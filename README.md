@@ -161,13 +161,17 @@ Options:
   --chain ID              Chain of the ligand, when it occurs more than once
   --resnum N              Residue number of the ligand, when it occurs more than once
   --list-ligands          List the candidate ligands in the file and exit
-  -o, --output FILE       Output PNG file path
+  -o, --output FILE       Output image path; the extension selects the format
+                          (.png, .svg, .pdf)
   -r, --report            Generate plain-text interaction report
   --report-file FILE      Path for text report
   --3d                    Generate interactive 3D HTML visualization
   --3d-output FILE        Path for 3D HTML file
   --deltaG                Estimate binding free energy (ΔG, kcal/mol)
   --csv [FILE]            Export every interaction as a tidy CSV
+  --json [FILE]           Export the analysis as JSON (ligand, summary, every
+                          interaction with its atoms, per-residue roll-up;
+                          adds the ΔG estimate when --deltaG is given)
   --plots [FILE]          Four-panel graphical interaction report (PNG)
   --strict-halogens       Restrict halogen bonds to Cl/Br/I (see note below)
   --strict-hbond-geometry Also apply the heavy-atom angular proxy to
@@ -177,7 +181,18 @@ Options:
   --width PX              3D viewer width in pixels (default: 800)
   --height PX             3D viewer height in pixels (default: 600)
   --no-surface            Hide protein surface in 3D viewer
-  --no-3d-cues            Disable depth cues in 2D diagram
+  -d, --diagrams STYLE [STYLE ...]
+                          Which diagrams to draw (default: all):
+                            modern   2D, residues placed next to the ligand
+                                     atoms they contact, coloured by type
+                            classic  the original circular PandaMap diagram
+                            3d       transparent residues around the ligand,
+                                     each contacting atom highlighted
+                          The first is written to --output; the others get a
+                          _classic / _3d suffix
+  --show-nearby           Also show binding-site residues that have no specific
+                          interaction (modern diagram)
+  --no-3d-cues            Disable depth cues in the classic diagram
   --debug                 Print the full traceback when an error occurs
   -v, --version           Show version
   -h, --help              Show help
@@ -199,8 +214,16 @@ mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG")
 # Not sure of the name?  pandamap.list_ligands("complex.pdb")
 mapper.detect_interactions()
 
-# 2D diagram
+# One diagram: style is "modern" (default), "classic" or "3d";
+# use a .svg or .pdf path for vector output
 mapper.visualize(output_file="interactions.png")
+mapper.visualize(output_file="interactions_classic.png", style="classic")
+mapper.visualize(output_file="interactions_3d.png", style="3d")
+
+# All three at once (also what the command line does by default):
+# interactions.png, interactions_classic.png, interactions_3d.png
+mapper.run_analysis(output_file="interactions.png")
+print(mapper.diagram_files)
 
 # Text report — simplest route, identical output to `pandamap --report`
 mapper.run_analysis(output_file="interactions.png",
@@ -209,6 +232,11 @@ mapper.run_analysis(output_file="interactions.png",
 
 # Machine-readable table of every contact
 mapper.export_interactions_csv("interactions.csv")
+
+# The same data as JSON, or as a Python dict
+mapper.export_interactions_json("interactions.json")
+data = mapper.interactions_as_dict()
+print(data["summary"]["by_type"])
 
 # Four-panel graphical report
 mapper.generate_interaction_plots("report.png")
@@ -373,7 +401,32 @@ Aldose reductase–IDD594 (PDB 1US0). The halogen bond from the ligand bromine t
 Thr113 (cyan, **X**) is one of the contacts recovered by the 4.3 halogen fix;
 cyan haloes mark solvent-accessible residues.
 
-![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_1us0.png)
+![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png)
+
+PandaMap draws three diagrams of the same interactions. By default the
+command line writes all of them; choose with `--diagrams` (for example
+`--diagrams modern`, or `--diagrams classic 3d`).
+
+| Diagram | File | What it shows |
+|---|---|---|
+| `modern` | `<name>_interactions.png` | Each residue sits next to the ligand atoms it contacts; boxes are coloured by residue type, solvent-accessible residues have a blue outline, hydrogen-bond distances are printed |
+| `classic` | `<name>_interactions_classic.png` | The original PandaMap diagram: residues evenly spaced on a circle, solvent-accessibility haloes |
+| `3d` | `<name>_interactions_3d.png` | The ligand as 3D sticks with every contacting residue as a transparent stick model around it; the residue atom making each contact is a solid sphere labelled with its atom name (for example `CD1` of LEU 694) |
+
+**Classic**
+
+![Classic diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png)
+
+**3D contacts**
+
+In the 3D view the residues are moved straight outwards so nothing overlaps,
+which means line lengths are not to scale; the distances printed on the lines
+are the real ones.
+
+![3D contact view](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png)
+
+The interactive viewer (`--3d`) uses the same convention: contacting residues
+are translucent and each contacting atom is a solid, labelled sphere.
 
 Further examples:
 
@@ -414,37 +467,154 @@ hydrogen_bonds,TYR,48,A,OH,O33,O,2.73,True,
 
 ### Text Report
 
+Every contact names the residue atom and the ligand atom involved, closest first,
+followed by a per-residue table (`pandamap 1els.pdb --ligand PAH --report`):
+
 ```
-=============================================================================
-PandaMap Interaction Report
-=============================================================================
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
 
-Ligand: PAH:A:439
-Name: PAH
-Type: LIGAND
+  Structure      1els.pdb
+  Ligand         PAH  (chain A, residue 439, 9 heavy atoms)
+  Binding site   12 residues in chain A; 7 solvent accessible
+  Interactions   20 contacts of 6 types
 
-Interacting Chains: A
-Interacting Residues: 13
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds          10  ██████████████████████████████
+  Ionic interactions       2  ██████
+  Attractive charges       2  ██████
+  Metal coordination       4  ████████████
+  Carbon-π interactions    1  ███
+  Alkyl-π interactions     1  ███
 
-Interaction Summary:
-  Hydrogen Bonds: 10
-  Carbon-π Interactions: 1
-  Metal Coordination: 4
-  Ionic Interactions: 2
-  Salt Bridges: 2
-  Alkyl-π Interactions: 1
-  Attractive Charge: 2
-  Repulsion: 5
+HYDROGEN BONDS (10)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 246 A  OD2    PAH:O3          2.60 Å
+   2  GLU 168 A  OE2    PAH:N3          2.66 Å
+   3  SER 375 A  N      PAH:O1P         2.82 Å
+   4  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   5  LYS 396 A  NZ     PAH:O2          3.05 Å
+   6  SER 39 A   OG     PAH:O2P         3.06 Å
+   7  GLN 167 A  NE2    PAH:O3          3.10 Å
+   8  LYS 345 A  NZ     PAH:O3P         3.21 Å
+   9  GLY 37 A   O      PAH:O3P         3.36 Å
+  10  ASP 320 A  OD2    PAH:O3          3.46 Å
 
-Hydrogen Bonds:
-  1. GLU168A  -- 2.66Å -- PAH
-  2. ASP246A  -- 2.60Å -- PAH
-  3. GLN167A  -- 3.10Å -- PAH
-  4. ASP320A  -- 3.46Å -- PAH
-  5. LYS396A  -- 3.05Å -- PAH
-  ...
+IONIC INTERACTIONS (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
 
-=============================================================================
+ATTRACTIVE CHARGES (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
+   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
+
+METAL COORDINATION (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLY 37 A   O      PAH:MN          2.12 Å
+   2  ASP 320 A  OD2    PAH:MN          2.19 Å
+   3  ASP 246 A  OD2    PAH:MN          2.24 Å
+   4  GLU 295 A  OE2    PAH:MN          2.24 Å
+
+CARBON-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 373 A  CE1    PAH:C2          5.35 Å
+
+ALKYL-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  HIS 373 A  CE1    PAH:C2          5.35 Å
+
+RESIDUES (12)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  ARG 374 A         3    2.98 Å  -        hydrogen bond, ionic, attractive charge
+  LYS 345 A         3    3.21 Å  -        hydrogen bond, ionic, attractive charge
+  GLY 37 A          2    2.12 Å  -        hydrogen bond, metal
+  ASP 320 A         2    2.19 Å  yes      hydrogen bond, metal
+  ASP 246 A         2    2.24 Å  yes      hydrogen bond, metal
+  HIS 373 A         2    5.35 Å  -        carbon-π, alkyl-π
+  GLU 295 A         1    2.24 Å  yes      metal
+  GLU 168 A         1    2.66 Å  yes      hydrogen bond
+  SER 375 A         1    2.82 Å  yes      hydrogen bond
+  LYS 396 A         1    3.05 Å  -        hydrogen bond
+  SER 39 A          1    3.06 Å  yes      hydrogen bond
+  GLN 167 A         1    3.10 Å  yes      hydrogen bond
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================
+```
+
+### JSON
+
+`--json` writes the same analysis for use in other programs (shortened here):
+
+```json
+{
+  "pandamap_version": "4.4.0",
+  "structure": "1els.pdb",
+  "ligand": {
+    "name": "PAH",
+    "chain": "A",
+    "number": 439,
+    "n_heavy_atoms": 9
+  },
+  "summary": {
+    "n_interactions": 20,
+    "n_residues": 12,
+    "by_type": {
+      "alkyl_pi": 1,
+      "attractive_charge": 2,
+      "carbon_pi": 1,
+      "hydrogen_bonds": 10,
+      "ionic": 2,
+      "metal_coordination": 4
+    }
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "HIS",
+        "number": 373,
+        "chain": "A"
+      },
+      "protein_atom": "CE1",
+      "ligand_atom": "C2",
+      "ligand_element": "C",
+      "distance": 5.347,
+      "solvent_accessible": false
+    },
+    "..."
+  ],
+  "residues": [
+    {
+      "name": "ARG",
+      "number": 374,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 3,
+      "closest_distance": 2.982,
+      "types": [
+        "attractive_charge",
+        "hydrogen_bonds",
+        "ionic"
+      ]
+    },
+    "..."
+  ]
+}
 ```
 
 ### ΔG Estimation Output

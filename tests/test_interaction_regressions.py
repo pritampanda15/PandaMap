@@ -5,6 +5,7 @@ Each test pins one previously-broken behaviour.  The fixtures are minimal
 synthetic PDB files written at run time, so the suite needs no external
 structure downloads and runs in well under a second.
 """
+import os
 import textwrap
 
 import pytest
@@ -468,3 +469,216 @@ def test_cli_version_needs_no_structure_file(capsys):
         sys.argv = argv
     assert exc.value.code == 0
     assert "PandaMap version" in capsys.readouterr().out
+
+
+# --------------------------------------------------------------------------
+# Modern 2D diagram
+# --------------------------------------------------------------------------
+
+def test_spread_angles_keeps_order_and_minimum_gap():
+    import math
+    from pandamap.diagram import _spread_angles
+    preferred = [0.0, 0.01, 0.02, 0.03, 2.0, -3.0]
+    gap = math.radians(18)
+    order, angles = _spread_angles(preferred, gap)
+    assert sorted(order) == list(range(len(preferred)))
+    diffs = [angles[i + 1] - angles[i] for i in range(len(angles) - 1)]
+    diffs.append(angles[0] + 2 * math.pi - angles[-1])
+    assert min(diffs) >= gap - 1e-6
+    # the isolated residues stay where they bind
+    assert abs(angles[order.index(4)] - 2.0) < 1e-6
+
+
+def test_smallest_ring_finds_ring_and_ignores_chains():
+    from pandamap.diagram import _smallest_ring
+    # six-membered ring 0-5 with a two-atom tail 5-6-7
+    edges = [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (5, 0), (5, 6), (6, 7)]
+    neighbours = {i: [] for i in range(8)}
+    for a, b in edges:
+        neighbours[a].append(b)
+        neighbours[b].append(a)
+    assert sorted(_smallest_ring(2, neighbours)) == [0, 1, 2, 3, 4, 5]
+    assert _smallest_ring(7, neighbours) == []
+
+
+@pytest.mark.parametrize("name", ["diagram.png", "diagram.svg"])
+def test_modern_diagram_is_written(tmp_path, name):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / name
+    assert mapper.visualize(output_file=str(out), dpi=60,
+                            show_nearby_residues=True) == str(out)
+    assert out.stat().st_size > 1000
+
+
+def test_classic_style_still_available_and_unknown_style_rejected(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "classic.png"
+    mapper.visualize(output_file=str(out), dpi=60, style="classic")
+    assert out.stat().st_size > 1000
+    with pytest.raises(ValueError, match="Unknown diagram style"):
+        mapper.visualize(output_file=str(out), style="fancy")
+
+
+# --------------------------------------------------------------------------
+# 3D contact render, distant metals, deterministic solvent accessibility
+# --------------------------------------------------------------------------
+
+DISTANT_ZINC_COMPLEX = MIXED_HETATM_COMPLEX.replace(
+    "HETATM   16 ZN    ZN E   4      25.000  25.000  25.000",
+    "ATOM     20  N   CYS A 200      40.000  40.000  41.500  1.00 20.00           N\n"
+    "ATOM     21  CA  CYS A 200      40.000  41.000  40.500  1.00 20.00           C\n"
+    "ATOM     22  CB  CYS A 200      40.000  40.500  39.000  1.00 20.00           C\n"
+    "ATOM     23  SG  CYS A 200      40.000  38.700  38.800  1.00 20.00           S\n"
+    "HETATM   16 ZN    ZN E   4      40.000  38.700  36.500")
+
+
+def test_metal_far_from_ligand_is_not_a_ligand_interaction(tmp_path):
+    """A structural zinc 30 A from the ligand was reported (and drawn) as a
+    metal-coordination contact of the ligand."""
+    mapper = HybridProtLigMapper(_write(tmp_path, "zn.pdb", DISTANT_ZINC_COMPLEX),
+                                 ligand_resname="LIG")
+    mapper.detect_interactions()
+    assert [a.element for a in mapper.metal_atoms] == ["ZN"]
+    assert mapper.interactions["metal_coordination"] == []
+    assert ("CYS", 200) not in mapper.interacting_residues
+
+
+@pytest.mark.parametrize("name", ["contacts.png", "contacts.svg"])
+def test_contacts_3d_render_is_written(tmp_path, name):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    assert sum(len(v) for v in mapper.interactions.values()) > 0
+    out = tmp_path / name
+    assert mapper.render_contacts_3d(str(out), dpi=60) == str(out)
+    assert out.stat().st_size > 1000
+
+
+def test_solvent_accessibility_is_the_same_on_every_run():
+    """Score ties were broken by set iteration order (string hashing is
+    randomised per process), so the residues marked solvent accessible
+    changed from one run to the next on the same file."""
+    import os
+    import subprocess
+    import sys
+    example = os.path.join(os.path.dirname(__file__), "..", "example", "1m17.pdb")
+    if not os.path.exists(example):
+        pytest.skip("example structure not available")
+    code = (
+        "import io, contextlib\n"
+        "from pandamap.core import HybridProtLigMapper\n"
+        "with contextlib.redirect_stdout(io.StringIO()):\n"
+        f"    m = HybridProtLigMapper({example!r}, ligand_resname='AQ4')\n"
+        "    m.detect_interactions()\n"
+        "    m.calculate_realistic_solvent_accessibility()\n"
+        "print(sorted(m.solvent_accessible))\n"
+    )
+    results = set()
+    for seed in ("1", "2", "3"):
+        env = dict(os.environ, PYTHONHASHSEED=seed, PANDAMAP_NO_UPDATE_CHECK="1")
+        out = subprocess.run([sys.executable, "-c", code], env=env, check=True,
+                             capture_output=True, text=True).stdout
+        results.add(out.strip().splitlines()[-1])
+    assert len(results) == 1
+
+
+def test_run_analysis_writes_all_three_diagrams_by_default(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    out = tmp_path / "site.png"
+    primary = mapper.run_analysis(output_file=str(out), dpi=50, use_dssp=False)
+    assert primary == str(out)
+    assert mapper.diagram_files == {
+        "modern": str(out),
+        "classic": str(tmp_path / "site_classic.png"),
+        "3d": str(tmp_path / "site_3d.png"),
+    }
+    for path in mapper.diagram_files.values():
+        assert os.path.getsize(path) > 1000
+
+
+def test_run_analysis_diagram_selection_never_overwrites(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    out = tmp_path / "site.png"
+    mapper.run_analysis(output_file=str(out), dpi=50, use_dssp=False,
+                        diagrams=["3d", "modern"])
+    assert mapper.diagram_files == {"3d": str(out),
+                                    "modern": str(tmp_path / "site_modern.png")}
+    assert not (tmp_path / "site_classic.png").exists()
+
+
+def test_cli_diagrams_option(tmp_path, monkeypatch, capsys):
+    import sys
+    from pandamap.cli import main
+    out = tmp_path / "only.png"
+    monkeypatch.setattr(sys, "argv", ["pandamap", _mixed(tmp_path), "--ligand", "LIG",
+                                      "--diagrams", "classic", "--dpi", "50",
+                                      "-o", str(out)])
+    assert main() == 0
+    assert out.exists()
+    assert sorted(p.name for p in tmp_path.glob("only*")) == ["only.png"]
+    assert "classic" in capsys.readouterr().out
+
+
+def test_visualize_3d_style(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "v3d.png"
+    assert mapper.visualize(output_file=str(out), dpi=50, style="3d") == str(out)
+    assert out.stat().st_size > 1000
+
+
+def test_text_report_names_the_contacting_atoms(tmp_path):
+    """Each contact row names the residue, its atom and the ligand atom,
+    e.g. '1  THR 113 A  OG1    LIG:O1    2.93 Å', closest first."""
+    import re
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    report = tmp_path / "report.txt"
+    mapper.generate_interaction_report(output_file=str(report))
+    text = report.read_text(encoding="utf-8")
+    rows = re.findall(r"^\s+\d+\s+(THR 113 A)\s+(\w+)\s+LIG:(\w+)\s+([\d.]+) Å", text, re.M)
+    assert rows, text
+    assert "Structure      mixed.pdb" in text
+    assert "SUMMARY" in text and "RESIDUES (1)" in text
+    # every line fits an 80-column terminal
+    assert max(len(line) for line in text.splitlines()) <= 80
+
+
+def test_graphical_report_is_written(tmp_path):
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "report.png"
+    assert mapper.generate_interaction_plots(str(out), dpi=50) == str(out)
+    assert out.stat().st_size > 1000
+
+
+def test_json_export(tmp_path):
+    import json
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = tmp_path / "site.json"
+    assert mapper.export_interactions_json(str(out), include_affinity=True) == str(out)
+    data = json.loads(out.read_text(encoding="utf-8"))
+    assert data["structure"] == "mixed.pdb"
+    assert data["ligand"] == {"name": "LIG", "chain": "B", "number": 1, "n_heavy_atoms": 3}
+    assert data["summary"]["n_interactions"] == len(data["interactions"]) > 0
+    assert sum(data["summary"]["by_type"].values()) == data["summary"]["n_interactions"]
+    first = data["interactions"][0]
+    assert first["residue"] == {"name": "THR", "number": 113, "chain": "A"}
+    assert {"type", "protein_atom", "ligand_atom", "distance", "solvent_accessible"} <= set(first)
+    assert data["residues"][0]["n_contacts"] >= 1
+    assert "dG_estimated" in data["binding_affinity"]
+
+
+def test_cli_json_option(tmp_path, monkeypatch):
+    import json
+    import sys
+    from pandamap.cli import main
+    out = tmp_path / "x.png"
+    monkeypatch.setattr(sys, "argv", ["pandamap", _mixed(tmp_path), "--ligand", "LIG",
+                                      "--diagrams", "modern", "--dpi", "50",
+                                      "-o", str(out), "--json"])
+    assert main() == 0
+    data = json.loads((tmp_path / "x.json").read_text(encoding="utf-8"))
+    assert data["ligand"]["name"] == "LIG" and "binding_affinity" not in data

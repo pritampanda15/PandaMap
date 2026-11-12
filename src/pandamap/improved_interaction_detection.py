@@ -234,119 +234,184 @@ def normalize_interactions(interactions):
                 if parent is not None and getattr(parent, 'id', None) is not None:
                     flat['reschain'] = parent.id
 
+            # Atom names, so the report can say which atoms are in contact
+            for key, name_key in (('protein_atom', 'protein_atom_name'),
+                                  ('ligand_atom', 'ligand_atom_name')):
+                atom = record.get(key)
+                if not flat.get(name_key) and hasattr(atom, 'get_name'):
+                    flat[name_key] = atom.get_name().strip()
+
             out.append(flat)
         normalized[itype] = out
     return normalized
 
 
-def generate_plip_report(ligand_info, interactions, output_file=None):
-    """Generate a PLIP-like text report for interactions with robust error handling."""
+# interaction type -> (section title, short name used in the residue table)
+REPORT_SECTIONS = {
+    'hydrogen_bonds': ("Hydrogen bonds", "hydrogen bond"),
+    'salt_bridge': ("Salt bridges", "salt bridge"),
+    'ionic': ("Ionic interactions", "ionic"),
+    'attractive_charge': ("Attractive charges", "attractive charge"),
+    'halogen_bonds': ("Halogen bonds", "halogen bond"),
+    'metal_coordination': ("Metal coordination", "metal"),
+    'covalent': ("Covalent bonds", "covalent"),
+    'pi_pi_stacking': ("π-π stacking", "π-π stacking"),
+    'pi_cation': ("π-cation interactions", "π-cation"),
+    'cation_pi': ("Cation-π interactions", "cation-π"),
+    'donor_pi': ("Donor-π interactions", "donor-π"),
+    'amide_pi': ("Amide-π interactions", "amide-π"),
+    'carbon_pi': ("Carbon-π interactions", "carbon-π"),
+    'alkyl_pi': ("Alkyl-π interactions", "alkyl-π"),
+    'hydrophobic': ("Hydrophobic contacts", "hydrophobic"),
+    'water_bridges': ("Water bridges", "water bridge"),
+    'repulsion': ("Repulsion", "repulsion"),
+}
+_REPORT_WIDTH = 78
 
+
+def generate_plip_report(ligand_info, interactions, output_file=None):
+    """
+    Write the plain-text interaction report.
+
+    Layout: a header with the structure and ligand, a summary with one bar
+    per interaction type, one aligned table per interaction type (residue,
+    residue atom, ligand atom, distance - closest first) and a per-residue
+    table.  ``ligand_info`` may carry the optional keys ``structure``,
+    ``heavy_atoms`` and ``solvent_accessible`` (a set of (resname, resnum)).
+    """
     # Accept raw HybridProtLigMapper.interactions as well as pre-flattened
     # records, so the Python API and the CLI produce identical reports.
     interactions = normalize_interactions(interactions)
+    if not isinstance(interactions, dict):
+        interactions = {}
 
-    report = []
-    report.append("=============================================================================")
-    report.append(f"PandaMap Interaction Report")
-    report.append("=============================================================================")
-    report.append("")
-    report.append(f"Ligand: {ligand_info.get('hetid', 'UNK')}:{ligand_info.get('chain', 'X')}:{ligand_info.get('position', '0')}")
-    report.append(f"Name: {ligand_info.get('longname', 'Unknown')}")
-    report.append(f"Type: {ligand_info.get('type', 'LIGAND')}")
-    
-    # Optional additional ligand information
-    for field, label in [
-        ('molweight', 'Molecular Weight'),
-        ('heavy_atoms', 'Number of Heavy Atoms'),
-        ('num_rings', 'Number of Rings'),
-        ('num_rot_bonds', 'Number of Rotatable Bonds'),
-        ('num_hba', 'Number of Hydrogen Bond Acceptors'),
-        ('num_hbd', 'Number of Hydrogen Bond Donors'),
-        ('logp', 'logP')
-    ]:
+    heavy_rule, light_rule = "=" * _REPORT_WIDTH, "-" * _REPORT_WIDTH
+    try:
+        from importlib.metadata import version as _version
+        stamp = f"PandaMap {_version('pandamap')}"
+    except Exception:
+        stamp = "PandaMap"
+
+    def records(itype):
+        return [r for r in interactions.get(itype) or [] if isinstance(r, dict)]
+
+    def residue_of(rec):
+        return (f"{str(rec.get('restype', 'UNK')).strip()} {rec.get('resnr', '?')} "
+                f"{rec.get('reschain', '?')}")
+
+    order = [t for t in REPORT_SECTIONS if records(t)]
+    order += [t for t in interactions if t not in REPORT_SECTIONS and records(t)]
+    title_of = lambda t: REPORT_SECTIONS.get(t, (t.replace('_', ' ').capitalize(),))[0]
+    short_of = lambda t: REPORT_SECTIONS.get(t, (None, t.replace('_', ' ')))[1]
+
+    by_residue, chains = {}, set()
+    for itype in order:
+        for rec in records(itype):
+            by_residue.setdefault(residue_of(rec), []).append((itype, rec))
+            if rec.get('reschain') not in (None, '?', 'X'):
+                chains.add(str(rec['reschain']))
+    chains = sorted(chains or set(ligand_info.get('interacting_chains') or []))
+    total = sum(len(records(t)) for t in order)
+    solvent = {(str(n).strip(), num) for n, num in ligand_info.get('solvent_accessible') or []}
+
+    hetid = str(ligand_info.get('hetid', 'UNK')).strip()
+    ligand = f"{hetid}  (chain {ligand_info.get('chain', '?')}, residue {ligand_info.get('position', '?')}"
+    if ligand_info.get('heavy_atoms'):
+        ligand += f", {ligand_info['heavy_atoms']} heavy atoms"
+    ligand += ")"
+
+    report = [heavy_rule,
+              f"  {'PandaMap Interaction Report':<{_REPORT_WIDTH - 4 - len(stamp)}}{stamp}",
+              heavy_rule, ""]
+    if ligand_info.get('structure'):
+        report.append(f"  {'Structure':<15}{ligand_info['structure']}")
+    report.append(f"  {'Ligand':<15}{ligand}")
+    for field, label in [('molweight', 'Mol. weight'), ('num_rings', 'Rings'),
+                         ('num_rot_bonds', 'Rot. bonds'), ('num_hba', 'H-bond acc.'),
+                         ('num_hbd', 'H-bond don.'), ('logp', 'logP')]:
         if field in ligand_info:
-            report.append(f"{label}: {ligand_info[field]}")
-    
-    report.append("\n------------------------------\n")
-    interacting_chains = ligand_info.get('interacting_chains', [])
-    interacting_res = ligand_info.get('interacting_res', [])
-    report.append(f"Interacting Chains: {', '.join(interacting_chains) if interacting_chains else 'N/A'}")
-    report.append(f"Interacting Residues: {len(interacting_res)}")
-    
-    # Summary of interactions
-    interaction_types = {
-        'hydrogen_bonds': "Hydrogen Bonds",
-        'hydrophobic': "Hydrophobic Interactions",
-        'pi_pi_stacking': "π-π Stacking",
-        'carbon_pi': "Carbon-π Interactions",
-        'donor_pi': "Donor-π Interactions",
-        'amide_pi': "Amide-π Interactions",
-        'halogen_bonds': "Halogen Bonds",
-        'water_bridges': "Water Bridges",
-        'metal_coordination': "Metal Coordination",  # CHANGED from metal_complexes
-        'ionic': "Ionic Interactions",
-        'salt_bridge': "Salt Bridges",
-        'covalent': "Covalent Bonds",
-        'alkyl_pi': "Alkyl-π Interactions", # ADDED new interaction types
-        'attractive_charge': "Attractive Charge",
-        'pi_cation': "π-Cation Interactions",
-        'repulsion': "Repulsion"
-    }
-    
-    report.append("\n------------------------------\n")
-    report.append("Interaction Summary:")
-    for itype, label in interaction_types.items():
-        count = len(interactions.get(itype, []))
-        if count > 0:
-            report.append(f"  {label}: {count}")
-    
-    # Function to safely get interaction details
-    def safe_format_interaction(i, index):
-        """Format an interaction with robust error handling"""
-        try:
-            res_info = f"{i.get('restype', 'UNK')}{i.get('resnr', '?')}{i.get('reschain', '?')}"
-            dist_info = f"{i.get('distance', 0.0):.2f}Å"
-            lig_info = ligand_info.get('hetid', 'UNK')
-            
-            # Include additional info if available
-            extra_info = ""
-            if 'type' in i:
-                extra_info = f"({i['type']})"
-            elif itype == 'pi_pi_stacking' and 'angle' in i:
-                try:
-                    angle = float(i['angle'])
-                    if angle < 30:
-                        extra_info = "(Parallel)"
-                    else:
-                        extra_info = "(T-shaped)"
-                except:
-                    pass
-            
-            return f"  {index}. {res_info} {extra_info} -- {dist_info} -- {lig_info}"
-        except Exception as e:
-            return f"  {index}. Error formatting interaction: {str(e)}"
-    
-    # Detailed information about each interaction type
-    for itype, label in interaction_types.items():
-        if interactions.get(itype, []):
-            report.append("\n------------------------------\n")
-            report.append(f"{label}:")
-            for i, interaction in enumerate(interactions[itype], 1):
-                report.append(safe_format_interaction(interaction, i))
-    
-    report.append("\n=============================================================================\n")
-    
+            report.append(f"  {label:<15}{ligand_info[field]}")
+    site = f"{len(by_residue)} residue{'s' if len(by_residue) != 1 else ''}"
+    if chains:
+        site += f" in chain{'s' if len(chains) > 1 else ''} {', '.join(chains)}"
+    if solvent:
+        exposed = sum(1 for key in by_residue
+                      if (key.split()[0], _as_int(key.split()[1])) in solvent)
+        site += f"; {exposed} solvent accessible"
+    report.append(f"  {'Binding site':<15}{site}")
+    report.append(f"  {'Interactions':<15}{total} contact{'s' if total != 1 else ''} "
+                  f"of {len(order)} type{'s' if len(order) != 1 else ''}")
+
+    # ---- summary -------------------------------------------------------------
+    report += ["", "SUMMARY", light_rule]
+    if not order:
+        report.append("  No interactions detected.")
+    widest = max((len(title_of(t)) for t in order), default=0)
+    most = max((len(records(t)) for t in order), default=1)
+    for itype in order:
+        n = len(records(itype))
+        bar = "█" * max(1, round(n / most * 30))
+        report.append(f"  {title_of(itype):<{widest}}  {n:>3}  {bar}")
+
+    # ---- one table per interaction type --------------------------------------
+    for itype in order:
+        rows = sorted(records(itype), key=lambda r: r.get('distance', 0.0))
+        report += ["", f"{title_of(itype).upper().replace('Π', 'π')} ({len(rows)})", light_rule,
+                   f"  {'#':>2}  {'Residue':<11}{'Atom':<7}{'Ligand atom':<14}{'Distance':>8}  Note"]
+        for n, rec in enumerate(rows, 1):
+            try:
+                note = ""
+                if rec.get('type'):
+                    note = str(rec['type']).replace('_', ' ')
+                elif itype == 'pi_pi_stacking' and rec.get('angle') is not None:
+                    note = "parallel" if float(rec['angle']) < 30 else "T-shaped"
+                if rec.get('halogen_element'):
+                    note = (note + " " if note else "") + str(rec['halogen_element'])
+                line = (f"  {n:>2}  {residue_of(rec):<11}"
+                        f"{rec.get('protein_atom_name') or '-':<7}"
+                        f"{hetid + ':' + rec['ligand_atom_name'] if rec.get('ligand_atom_name') else hetid:<14}"
+                        f"{float(rec.get('distance', 0.0)):>6.2f} Å  {note}")
+                report.append(line.rstrip())
+            except Exception as e:
+                report.append(f"  {n:>2}  (could not format this contact: {e})")
+
+    # ---- per residue ----------------------------------------------------------
+    if by_residue:
+        report += ["", f"RESIDUES ({len(by_residue)})", light_rule,
+                   f"  {'Residue':<11}{'Contacts':>8}  {'Closest':>8}  {'Exposed':<8} Types"]
+        ranked = sorted(by_residue.items(),
+                        key=lambda kv: (-len(kv[1]), min(r.get('distance', 0.0) for _, r in kv[1])))
+        for key, items in ranked:
+            kinds = ", ".join(dict.fromkeys(short_of(t) for t, _ in items))
+            closest = min(float(r.get('distance', 0.0)) for _, r in items)
+            exposed = "yes" if (key.split()[0], _as_int(key.split()[1])) in solvent else "-"
+            report.append(f"  {key:<11}{len(items):>8}  {closest:>6.2f} Å  {exposed:<8} {kinds}")
+
+    report += ["", heavy_rule,
+               "  Distances are between the named atoms, in Å. Residues are written as",
+               "  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can",
+               "  load into other tools, use --csv.",
+               heavy_rule, ""]
+    text = "\n".join(report)
+
     # Write to file if specified
     if output_file:
         try:
             with open(output_file, 'w', encoding='utf-8') as f:
-                f.write("\n".join(report))
+                f.write(text)
             print(f"Report saved to {output_file}")
         except Exception as e:
             print(f"Error writing report to file: {str(e)}")
-    
-    return "\n".join(report)
+
+    return text
+
+
+def _as_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return value
+
 
 class ImprovedInteractionDetection:
     """Class to improve the interaction detection in PandaMap.
@@ -541,13 +606,31 @@ def add_interaction_detection_methods(cls):
                             interaction_data['angle'] = interaction['angle']
                     if isinstance(interaction, dict) and 'type' in interaction:
                         interaction_data['type'] = interaction['type']
-                    
+
+                    # Atom names, so the report says which atoms are in contact
+                    if isinstance(interaction, dict):
+                        for key, name_key in (('protein_atom', 'protein_atom_name'),
+                                              ('ligand_atom', 'ligand_atom_name')):
+                            atom = interaction.get(key)
+                            if hasattr(atom, 'get_name'):
+                                interaction_data[name_key] = atom.get_name().strip()
+
                     processed_interactions[itype].append(interaction_data)
                     
                 except Exception as e:
                     print(f"Warning: Error processing interaction: {str(e)}")
                     continue
         
+        # Context for the report header and the residue table
+        try:
+            import os as _os
+            ligand_info['structure'] = _os.path.basename(str(self.structure_file))
+            ligand_info['heavy_atoms'] = sum(
+                1 for a in self.ligand_atoms if (a.element or '').strip().upper() != 'H')
+            ligand_info['solvent_accessible'] = set(getattr(self, 'solvent_accessible', ()) or ())
+        except Exception:
+            pass
+
         # Update ligand info with collected data
         ligand_info['interacting_chains'] = list(interacting_chains) if interacting_chains else []
         ligand_info['interacting_res'] = list(interacting_res) if interacting_res else []
