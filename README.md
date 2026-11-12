@@ -1,10 +1,12 @@
-# PandaMap: A Python Package for Visualizing Protein–Ligand Interactions
-
-**P**rotein **AND** lig**A**nd interaction **MAP**per — comprehensive detection, visualization, and empirical binding affinity estimation for protein–ligand complexes.
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap" width="520">
+</p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/logo/pandamap-logo.svg" alt="PandaMap Logo" width="400">
+  <b>P</b>rotein <b>AND</b> lig<b>A</b>nd interaction <b>MAP</b>per:
+  from a structure file to interaction diagrams, reports and data, in one command.
 </p>
+
 <p align="center">
   <a href="https://pypi.org/project/pandamap/">
     <img src="https://img.shields.io/pypi/v/pandamap.svg" alt="PyPI Version">
@@ -26,73 +28,38 @@
   </a>
 </p>
 
----
+PandaMap reads a protein–ligand complex (PDB, mmCIF or PDBQT), finds the
+contacts between the ligand and the protein, and writes figures and tables you
+can put straight into a paper or a pipeline. It needs only NumPy, Matplotlib,
+BioPython and Requests, and runs from the command line or from Python.
 
-## What's New in v4.3
+```bash
+pip install pandamap
+pandamap complex.pdb
+```
 
-Correctness release. Several fixes change **which interactions are detected** and
-**what ΔG is reported** — see [Upgrading from 4.2](#upgrading-from-42).
+That one command writes three diagrams of the same binding site:
 
-| Change | Description |
-|---|---|
-| **Halogen bonds now detect Cl, Br and I** | The donor test was case-sensitive against BioPython's upper-cased element symbols (`'BR'`), so only fluorine was ever matched. Bromine, chlorine and iodine halogen bonds were undetectable |
-| **No more ΔG double-counting** | Each ionic contact was scored as both `ionic` (−1.80) and `salt_bridge` (−1.50); `cation_pi` and `pi_cation` overlapped and scored one contact twice |
-| **Carboxylate salt bridges detected** | Ligand anion perception excluded every carboxylate — the commonest anionic group in drug-like ligands |
-| **D–H···A angular criterion** | With explicit hydrogens the true donor angle is measured and must exceed 100° (PLIP's threshold) |
-| **Metal coordination no longer scored as covalent** | A Zn–His contact at 2.0 Å was being weighted −8.0 kcal/mol |
-| **Readable ligand depiction** | Larger ligands collapsed into an unreadable blob; marker size now tracks bond length |
-| **`--csv` and `--plots` outputs** | Machine-readable interaction table and a four-panel graphical report |
-| **3D HTML no longer crashes** | `object of type 'Atom' has no len()` on some ligands |
-| **Python API report fixed** | `generate_report()` rendered every residue as `UNK??` when passed `mapper.interactions` |
-| **Regression test suite** | 18 tests, no external downloads |
-| **`--dpi`, `--title`, `--no-3d-cues` now take effect** | All three were accepted by the CLI but never reached the renderer |
+| Modern 2D | Classic | 3D contacts |
+|:---:|:---:|:---:|
+| <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png" width="270"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png" width="270"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png" width="270"> |
+| Residues sit next to the ligand atoms they contact | The original PandaMap layout | Which atom of each residue touches the ligand |
 
----
+<sub>EGFR kinase with erlotinib (PDB 1M17, ligand AQ4). The file is in `example/`.</sub>
 
-## What's New in v4.2
+## Contents
 
-| Feature | Description |
-|---|---|
-| **Scientifically validated cutoffs** | H-bond lower bound 2.5 Å, ionic/salt bridge 5.5 Å, halogen lower bound 2.5 Å — aligned with PLIP and crystallographic surveys |
-| **RDKit 2D coordinates** | Chemically accurate 2D ligand layout when RDKit is available; PCA projection fallback requires no extra dependencies |
-| **Topology-based ring detection** | Iterative leaf-node pruning on the bond graph — identifies rings of any size without SMILES |
-| **Exact aromatic atom filtering** | Per-residue ring-atom name sets (PHE/TYR/TRP/HIS) eliminate false π-system contacts from β-carbons |
-| **Improved ΔG estimation** | Per-residue deduplication + distance decay + rotatable bond entropy penalty; thermodynamically calibrated Kd labels at 298 K |
-| **Trajectory analysis** | Multi-frame PDB/NMR ensemble analysis with per-interaction occupancy statistics and CSV export |
-| **Arc stagger in 2D diagram** | Multiple interactions to the same residue fan out with alternating curvature — no marker overlap |
-| **`--deltaG` CLI flag** | Estimate binding free energy directly from the command line |
-
----
-
-## Features
-
-- **15 interaction classes** detected with crystallographically validated distance thresholds:
-  - Hydrogen bonds (2.5–3.5 Å, N/O pairs, D–H···A ≥ 100° when hydrogens are present)
-  - π–π stacking, cation–π, pi–cation, carbon–π, donor–π, amide–π, alkyl–π
-  - Hydrophobic contacts (4.0 Å)
-  - Ionic / salt bridge (5.5 Å) — one class; see note below
-  - Halogen bonds (2.5–3.5 Å; F, Cl, Br, I)
-  - Metal coordination (2.8 Å)
-  - Covalent bonds (≤2.1 Å, CYS/SER/LYS/HIS)
-  - Attractive and repulsive charge interactions
-
-  > Earlier releases advertised 16 classes by listing `ionic` and `salt_bridge`
-  > separately. They share one detection rule and one set of cutoffs, so they
-  > are reported as a single class and scored once.
-
-- **Five output formats**: 2D PNG diagram, interactive 3D HTML (3Dmol.js),
-  plain-text report, machine-readable CSV (`--csv`), and a four-panel
-  graphical report (`--plots`)
-- **Empirical ΔG scoring** with per-residue deduplication, distance decay, and rotor penalty
-- **Multi-frame trajectory analysis** with occupancy statistics and CSV export
-- **Solvent accessibility**: DSSP (preferred) → Shrake–Rupley fallback → geometric fallback
-- **Multi-format input**: PDB, mmCIF/CIF, PDBQT (AutoDock Vina)
-
-👉 [Live interactive 3D example](https://github.com/pritampanda15/PandaMap/blob/main/test/complex_3d_visualization.html)
-
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/pandamap_3d_visualization.png)
-
----
+- [Installation](#installation)
+- [Quick start](#quick-start)
+- [What you get](#what-you-get)
+- [Choosing the ligand](#choosing-the-ligand)
+- [Command-line reference](#command-line-reference)
+- [Python API](#python-api)
+- [How interactions are detected](#how-interactions-are-detected)
+- [Binding free energy estimate](#binding-free-energy-estimate)
+- [What's new](#whats-new)
+- [Troubleshooting](#troubleshooting)
+- [Citation](#citation)
 
 ## Installation
 
@@ -100,53 +67,203 @@ Correctness release. Several fixes change **which interactions are detected** an
 pip install pandamap
 ```
 
-### Optional dependencies
+Python 3.8 or newer. Two optional tools improve the output; PandaMap works
+without either:
+
+| Optional | What it adds | Install |
+|---|---|---|
+| RDKit | Chemically accurate 2D ligand layout (otherwise a projection of the 3D pose) | `conda install -c conda-forge rdkit` or `pip install rdkit` |
+| DSSP | More accurate solvent accessibility (otherwise a built-in estimate) | `brew install dssp` (macOS), `sudo apt-get install dssp` (Linux) |
+
+## Quick start
+
+Try it on the example structure in this repository:
 
 ```bash
-pip install pandamap[fancy]   # coloured CLI output (rich)
-pip install pandamap[viz]     # programmatic 3D viewer (py3Dmol)
-pip install pandamap[full]    # all extras
+# Three diagrams (modern 2D, classic, 3D contacts)
+pandamap example/1m17.pdb --ligand AQ4
+
+# Add a text report and a four-panel graphical summary
+pandamap example/1m17.pdb --ligand AQ4 --report --plots
+
+# Add an interactive 3D viewer you can open in a browser
+pandamap example/1m17.pdb --ligand AQ4 --3d
+
+# Export the contacts as data, with a binding free energy estimate
+pandamap example/1m17.pdb --ligand AQ4 --csv --json --deltaG
 ```
 
-### External optional: DSSP (accurate solvent accessibility)
+Not sure what the ligand is called? `pandamap complex.pdb --list-ligands`.
+Leave `--ligand` out and PandaMap picks the largest ligand for you.
 
-```bash
-brew install dssp                          # macOS
-sudo apt-get install dssp                  # Linux
-# Windows: https://swift.cmbi.umcn.nl/gv/dssp/
+## What you get
+
+For an input called `1m17.pdb`, files are written to the current directory:
+
+| Option | File | Contents |
+|---|---|---|
+| *(default)* | `1m17_interactions.png` | Modern 2D diagram |
+| *(default)* | `1m17_interactions_classic.png` | Classic diagram |
+| *(default)* | `1m17_interactions_3d.png` | 3D contact view |
+| `--report` | `1m17_interactions_report.txt` | Text report |
+| `--plots` | `1m17_interactions_report.png` | Four-panel graphical summary |
+| `--csv` | `1m17_interactions.csv` | One row per contact |
+| `--json` | `1m17_interactions.json` | The whole analysis as JSON |
+| `--3d` | `1m17_3d_visualization.html` | Interactive 3D viewer |
+| `--deltaG` | *(printed)* | Empirical binding free energy estimate |
+
+Use `-o` to name the main image; its extension sets the format (`.png`,
+`.svg`, `.pdf`). Use `--diagrams` to draw only some of the three, for example
+`--diagrams modern` or `--diagrams classic 3d`.
+
+### The three diagrams
+
+**Modern 2D.** Each residue is placed beside the part of the ligand it
+contacts, so lines stay short. Boxes are coloured by residue type
+(hydrophobic, polar, positive, negative), a blue outline marks
+solvent-accessible residues, and hydrogen-bond distances are printed. Add
+`--show-nearby` to include binding-site residues that make no specific contact.
+
+![Modern 2D diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png)
+
+**Classic.** The original PandaMap diagram: residues evenly spaced on a circle,
+with haloes for solvent accessibility.
+
+![Classic diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png)
+
+**3D contacts.** The ligand is drawn as 3D sticks with each contacting residue
+as a transparent stick model around it. The residue atom that makes each
+contact is a solid sphere labelled with its atom name, for example `CD1` of
+LEU 694. Residues are moved outwards so nothing overlaps, so line lengths are
+not to scale; the printed distances are the real ones.
+
+![3D contact view](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png)
+
+### Text report (`--report`)
+
+A header, a summary, one table per interaction type naming the atoms in
+contact (closest first), and a per-residue table. Shortened here:
+
+```
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.4.0
+==============================================================================
+
+  Structure      1m17.pdb
+  Ligand         AQ4  (chain A, residue 999, 29 heavy atoms)
+  Binding site   14 residues in chain A; 7 solvent accessible
+  Interactions   24 contacts of 8 types
+
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds           4  ███████████████
+  Alkyl-π interactions     8  ██████████████████████████████
+  Hydrophobic contacts     6  ██████████████████████
+  ...
+
+HYDROGEN BONDS (4)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  MET 769 A  N      AQ4:N2          2.70 Å
+   2  PRO 770 A  O      AQ4:O4          3.21 Å
+   3  GLY 772 A  N      AQ4:O4          3.24 Å
+   4  LEU 694 A  O      AQ4:O2          3.27 Å
+
+RESIDUES (14)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  MET 769 A         3    2.70 Å  -        hydrogen bond, alkyl-π, hydrophobic
+  ASP 831 A         3    3.11 Å  yes      ionic, attractive charge, donor-π
+  ...
 ```
 
-RDKit (for chemically accurate 2D ligand coordinates):
-```bash
-conda install -c conda-forge rdkit        # recommended
-pip install rdkit                          # pip alternative
-```
-PandaMap works without RDKit — it falls back to PCA-based 2D projection automatically.
+The report is for reading. To load results into another program, use `--csv`
+or `--json`.
 
----
+### Graphical summary (`--plots`)
 
-## Quick Start
+![Graphical interaction report](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/report_1m17.png)
 
-```bash
-# 2D interaction diagram
-pandamap structure.pdb
+| Panel | Shows |
+|---|---|
+| **(a)** Contacts per class | Which interaction types dominate |
+| **(b)** Distance distribution | Each contact against its ideal distance |
+| **(c)** Per-residue profile | The 15 residues with most contacts, stacked by type |
+| **(d)** ΔG breakdown | Contribution of each type to the estimate; penalties in red |
 
-# See which ligands the file contains
-pandamap complex.pdb --list-ligands
+### CSV (`--csv`) and JSON (`--json`)
 
-# Specify ligand, generate report and 3D viewer
-pandamap complex.pdb --ligand PFL --report --3d
+CSV has one row per contact:
 
-# Estimate binding free energy
-pandamap complex.pdb --ligand PFL --deltaG
-
-# Full analysis
-pandamap complex.pdb --ligand LIG --report --3d --deltaG --dpi 300
+```csv
+interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
+alkyl_pi,ALA,719,A,CB,C19,C,3.31,False,
+alkyl_pi,LEU,820,A,CD1,C6,C,3.52,False,
 ```
 
----
+JSON holds the whole analysis: the ligand, a summary, every interaction and a
+per-residue roll-up. With `--deltaG` it also contains the free energy estimate
+under `binding_affinity`.
 
-## Command-Line Reference
+```json
+{
+  "pandamap_version": "4.4.0",
+  "structure": "1m17.pdb",
+  "ligand": {"name": "AQ4", "chain": "A", "number": 999, "n_heavy_atoms": 29},
+  "summary": {
+    "n_interactions": 24,
+    "n_residues": 14,
+    "by_type": {"alkyl_pi": 8, "hydrogen_bonds": 4, "hydrophobic": 6, "...": "..."}
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {"name": "ALA", "number": 719, "chain": "A"},
+      "protein_atom": "CB",
+      "ligand_atom": "C19",
+      "ligand_element": "C",
+      "distance": 3.307,
+      "solvent_accessible": false
+    }
+  ],
+  "residues": [
+    {
+      "name": "MET", "number": 769, "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 3,
+      "closest_distance": 2.699,
+      "types": ["alkyl_pi", "hydrogen_bonds", "hydrophobic"]
+    }
+  ]
+}
+```
+
+### Interactive 3D viewer (`--3d`)
+
+A single HTML file (3Dmol.js) that opens on the binding site. Contacting atoms
+are labelled spheres; click one to see the residue, atom, interaction type and
+distance. The page loads 3Dmol.js from the internet, so it needs a connection
+when opened.
+
+![Interactive 3D viewer](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/viewer_3d_1m17.png)
+
+## Choosing the ligand
+
+- **Automatic.** Without `--ligand`, PandaMap analyses the largest HETATM group
+  that is not water, an ion or a common crystallisation additive, and prints
+  what it chose and what else is in the file.
+- **By name.** `--ligand AQ4` (case-insensitive).
+- **Several copies.** If the ligand occurs more than once, the first copy is
+  used. Pick another with `--chain B` and/or `--resnum 501`.
+- **See the candidates.** `--list-ligands` prints them and exits:
+
+```
+Ligand  Chain  Residue  Atoms
+HEM     A      301      43
+1M2     A      302      11
+```
+
+## Command-line reference
 
 ```
 pandamap <structure_file> [options]
@@ -198,142 +315,80 @@ Options:
   -h, --help              Show help
 ```
 
----
-
 ## Python API
 
-### Single-structure analysis
-
 ```python
-from pandamap import HybridProtLigMapper
+from pandamap import HybridProtLigMapper, list_ligands
+
+print(list_ligands("complex.pdb"))          # what ligands are in the file?
 
 mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG")
-# Several copies of the ligand?  Pick one:
-# mapper = HybridProtLigMapper("complex.pdb", ligand_resname="LIG",
-#                              ligand_chain="B", ligand_resnum=501)
-# Not sure of the name?  pandamap.list_ligands("complex.pdb")
+# one of several copies: HybridProtLigMapper(..., ligand_chain="B", ligand_resnum=501)
+
+# Everything in one call: all three diagrams and the text report
+mapper.run_analysis(output_file="site.png", generate_report=True,
+                    report_file="site_report.txt")
+print(mapper.diagram_files)   # {'modern': 'site.png', 'classic': 'site_classic.png', '3d': 'site_3d.png'}
+```
+
+Or step by step:
+
+```python
 mapper.detect_interactions()
 
-# One diagram: style is "modern" (default), "classic" or "3d";
-# use a .svg or .pdf path for vector output
-mapper.visualize(output_file="interactions.png")
-mapper.visualize(output_file="interactions_classic.png", style="classic")
-mapper.visualize(output_file="interactions_3d.png", style="3d")
+# One diagram at a time; use a .svg or .pdf path for vector output
+mapper.visualize("site.png")                      # modern (default)
+mapper.visualize("site_classic.png", style="classic")
+mapper.visualize("site_3d.png", style="3d")
 
-# All three at once (also what the command line does by default):
-# interactions.png, interactions_classic.png, interactions_3d.png
-mapper.run_analysis(output_file="interactions.png")
-print(mapper.diagram_files)
-
-# Text report — simplest route, identical output to `pandamap --report`
-mapper.run_analysis(output_file="interactions.png",
-                    generate_report=True,
-                    report_file="report.txt")
-
-# Machine-readable table of every contact
-mapper.export_interactions_csv("interactions.csv")
-
-# The same data as JSON, or as a Python dict
-mapper.export_interactions_json("interactions.json")
+# Data
+mapper.export_interactions_csv("site.csv")
+mapper.export_interactions_json("site.json")
 data = mapper.interactions_as_dict()
 print(data["summary"]["by_type"])
 
-# Four-panel graphical report
-mapper.generate_interaction_plots("report.png")
-
-# Inspect raw interactions
-for itype, contacts in mapper.interactions.items():
-    if contacts:
-        print(f"{itype}: {len(contacts)} contacts")
-```
-
-If you need the report generator directly, the parameters are `ligand_info`
-and `interactions` (earlier revisions of this README named them
-`ligand_metadata` and `interaction_data`, which raises `TypeError`):
-
-```python
-from pandamap.improved_interaction_detection import ImprovedInteractionDetection
-
-ImprovedInteractionDetection().generate_report(
-    ligand_info={
-        'hetid': mapper.ligand_residue.resname,
-        'chain': mapper.ligand_residue.parent.id,
-        'position': mapper.ligand_residue.id[1],
-        'longname': mapper.ligand_residue.resname,
-        'type': 'LIGAND',
-    },
-    interactions=mapper.interactions,
-    output_file="report.txt"
-)
-```
-
-> **Fixed in 4.3.** Passing `mapper.interactions` to `generate_report()`
-> previously produced lines reading `UNK?? -- 2.79Å -- SU9`, because the
-> formatter expected flattened `restype`/`resnr`/`reschain` keys that only the
-> CLI code path filled in. Both paths now normalise their input, so the Python
-> API and the CLI produce identical reports.
-
-### Empirical ΔG estimation
-
-```python
+# Graphical summary and free energy estimate
+mapper.generate_interaction_plots("site_report.png")
 result = mapper.estimate_binding_affinity()
+print(f"ΔG ≈ {result['dG_estimated']:.2f} kcal/mol: {result['interpretation']}")
 
-print(f"ΔG ≈ {result['dG_estimated']:.2f} kcal/mol")
-print(result['interpretation'])
-print(result['note'])
-
-for itype, info in result['breakdown'].items():
-    print(f"  {itype} (n={info['unique_residues']}): {info['contribution_kcal_mol']:+.2f} kcal/mol")
+# Raw contacts: BioPython atoms and residues
+for itype, contacts in mapper.interactions.items():
+    for c in contacts:
+        print(itype, c["protein_residue"].resname, c["protein_atom"].get_name(),
+              c["ligand_atom"].get_name(), round(c["distance"], 2))
 ```
 
-**ΔG interpretation (298 K, ΔG = −RT·ln Kd):**
-
-| ΔG (kcal/mol) | Kd range | Label |
-|---|---|---|
-| < −12 | ~nM or better | Very strong binder |
-| −9 to −12 | nM–µM | Strong binder |
-| −6 to −9 | µM | Moderate binder |
-| −3 to −6 | mM | Weak binder |
-| ≥ −3 | — | Very weak / no binding |
-
-> Note: Empirical estimate ±2–3 kcal/mol. Not a substitute for FEP or MM-GBSA.
-
-### 3D visualization
+Interactive 3D viewer:
 
 ```python
 from pandamap.create_3d_view import create_pandamap_3d_viz
 
-create_pandamap_3d_viz(
-    mapper=mapper,
-    output_file="interactions_3d.html",
-    width=1024,
-    height=768,
-    show_surface=True
-)
+create_pandamap_3d_viz(mapper=mapper, output_file="site_3d.html",
+                       width=1024, height=768, show_surface=True)
 ```
 
-### Multi-frame trajectory analysis
+Multi-model files (NMR ensembles, MD frames saved as a multi-MODEL PDB):
 
 ```python
 from pandamap import analyze_trajectory
 
-summary = analyze_trajectory(
-    trajectory_file="simulation.pdb",    # multi-MODEL PDB
-    ligand_resname="LIG",
-    output_dir="./trajectory_output",
-    visualize_frames=False               # set True to generate per-frame PNGs
-)
+summary = analyze_trajectory("frames.pdb", ligand_resname="LIG",
+                             output_dir="trajectory_output", frame_step=1)
 
-print(f"Frames analysed: {summary['n_frames']}")
-print(f"Mean ΔG: {summary['mean_dG']:.2f} ± {summary['std_dG']:.2f} kcal/mol")
-# Per-residue occupancy CSV written to ./trajectory_output/trajectory_analysis.csv
+print(summary["n_frames_analysed"])
+print(summary["mean_counts"])      # mean number of contacts per interaction type
+print(summary["occupancy"])        # fraction of frames each residue is in contact
+print(summary["summary_csv"])      # per-frame table
 ```
 
----
+For DCD or XTC trajectories, convert to a multi-model PDB first, for example
+`gmx trjconv -f traj.xtc -s topol.tpr -o frames.pdb`.
 
-## Distance Cutoffs
+## How interactions are detected
 
-All cutoffs are validated against PLIP and published crystallographic surveys:
+PandaMap detects 15 interaction classes from distances and, where the
+structure allows, angles:
 
 | Interaction | Cutoff | Reference |
 |---|---|---|
@@ -345,6 +400,17 @@ All cutoffs are validated against PLIP and published crystallographic surveys:
 | Metal coordination | 2.8 Å | CSD surveys |
 | Covalent | 1.2–2.1 Å, non-metal ligand atom | — |
 | Repulsion | 4.0 Å | — |
+
+Also detected: cation–π, π–cation, carbon–π, donor–π, amide–π, alkyl–π and
+attractive charge contacts. `ionic` and `salt_bridge` share one rule and are
+reported and scored as a single class.
+
+**Metal ions.** A metal counts as a ligand interaction only when it is within
+3 Å of a ligand atom, that is, when it bridges ligand and protein. A
+structural metal elsewhere in the protein is ignored.
+
+**Solvent accessibility.** DSSP is used when installed; otherwise a built-in
+geometric estimate. The result is the same on every run of the same file.
 
 ### Hydrogen-bond geometry
 
@@ -373,11 +439,87 @@ carries a `halogen_element` field so fluorine can be separated during
 analysis, and `--strict-halogens` restricts detection to Cl/Br/I if you want
 the conservative definition.
 
----
+## Binding free energy estimate
 
-## Upgrading from 4.2
+`--deltaG` (or `mapper.estimate_binding_affinity()`) sums empirical
+per-interaction weights, with one contribution per residue and type, a
+distance decay, and an entropy penalty for rotatable bonds:
 
-Version 4.3 fixes defects that affect reported results. Numbers will change:
+```
+--- Estimated Binding Affinity ---
+  ΔG ≈ -0.86 kcal/mol
+  Very weak / no binding expected
+  Breakdown:
+    hydrogen_bonds (n=4): -2.77 kcal/mol
+    hydrophobic (n=6): -1.43 kcal/mol
+    alkyl_pi (n=8): -1.26 kcal/mol
+    ...
+    rotatable_bond_penalty (n=6): +3.00 kcal/mol
+----------------------------------
+```
+
+| ΔG (kcal/mol) | Kd range | Label |
+|---|---|---|
+| < −12 | ~nM or better | Very strong binder |
+| −9 to −12 | nM–µM | Strong binder |
+| −6 to −9 | µM | Moderate binder |
+| −3 to −6 | mM | Weak binder |
+| ≥ −3 | — | Very weak / no binding |
+
+> **Treat this as a rough guide.** The uncertainty is at least ±2–3 kcal/mol,
+> and the example above shows the limits: erlotinib is a nanomolar EGFR
+> inhibitor, yet the estimate for 1M17 is close to zero. It is useful for
+> comparing similar poses, not as a substitute for FEP, MM-GBSA or experiment.
+
+## What's new
+
+### 4.4
+
+- **Three diagrams from one run**: a new modern 2D layout, the classic
+  diagram, and a new 3D contact view. Choose with `--diagrams`.
+- **Redesigned text report** that names the atoms in each contact and adds a
+  per-residue table.
+- **JSON export** (`--json`).
+- **`report.png`** uses the same names and colours as the diagrams.
+- **Interactive viewer** opens on the binding site and labels contacting atoms.
+- **Fixes**: solvent accessibility no longer changes between runs of the same
+  file; a metal far from the ligand is no longer reported as a ligand
+  interaction.
+
+Upgrading from 4.3:
+
+- A plain run writes three images instead of one, and the image at the default
+  path is the modern diagram. `--diagrams classic` gives the old single output.
+- The text report format changed. Scripts that parsed lines such as
+  `LEU694A -- 3.27Å -- AQ4` should read the CSV or JSON instead.
+
+### 4.3.1
+
+- Windows: reports, CSV and the 3D page are written as UTF-8, and non-UTF-8
+  consoles no longer crash the run.
+- Without `--ligand`, one ligand is selected instead of merging every HETATM
+  group, waters included.
+- `--list-ligands`, `--chain`, `--resnum`, `--debug`; `pandamap --version`
+  works on its own; clearer errors for unknown ligands and unreadable files.
+
+<details>
+<summary><b>4.3</b>: correctness release (changes detected interactions and ΔG)</summary>
+
+| Change | Description |
+|---|---|
+| **Halogen bonds now detect Cl, Br and I** | The donor test was case-sensitive against BioPython's upper-cased element symbols (`'BR'`), so only fluorine was ever matched. Bromine, chlorine and iodine halogen bonds were undetectable |
+| **No more ΔG double-counting** | Each ionic contact was scored as both `ionic` (−1.80) and `salt_bridge` (−1.50); `cation_pi` and `pi_cation` overlapped and scored one contact twice |
+| **Carboxylate salt bridges detected** | Ligand anion perception excluded every carboxylate — the commonest anionic group in drug-like ligands |
+| **D–H···A angular criterion** | With explicit hydrogens the true donor angle is measured and must exceed 100° (PLIP's threshold) |
+| **Metal coordination no longer scored as covalent** | A Zn–His contact at 2.0 Å was being weighted −8.0 kcal/mol |
+| **Readable ligand depiction** | Larger ligands collapsed into an unreadable blob; marker size now tracks bond length |
+| **`--csv` and `--plots` outputs** | Machine-readable interaction table and a four-panel graphical report |
+| **3D HTML no longer crashes** | `object of type 'Atom' has no len()` on some ligands |
+| **Python API report fixed** | `generate_report()` rendered every residue as `UNK??` when passed `mapper.interactions` |
+| **Regression test suite** | 18 tests, no external downloads |
+| **`--dpi`, `--title`, `--no-3d-cues` now take effect** | All three were accepted by the CLI but never reached the renderer |
+
+Upgrading from 4.2, numbers will change:
 
 - **Ligands containing Cl, Br or I** gain halogen bonds that were previously
   undetectable. On PDB 1US0 this recovers the Br···O(Thr113) bond at 2.97 Å.
@@ -391,270 +533,55 @@ Version 4.3 fixes defects that affect reported results. Numbers will change:
 
 If you have published numbers from 4.2, re-run rather than mixing versions.
 
----
+</details>
 
-## Example Outputs
+<details>
+<summary><b>4.2</b></summary>
 
-### 2D Interaction Diagram
-
-Aldose reductase–IDD594 (PDB 1US0). The halogen bond from the ligand bromine to
-Thr113 (cyan, **X**) is one of the contacts recovered by the 4.3 halogen fix;
-cyan haloes mark solvent-accessible residues.
-
-![PandaMap 2D interaction diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_modern_1m17.png)
-
-PandaMap draws three diagrams of the same interactions. By default the
-command line writes all of them; choose with `--diagrams` (for example
-`--diagrams modern`, or `--diagrams classic 3d`).
-
-| Diagram | File | What it shows |
-|---|---|---|
-| `modern` | `<name>_interactions.png` | Each residue sits next to the ligand atoms it contacts; boxes are coloured by residue type, solvent-accessible residues have a blue outline, hydrogen-bond distances are printed |
-| `classic` | `<name>_interactions_classic.png` | The original PandaMap diagram: residues evenly spaced on a circle, solvent-accessibility haloes |
-| `3d` | `<name>_interactions_3d.png` | The ligand as 3D sticks with every contacting residue as a transparent stick model around it; the residue atom making each contact is a solid sphere labelled with its atom name (for example `CD1` of LEU 694) |
-
-**Classic**
-
-![Classic diagram](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/diagram_classic_1m17.png)
-
-**3D contacts**
-
-In the 3D view the residues are moved straight outwards so nothing overlaps,
-which means line lengths are not to scale; the distances printed on the lines
-are the real ones.
-
-![3D contact view](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png)
-
-The interactive viewer (`--3d`) uses the same convention: contacting residues
-are translucent and each contacting atom is a solid, labelled sphere.
-
-Further examples:
-
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/complex_interactions.png)
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/1m17_interactions.png)
-![PandaMap](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/test/4jmz_interactions.png)
-
-### Graphical Report (`--plots`)
-
-```bash
-pandamap 1US0.pdb --ligand LDT --plots report.png
-```
-
-![Graphical interaction report](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/graphical_report_1us0.png)
-
-Four panels, complementing the text report rather than replacing it:
-
-| Panel | Shows |
+| Feature | Description |
 |---|---|
-| **(a)** Contacts per class | Which interaction types dominate |
-| **(b)** Distance distribution | Every contact against its ideal distance — separates near-optimal geometry from contacts scraping the cutoff |
-| **(c)** Per-residue profile | Top 15 residues stacked by interaction class; identifies hotspot residues at a glance |
-| **(d)** ΔG breakdown | Per-class contribution, penalties in red |
+| **Scientifically validated cutoffs** | H-bond lower bound 2.5 Å, ionic/salt bridge 5.5 Å, halogen lower bound 2.5 Å — aligned with PLIP and crystallographic surveys |
+| **RDKit 2D coordinates** | Chemically accurate 2D ligand layout when RDKit is available; PCA projection fallback requires no extra dependencies |
+| **Topology-based ring detection** | Iterative leaf-node pruning on the bond graph — identifies rings of any size without SMILES |
+| **Exact aromatic atom filtering** | Per-residue ring-atom name sets (PHE/TYR/TRP/HIS) eliminate false π-system contacts from β-carbons |
+| **Improved ΔG estimation** | Per-residue deduplication + distance decay + rotatable bond entropy penalty; thermodynamically calibrated Kd labels at 298 K |
+| **Trajectory analysis** | Multi-frame PDB/NMR ensemble analysis with per-interaction occupancy statistics and CSV export |
+| **Arc stagger in 2D diagram** | Multiple interactions to the same residue fan out with alternating curvature — no marker overlap |
+| **`--deltaG` CLI flag** | Estimate binding free energy directly from the command line |
 
-### CSV Export (`--csv`)
+</details>
 
-```bash
-pandamap 1US0.pdb --ligand LDT --csv interactions.csv
-```
+## Troubleshooting
 
-One row per contact — the text report is readable but not parseable:
-
-```csv
-interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
-halogen_bonds,THR,113,A,OG1,BR8,Br,2.97,True,Br
-hydrogen_bonds,TYR,48,A,OH,O33,O,2.73,True,
-```
-
-### Text Report
-
-Every contact names the residue atom and the ligand atom involved, closest first,
-followed by a per-residue table (`pandamap 1els.pdb --ligand PAH --report`):
-
-```
-==============================================================================
-  PandaMap Interaction Report                                 PandaMap 4.4.0
-==============================================================================
-
-  Structure      1els.pdb
-  Ligand         PAH  (chain A, residue 439, 9 heavy atoms)
-  Binding site   12 residues in chain A; 7 solvent accessible
-  Interactions   20 contacts of 6 types
-
-SUMMARY
-------------------------------------------------------------------------------
-  Hydrogen bonds          10  ██████████████████████████████
-  Ionic interactions       2  ██████
-  Attractive charges       2  ██████
-  Metal coordination       4  ████████████
-  Carbon-π interactions    1  ███
-  Alkyl-π interactions     1  ███
-
-HYDROGEN BONDS (10)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  ASP 246 A  OD2    PAH:O3          2.60 Å
-   2  GLU 168 A  OE2    PAH:N3          2.66 Å
-   3  SER 375 A  N      PAH:O1P         2.82 Å
-   4  ARG 374 A  NH2    PAH:O3P         2.98 Å
-   5  LYS 396 A  NZ     PAH:O2          3.05 Å
-   6  SER 39 A   OG     PAH:O2P         3.06 Å
-   7  GLN 167 A  NE2    PAH:O3          3.10 Å
-   8  LYS 345 A  NZ     PAH:O3P         3.21 Å
-   9  GLY 37 A   O      PAH:O3P         3.36 Å
-  10  ASP 320 A  OD2    PAH:O3          3.46 Å
-
-IONIC INTERACTIONS (2)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
-   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
-
-ATTRACTIVE CHARGES (2)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  ARG 374 A  NH2    PAH:O3P         2.98 Å
-   2  LYS 345 A  NZ     PAH:O3P         3.21 Å
-
-METAL COORDINATION (4)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  GLY 37 A   O      PAH:MN          2.12 Å
-   2  ASP 320 A  OD2    PAH:MN          2.19 Å
-   3  ASP 246 A  OD2    PAH:MN          2.24 Å
-   4  GLU 295 A  OE2    PAH:MN          2.24 Å
-
-CARBON-π INTERACTIONS (1)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  HIS 373 A  CE1    PAH:C2          5.35 Å
-
-ALKYL-π INTERACTIONS (1)
-------------------------------------------------------------------------------
-   #  Residue    Atom   Ligand atom   Distance  Note
-   1  HIS 373 A  CE1    PAH:C2          5.35 Å
-
-RESIDUES (12)
-------------------------------------------------------------------------------
-  Residue    Contacts   Closest  Exposed  Types
-  ARG 374 A         3    2.98 Å  -        hydrogen bond, ionic, attractive charge
-  LYS 345 A         3    3.21 Å  -        hydrogen bond, ionic, attractive charge
-  GLY 37 A          2    2.12 Å  -        hydrogen bond, metal
-  ASP 320 A         2    2.19 Å  yes      hydrogen bond, metal
-  ASP 246 A         2    2.24 Å  yes      hydrogen bond, metal
-  HIS 373 A         2    5.35 Å  -        carbon-π, alkyl-π
-  GLU 295 A         1    2.24 Å  yes      metal
-  GLU 168 A         1    2.66 Å  yes      hydrogen bond
-  SER 375 A         1    2.82 Å  yes      hydrogen bond
-  LYS 396 A         1    3.05 Å  -        hydrogen bond
-  SER 39 A          1    3.06 Å  yes      hydrogen bond
-  GLN 167 A         1    3.10 Å  yes      hydrogen bond
-
-==============================================================================
-  Distances are between the named atoms, in Å. Residues are written as
-  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
-  load into other tools, use --csv.
-==============================================================================
-```
-
-### JSON
-
-`--json` writes the same analysis for use in other programs (shortened here):
-
-```json
-{
-  "pandamap_version": "4.4.0",
-  "structure": "1els.pdb",
-  "ligand": {
-    "name": "PAH",
-    "chain": "A",
-    "number": 439,
-    "n_heavy_atoms": 9
-  },
-  "summary": {
-    "n_interactions": 20,
-    "n_residues": 12,
-    "by_type": {
-      "alkyl_pi": 1,
-      "attractive_charge": 2,
-      "carbon_pi": 1,
-      "hydrogen_bonds": 10,
-      "ionic": 2,
-      "metal_coordination": 4
-    }
-  },
-  "interactions": [
-    {
-      "type": "alkyl_pi",
-      "residue": {
-        "name": "HIS",
-        "number": 373,
-        "chain": "A"
-      },
-      "protein_atom": "CE1",
-      "ligand_atom": "C2",
-      "ligand_element": "C",
-      "distance": 5.347,
-      "solvent_accessible": false
-    },
-    "..."
-  ],
-  "residues": [
-    {
-      "name": "ARG",
-      "number": 374,
-      "chain": "A",
-      "solvent_accessible": false,
-      "n_contacts": 3,
-      "closest_distance": 2.982,
-      "types": [
-        "attractive_charge",
-        "hydrogen_bonds",
-        "ionic"
-      ]
-    },
-    "..."
-  ]
-}
-```
-
-### ΔG Estimation Output
-
-```
---- Estimated Binding Affinity ---
-  ΔG ≈ -7.42 kcal/mol
-  Strong binder (Kd ~nM–µM range)
-  Breakdown:
-    hydrogen_bonds (n=10): -8.63 kcal/mol
-    metal_coordination (n=4): -6.80 kcal/mol
-    ionic (n=2): -2.91 kcal/mol
-    hydrophobic (n=3): -0.72 kcal/mol
-    rotatable_bond_penalty (n=2): +1.00 kcal/mol
-----------------------------------
-```
-
----
+- **"Ligand 'XXX' not found"**: the message lists the ligands that are in the
+  file; or run `--list-ligands`.
+- **"No ligand (HETATM) found"**: the ligand must be stored as HETATM records.
+  Peptide ligands stored as ATOM records are not supported.
+- **Odd characters in a Windows console**: files are always correct UTF-8; the
+  console may show `?` for `Å`, `π` or `Δ`. Setting `PYTHONUTF8=1` fixes the
+  display.
+- **Update notice on import**: PandaMap checks PyPI for a newer version. Set
+  `PANDAMAP_NO_UPDATE_CHECK=1` to turn this off.
+- **Anything else**: run again with `--debug` for the full traceback and open
+  an [issue](https://github.com/pritampanda15/PandaMap/issues).
 
 ## Citation
 
 If you use PandaMap in your research, please cite:
 
-```
-@article {Panda2026.08.06.743421,
-	author = {Panda, Pritam Kumar},
-	title = {PandaMap: A Python Package for Comprehensive Visualization of Protein{\textendash}Ligand Interaction Networks},
-	elocation-id = {2026.08.06.743421},
-	year = {2026},
-	doi = {10.64898/2026.08.06.743421},
-	publisher = {Cold Spring Harbor Laboratory},
-	abstract = {Protein{\textendash}ligand interaction diagrams are a routine part of structural and medicinal chemistry, but the tools that produce them tend to force a choice: comprehensive detection with tabular output, publication-quality figures behind a licence, or a scripting environment that assumes expertise. PandaMap (Protein AND ligAnd interaction MAPper) is an open-source Python package that produces a 2D interaction diagram, an interactive 3D viewer, a text report, a machine-readable CSV, and a four-panel graphical summary from a single command. It reads PDB, mmCIF and PDBQT files, detects 15 interaction classes using crystallographically validated distance thresholds, and depends only on NumPy, Matplotlib, BioPython and Requests; RDKit improves the 2D ligand layout when present but is not required. Hydrogen bonds are filtered on the true D{\textendash}H{\textperiodcentered} {\textperiodcentered} {\textperiodcentered} A angle when the structure contains explicit hydrogens, matching PLIP{\textquoteright}s 100{\textopenbullet} criterion on the same evidence, and on distance alone otherwise, with the provenance of each measurement recorded. We benchmarked the package on three complexes chosen for different chemistry: enolase with a phosphonate transition-state analogue (PDB 1ELS), the EGFR kinase with erlotinib (1M17), and aldose reductase with IDD594 (1US0). PandaMap recovers the contacts these structures are known for, including the EGFR hinge hydrogen bond to MET769 and the IDD594 bromine{\textperiodcentered} {\textperiodcentered} {\textperiodcentered} THR113 halogen bond, both at distances identical to PLIP{\textquoteright}s. All detection thresholds, scoring weights and the exact commands used are given in the Supplementary Information, and the release carries a regression suite covering each interaction class. PandaMap 4.3.0 is available on PyPI under the MIT licence.Competing Interest StatementThe authors have declared no competing interest.},
-	URL = {https://www.biorxiv.org/content/early/2026/08/09/2026.08.06.743421},
-	eprint = {https://www.biorxiv.org/content/early/2026/08/09/2026.08.06.743421.full.pdf},
-	journal = {bioRxiv}
+```bibtex
+@article{Panda2026PandaMap,
+  author    = {Panda, Pritam Kumar},
+  title     = {PandaMap: A Python Package for Comprehensive Visualization of
+               Protein--Ligand Interaction Networks},
+  journal   = {bioRxiv},
+  year      = {2026},
+  doi       = {10.64898/2026.08.06.743421},
+  url       = {https://www.biorxiv.org/content/early/2026/08/09/2026.08.06.743421},
+  publisher = {Cold Spring Harbor Laboratory}
 }
 ```
 
----
-
 ## License
 
-MIT License — see [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).
