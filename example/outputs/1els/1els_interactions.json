@@ -1,0 +1,608 @@
+{
+  "pandamap_version": "4.4.0",
+  "structure": "1els.pdb",
+  "ligand": {
+    "name": "PAH",
+    "chain": "A",
+    "number": 439,
+    "n_heavy_atoms": 9
+  },
+  "units": {
+    "distance": "angstrom",
+    "angle": "degree"
+  },
+  "summary": {
+    "n_interactions": 28,
+    "n_residues": 14,
+    "by_type": {
+      "alkyl_pi": 1,
+      "hydrogen_bonds": 13,
+      "ionic": 2,
+      "metal_coordination": 4,
+      "water_bridges": 8
+    }
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "HIS",
+        "number": 373,
+        "chain": "A"
+      },
+      "protein_atom": "CE1",
+      "ligand_atom": "C2",
+      "ligand_element": "C",
+      "distance": 5.347,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "ASP",
+        "number": 246,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 2.598,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "GLU",
+        "number": 168,
+        "chain": "A"
+      },
+      "protein_atom": "OE2",
+      "ligand_atom": "N3",
+      "ligand_element": "N",
+      "distance": 2.659,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "SER",
+        "number": 375,
+        "chain": "A"
+      },
+      "protein_atom": "N",
+      "ligand_atom": "O1P",
+      "ligand_element": "O",
+      "distance": 2.825,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "ARG",
+        "number": 374,
+        "chain": "A"
+      },
+      "protein_atom": "NH2",
+      "ligand_atom": "O3P",
+      "ligand_element": "O",
+      "distance": 2.982,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "LYS",
+        "number": 396,
+        "chain": "A"
+      },
+      "protein_atom": "NZ",
+      "ligand_atom": "O2",
+      "ligand_element": "O",
+      "distance": 3.048,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "SER",
+        "number": 39,
+        "chain": "A"
+      },
+      "protein_atom": "OG",
+      "ligand_atom": "O2P",
+      "ligand_element": "O",
+      "distance": 3.064,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "GLU",
+        "number": 168,
+        "chain": "A"
+      },
+      "protein_atom": "OE2",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.096,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "GLN",
+        "number": 167,
+        "chain": "A"
+      },
+      "protein_atom": "NE2",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.103,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "LYS",
+        "number": 345,
+        "chain": "A"
+      },
+      "protein_atom": "NZ",
+      "ligand_atom": "O3P",
+      "ligand_element": "O",
+      "distance": 3.207,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "SER",
+        "number": 375,
+        "chain": "A"
+      },
+      "protein_atom": "OG",
+      "ligand_atom": "O1P",
+      "ligand_element": "O",
+      "distance": 3.213,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "ASP",
+        "number": 246,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "N3",
+      "ligand_element": "N",
+      "distance": 3.278,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "GLY",
+        "number": 37,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "O3P",
+      "ligand_element": "O",
+      "distance": 3.36,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "ASP",
+        "number": 320,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.459,
+      "solvent_accessible": false
+    },
+    {
+      "type": "ionic",
+      "residue": {
+        "name": "ARG",
+        "number": 374,
+        "chain": "A"
+      },
+      "protein_atom": "NH2",
+      "ligand_atom": "O3P",
+      "ligand_element": "O",
+      "distance": 2.982,
+      "solvent_accessible": false
+    },
+    {
+      "type": "ionic",
+      "residue": {
+        "name": "LYS",
+        "number": 345,
+        "chain": "A"
+      },
+      "protein_atom": "NZ",
+      "ligand_atom": "O3P",
+      "ligand_element": "O",
+      "distance": 3.207,
+      "solvent_accessible": false
+    },
+    {
+      "type": "metal_coordination",
+      "residue": {
+        "name": "GLY",
+        "number": 37,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "MN",
+      "ligand_element": "Mn",
+      "distance": 2.117,
+      "solvent_accessible": false
+    },
+    {
+      "type": "metal_coordination",
+      "residue": {
+        "name": "ASP",
+        "number": 320,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "MN",
+      "ligand_element": "Mn",
+      "distance": 2.189,
+      "solvent_accessible": false
+    },
+    {
+      "type": "metal_coordination",
+      "residue": {
+        "name": "ASP",
+        "number": 246,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "MN",
+      "ligand_element": "Mn",
+      "distance": 2.235,
+      "solvent_accessible": true
+    },
+    {
+      "type": "metal_coordination",
+      "residue": {
+        "name": "GLU",
+        "number": 295,
+        "chain": "A"
+      },
+      "protein_atom": "OE2",
+      "ligand_atom": "MN",
+      "ligand_element": "Mn",
+      "distance": 2.236,
+      "solvent_accessible": true
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "GLU",
+        "number": 211,
+        "chain": "A"
+      },
+      "protein_atom": "OE2",
+      "ligand_atom": "O2",
+      "ligand_element": "O",
+      "distance": 2.994,
+      "solvent_accessible": true,
+      "angle": 122.0,
+      "note": "via HOH 525 (2.99 + 2.70 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "SER",
+        "number": 375,
+        "chain": "A"
+      },
+      "protein_atom": "OG",
+      "ligand_atom": "O2P",
+      "ligand_element": "O",
+      "distance": 3.01,
+      "solvent_accessible": true,
+      "angle": 78.1,
+      "note": "via HOH 730 (3.01 + 2.89 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "ASP",
+        "number": 246,
+        "chain": "A"
+      },
+      "protein_atom": "OD2",
+      "ligand_atom": "O2",
+      "ligand_element": "O",
+      "distance": 3.03,
+      "solvent_accessible": true,
+      "angle": 117.4,
+      "note": "via HOH 653 (3.03 + 2.79 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "GLU",
+        "number": 295,
+        "chain": "A"
+      },
+      "protein_atom": "OE1",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.048,
+      "solvent_accessible": true,
+      "angle": 126.1,
+      "note": "via HOH 653 (2.66 + 3.05 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "GLU",
+        "number": 168,
+        "chain": "A"
+      },
+      "protein_atom": "OE1",
+      "ligand_atom": "N3",
+      "ligand_element": "N",
+      "distance": 3.258,
+      "solvent_accessible": true,
+      "angle": 84.1,
+      "note": "via HOH 525 (3.26 + 3.26 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "GLN",
+        "number": 167,
+        "chain": "A"
+      },
+      "protein_atom": "NE2",
+      "ligand_atom": "N3",
+      "ligand_element": "N",
+      "distance": 3.36,
+      "solvent_accessible": true,
+      "angle": 81.0,
+      "note": "via HOH 768 (2.96 + 3.36 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "SER",
+        "number": 39,
+        "chain": "A"
+      },
+      "protein_atom": "OG",
+      "ligand_atom": "N3",
+      "ligand_element": "N",
+      "distance": 3.384,
+      "solvent_accessible": true,
+      "angle": 110.6,
+      "note": "via HOH 768 (2.96 + 3.38 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "ASP",
+        "number": 321,
+        "chain": "A"
+      },
+      "protein_atom": "OD1",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.484,
+      "solvent_accessible": true,
+      "angle": 120.2,
+      "note": "via HOH 668 (3.48 + 3.39 Å)"
+    }
+  ],
+  "residues": [
+    {
+      "name": "ASP",
+      "number": 246,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 4,
+      "closest_distance": 2.235,
+      "types": [
+        "hydrogen_bonds",
+        "metal_coordination",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "GLU",
+      "number": 168,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 3,
+      "closest_distance": 2.659,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "SER",
+      "number": 375,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 3,
+      "closest_distance": 2.825,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "GLY",
+      "number": 37,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 2.117,
+      "types": [
+        "hydrogen_bonds",
+        "metal_coordination"
+      ]
+    },
+    {
+      "name": "ASP",
+      "number": 320,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 2.189,
+      "types": [
+        "hydrogen_bonds",
+        "metal_coordination"
+      ]
+    },
+    {
+      "name": "GLU",
+      "number": 295,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 2.236,
+      "types": [
+        "metal_coordination",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "ARG",
+      "number": 374,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 2.982,
+      "types": [
+        "hydrogen_bonds",
+        "ionic"
+      ]
+    },
+    {
+      "name": "SER",
+      "number": 39,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 3.064,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "GLN",
+      "number": 167,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 3.103,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "LYS",
+      "number": 345,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 3.207,
+      "types": [
+        "hydrogen_bonds",
+        "ionic"
+      ]
+    },
+    {
+      "name": "GLU",
+      "number": 211,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 2.994,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "LYS",
+      "number": 396,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.048,
+      "types": [
+        "hydrogen_bonds"
+      ]
+    },
+    {
+      "name": "ASP",
+      "number": 321,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.484,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "HIS",
+      "number": 373,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 5.347,
+      "types": [
+        "alkyl_pi"
+      ]
+    }
+  ],
+  "interaction_score": {
+    "score": -17.079999923706055,
+    "dG_estimated": -17.079999923706055,
+    "breakdown": {
+      "hydrogen_bonds": {
+        "unique_residues": 10,
+        "weight": -1.2,
+        "contribution_kcal_mol": -8.149999618530273
+      },
+      "metal_coordination": {
+        "unique_residues": 4,
+        "weight": -2.5,
+        "contribution_kcal_mol": -9.7
+      },
+      "ionic": {
+        "unique_residues": 2,
+        "weight": -1.8,
+        "contribution_kcal_mol": -3.6
+      },
+      "alkyl_pi": {
+        "unique_residues": 1,
+        "weight": -0.2,
+        "contribution_kcal_mol": -0.019999999552965164
+      },
+      "rotatable_bond_penalty": {
+        "unique_residues": 3,
+        "weight": 0.5,
+        "contribution_kcal_mol": 1.5
+      }
+    },
+    "calibrated": false,
+    "interpretation": "Empirical interaction score on a kcal/mol scale. It is not calibrated against measured affinities and is not a predicted binding free energy.",
+    "note": "Use it to compare poses or close analogues of the same ligand, not to judge absolute binding strength. For affinities use FEP, MM-GBSA or experiment."
+  }
+}

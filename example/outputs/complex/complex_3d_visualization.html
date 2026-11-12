@@ -50,7 +50,7 @@
     }
 
     function selectLigand(resname) {
-        viewer.setStyle({hetflag: true, resn: resname}, {stick: {colorscheme: 'elementColors', radius: 0.3}});
+        viewer.setStyle({hetflag: true, resn: resname}, {stick: {colorscheme: 'default', radius: 0.3}});
         viewer.zoomTo({hetflag: true, resn: resname});
         viewer.render();
     }
@@ -68,59 +68,33 @@
       viewer = $3Dmol.createViewer(document.getElementById('container'), {backgroundColor: 'white'});
       viewer.addModel(pdbData, 'pdb');
       viewer.setStyle({hetflag: false}, {cartoon: {color: 'lightgray', opacity: 0.8}});
-      viewer.setStyle({hetflag: true, resn: 'PFL'}, {stick: {colorscheme: 'elementColors', radius: 0.3}});
+      viewer.setStyle({hetflag: true, resn: 'PFL'}, {stick: {colorscheme: 'default', radius: 0.3}});
       viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: "white"}, {hetflag: false});
       
-    viewer.setStyle({chain: 'D', resi: 262},
-                    {stick: {color: '#a9c9ea', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
-    viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 262})[0],
-        radius: 0.3,
-        color: 'white',
-        alpha: 0,
-        clickable: true,
-        callback: function() {
-            showTooltip("Residue: THR 262 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 262})[0]);
-        }
-    });
-    viewer.setStyle({chain: 'D', resi: 227},
+    viewer.setStyle({chain: 'D', resi: 228},
                     {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
     viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 227})[0],
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 228})[0],
         radius: 0.3,
         color: 'white',
         alpha: 0,
         clickable: true,
         callback: function() {
-            showTooltip("Residue: VAL 227 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 227})[0]);
+            showTooltip("Residue: ILE 228 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 228})[0]);
         }
     });
-    viewer.setStyle({chain: 'C', resi: 265},
-                    {stick: {color: '#a9c9ea', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
-    viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'C', resi: 265})[0],
-        radius: 0.3,
-        color: 'white',
-        alpha: 0,
-        clickable: true,
-        callback: function() {
-            showTooltip("Residue: ASN 265 (Chain C)",
-                        viewer.getModel().selectedAtoms({chain: 'C', resi: 265})[0]);
-        }
-    });
-    viewer.setStyle({chain: 'D', resi: 236},
+    viewer.setStyle({chain: 'C', resi: 285},
                     {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
     viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 236})[0],
+        center: viewer.getModel().selectedAtoms({chain: 'C', resi: 285})[0],
         radius: 0.3,
         color: 'white',
         alpha: 0,
         clickable: true,
         callback: function() {
-            showTooltip("Residue: MET 236 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 236})[0]);
+            showTooltip("Residue: LEU 285 (Chain C)",
+                        viewer.getModel().selectedAtoms({chain: 'C', resi: 285})[0]);
         }
     });
     viewer.setStyle({chain: 'C', resi: 282},
@@ -136,17 +110,17 @@
                         viewer.getModel().selectedAtoms({chain: 'C', resi: 282})[0]);
         }
     });
-    viewer.setStyle({chain: 'D', resi: 232},
-                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.setStyle({chain: 'C', resi: 265},
+                    {stick: {color: '#a9c9ea', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
     viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 232})[0],
+        center: viewer.getModel().selectedAtoms({chain: 'C', resi: 265})[0],
         radius: 0.3,
         color: 'white',
         alpha: 0,
         clickable: true,
         callback: function() {
-            showTooltip("Residue: LEU 232 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 232})[0]);
+            showTooltip("Residue: ASN 265 (Chain C)",
+                        viewer.getModel().selectedAtoms({chain: 'C', resi: 265})[0]);
         }
     });
     viewer.setStyle({chain: 'D', resi: 233},
@@ -162,6 +136,58 @@
                         viewer.getModel().selectedAtoms({chain: 'D', resi: 233})[0]);
         }
     });
+    viewer.setStyle({chain: 'D', resi: 286},
+                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.addSphere({
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 286})[0],
+        radius: 0.3,
+        color: 'white',
+        alpha: 0,
+        clickable: true,
+        callback: function() {
+            showTooltip("Residue: MET 286 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 286})[0]);
+        }
+    });
+    viewer.setStyle({chain: 'D', resi: 262},
+                    {stick: {color: '#a9c9ea', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.addSphere({
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 262})[0],
+        radius: 0.3,
+        color: 'white',
+        alpha: 0,
+        clickable: true,
+        callback: function() {
+            showTooltip("Residue: THR 262 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 262})[0]);
+        }
+    });
+    viewer.setStyle({chain: 'D', resi: 232},
+                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.addSphere({
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 232})[0],
+        radius: 0.3,
+        color: 'white',
+        alpha: 0,
+        clickable: true,
+        callback: function() {
+            showTooltip("Residue: LEU 232 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 232})[0]);
+        }
+    });
+    viewer.setStyle({chain: 'D', resi: 227},
+                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.addSphere({
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 227})[0],
+        radius: 0.3,
+        color: 'white',
+        alpha: 0,
+        clickable: true,
+        callback: function() {
+            showTooltip("Residue: VAL 227 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 227})[0]);
+        }
+    });
     viewer.setStyle({chain: 'D', resi: 229},
                     {stick: {color: '#a9c9ea', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
     viewer.addSphere({
@@ -173,6 +199,19 @@
         callback: function() {
             showTooltip("Residue: GLN 229 (Chain D)",
                         viewer.getModel().selectedAtoms({chain: 'D', resi: 229})[0]);
+        }
+    });
+    viewer.setStyle({chain: 'D', resi: 236},
+                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
+    viewer.addSphere({
+        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 236})[0],
+        radius: 0.3,
+        color: 'white',
+        alpha: 0,
+        clickable: true,
+        callback: function() {
+            showTooltip("Residue: MET 236 (Chain D)",
+                        viewer.getModel().selectedAtoms({chain: 'D', resi: 236})[0]);
         }
     });
     viewer.setStyle({chain: 'D', resi: 289},
@@ -201,51 +240,12 @@
                         viewer.getModel().selectedAtoms({chain: 'C', resi: 261})[0]);
         }
     });
-    viewer.setStyle({chain: 'D', resi: 286},
-                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
-    viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 286})[0],
-        radius: 0.3,
-        color: 'white',
-        alpha: 0,
-        clickable: true,
-        callback: function() {
-            showTooltip("Residue: MET 286 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 286})[0]);
-        }
-    });
-    viewer.setStyle({chain: 'C', resi: 285},
-                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
-    viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'C', resi: 285})[0],
-        radius: 0.3,
-        color: 'white',
-        alpha: 0,
-        clickable: true,
-        callback: function() {
-            showTooltip("Residue: LEU 285 (Chain C)",
-                        viewer.getModel().selectedAtoms({chain: 'C', resi: 285})[0]);
-        }
-    });
-    viewer.setStyle({chain: 'D', resi: 228},
-                    {stick: {color: '#b9d79a', radius: 0.16}, cartoon: {color: 'lightgray', opacity: 0.8}});
-    viewer.addSphere({
-        center: viewer.getModel().selectedAtoms({chain: 'D', resi: 228})[0],
-        radius: 0.3,
-        color: 'white',
-        alpha: 0,
-        clickable: true,
-        callback: function() {
-            showTooltip("Residue: ILE 228 (Chain D)",
-                        viewer.getModel().selectedAtoms({chain: 'D', resi: 228})[0]);
-        }
-    });
       
+    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'C', resi: 282});
+    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'C', resi: 265});
+    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'D', resi: 233});
     viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'D', resi: 262});
     viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'D', resi: 227});
-    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'C', resi: 265});
-    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'C', resi: 282});
-    viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'D', resi: 233});
     viewer.addSurface($3Dmol.VDW, {opacity: 0.4, color: 'white'}, {chain: 'D', resi: 229});
       
     viewer.addSphere({
