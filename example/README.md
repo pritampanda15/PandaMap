@@ -1,6 +1,6 @@
 # PandaMap examples
 
-Five structures and everything PandaMap 4.4 writes for each of them. Use this
+Five structures (plus a water bridge example) and everything PandaMap 4.4.1 writes for each of them. Use this
 page to see what the outputs look like before running anything, or to check
 that your installation gives the same results.
 
@@ -17,8 +17,8 @@ To regenerate every file here with your installed version, run
 | Structure | Ligand | What it is | Contacts | Residues |
 |---|---|---|---:|---:|
 | [`1m17.pdb`](#1m17) | AQ4 | EGFR kinase with erlotinib | 19 | 15 |
-| [`1els.pdb`](#1els) | PAH | Enolase with a phosphonate inhibitor | 28 | 14 |
-| [`4jmz.pdb`](#4jmz) | HEM | Heme in a peroxidase | 51 | 23 |
+| [`1els.pdb`](#1els) | PAH | Enolase with a phosphonate inhibitor | 30 | 15 |
+| [`4jmz.pdb`](#4jmz) | HEM | Heme in a peroxidase | 58 | 28 |
 | [`complex.pdb`](#complex) | PFL | Propofol at a subunit interface | 13 | 10 |
 | [`A0152a.pdb`](#a0152a) | LIG | Ligand in a protein with a structural zinc site | 6 | 5 |
 
@@ -54,7 +54,7 @@ Data: [text report](outputs/1m17/1m17_interactions_report.txt) · [CSV](outputs/
 
 **Enolase with a phosphonate inhibitor** (ligand `PAH`, chain A, residue 439). A small, highly charged ligand held by two metal ions, many hydrogen bonds and water bridges.
 
-Detected: 1 alkyl pi, 13 hydrogen bonds, 2 ionic, 4 metal coordination, 8 water bridges.
+Detected: 1 alkyl pi, 13 hydrogen bonds, 2 ionic, 4 metal coordination, 10 water bridges.
 
 | Modern 2D | Classic | 3D contacts |
 |:---:|:---:|:---:|
@@ -66,9 +66,9 @@ Data: [text report](outputs/1els/1els_interactions_report.txt) · [CSV](outputs/
 
 ## 4jmz
 
-**Heme in a peroxidase** (ligand `HEM`, chain A, residue 301). A large cofactor with 23 contacting residues; shows how the diagrams scale and how a metal complex is drawn.
+**Heme in a peroxidase** (ligand `HEM`, chain A, residue 301). A large cofactor with 28 contacting residues; shows how the diagrams scale and how a metal complex is drawn.
 
-Detected: 16 alkyl pi, 2 carbon pi, 1 donor pi, 13 hydrogen bonds, 5 hydrophobic, 3 ionic, 3 pi cation, 4 pi pi stacking, 4 water bridges.
+Detected: 16 alkyl pi, 2 carbon pi, 1 donor pi, 13 hydrogen bonds, 5 hydrophobic, 3 ionic, 3 pi cation, 4 pi pi stacking, 11 water bridges.
 
 | Modern 2D | Classic | 3D contacts |
 |:---:|:---:|:---:|
@@ -105,6 +105,38 @@ Detected: 2 alkyl pi, 1 donor pi, 2 hydrophobic, 1 ionic.
 [<img src="outputs/A0152a/A0152a_interactions_report.png" width="640">](outputs/A0152a/A0152a_interactions_report.png)
 
 Data: [text report](outputs/A0152a/A0152a_interactions_report.txt) · [CSV](outputs/A0152a/A0152a_interactions.csv) · [JSON](outputs/A0152a/A0152a_interactions.json) · [interaction score](outputs/A0152a/A0152a_interaction_score.txt) · [3D viewer (HTML)](outputs/A0152a/A0152a_3d_visualization.html)
+
+## Water bridges
+
+[`water_bridge/complex_rism_waters.pdb`](water_bridge/complex_rism_waters.pdb): a ligand (`UNK`, chain Z) with waters placed by 3D-RISM. The ligand's O3 hydrogen-bonds two waters (HOH 6 and HOH 88), and three more residues are reached only through a second water.
+
+### With the angle test (default)
+
+```bash
+pandamap example/water_bridge/complex_rism_waters.pdb --ligand UNK --report
+```
+
+Two bridges: LEU 284 via HOH 6, and THR 287 via HOH 6 + HOH 88. The paths to THR 288 (via HOH 88 + HOH 59) and SER 290 (via HOH 88 + HOH 43) bend 167° and 153° at a water, outside the 71–140° PLIP window, so they are left out.
+
+| Modern 2D | Classic | 3D contacts |
+|:---:|:---:|:---:|
+| [<img src="water_bridge/angle_test/complex_rism_waters_interactions.png" width="260">](water_bridge/angle_test/complex_rism_waters_interactions.png) | [<img src="water_bridge/angle_test/complex_rism_waters_interactions_classic.png" width="260">](water_bridge/angle_test/complex_rism_waters_interactions_classic.png) | [<img src="water_bridge/angle_test/complex_rism_waters_interactions_3d.png" width="260">](water_bridge/angle_test/complex_rism_waters_interactions_3d.png) |
+
+Data: [text report](water_bridge/angle_test/complex_rism_waters_interactions_report.txt) · [summary figure](water_bridge/angle_test/complex_rism_waters_interactions_report.png) · [CSV](water_bridge/angle_test/complex_rism_waters_interactions.csv) · [JSON](water_bridge/angle_test/complex_rism_waters_interactions.json) · [interaction score](water_bridge/angle_test/complex_rism_waters_interaction_score.txt) · [3D viewer (HTML)](water_bridge/angle_test/complex_rism_waters_3d_visualization.html)
+
+### Distances only
+
+```bash
+pandamap example/water_bridge/complex_rism_waters.pdb --ligand UNK --report --water-distance-only
+```
+
+Four bridges: the two above plus THR 288 and SER 290. Each hydrogen bond is 2.5–3.5 Å; the angle at the water is not checked.
+
+| Modern 2D | Classic | 3D contacts |
+|:---:|:---:|:---:|
+| [<img src="water_bridge/distance_only/complex_rism_waters_interactions.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions.png) | [<img src="water_bridge/distance_only/complex_rism_waters_interactions_classic.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions_classic.png) | [<img src="water_bridge/distance_only/complex_rism_waters_interactions_3d.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions_3d.png) |
+
+Data: [text report](water_bridge/distance_only/complex_rism_waters_interactions_report.txt) · [summary figure](water_bridge/distance_only/complex_rism_waters_interactions_report.png) · [CSV](water_bridge/distance_only/complex_rism_waters_interactions.csv) · [JSON](water_bridge/distance_only/complex_rism_waters_interactions.json) · [interaction score](water_bridge/distance_only/complex_rism_waters_interaction_score.txt) · [3D viewer (HTML)](water_bridge/distance_only/complex_rism_waters_3d_visualization.html)
 
 ## Batch mode
 

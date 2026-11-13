@@ -1,11 +1,11 @@
 ==============================================================================
-  PandaMap Interaction Report                                 PandaMap 4.4.0
+  PandaMap Interaction Report                                 PandaMap 4.4.1
 ==============================================================================
 
   Structure      1els.pdb
   Ligand         PAH  (chain A, residue 439, 9 heavy atoms)
-  Binding site   14 residues in chain A; 8 solvent accessible
-  Interactions   28 contacts of 5 types
+  Binding site   15 residues in chain A; 8 solvent accessible
+  Interactions   30 contacts of 5 types
 
 SUMMARY
 ------------------------------------------------------------------------------
@@ -13,7 +13,7 @@ SUMMARY
   Ionic interactions      2  █████
   Metal coordination      4  █████████
   Alkyl-π interactions    1  ██
-  Water bridges           8  ██████████████████
+  Water bridges          10  ███████████████████████
 
 HYDROGEN BONDS (13)
 ------------------------------------------------------------------------------
@@ -51,34 +51,37 @@ ALKYL-π INTERACTIONS (1)
    #  Residue    Atom   Ligand atom   Distance  Note
    1  HIS 373 A  CE1    PAH:C2          5.35 Å
 
-WATER BRIDGES (8)
+WATER BRIDGES (10)
 ------------------------------------------------------------------------------
    #  Residue    Atom   Ligand atom   Distance  Note
    1  GLU 211 A  OE2    PAH:O2          2.99 Å  via HOH 525 (2.99 + 2.70 Å)
    2  SER 375 A  OG     PAH:O2P         3.01 Å  via HOH 730 (3.01 + 2.89 Å)
-   3  ASP 246 A  OD2    PAH:O2          3.03 Å  via HOH 653 (3.03 + 2.79 Å)
-   4  GLU 295 A  OE1    PAH:O3          3.05 Å  via HOH 653 (2.66 + 3.05 Å)
-   5  GLU 168 A  OE1    PAH:N3          3.26 Å  via HOH 525 (3.26 + 3.26 Å)
-   6  GLN 167 A  NE2    PAH:N3          3.36 Å  via HOH 768 (2.96 + 3.36 Å)
-   7  SER 39 A   OG     PAH:N3          3.38 Å  via HOH 768 (2.96 + 3.38 Å)
-   8  ASP 321 A  OD1    PAH:O3          3.48 Å  via HOH 668 (3.48 + 3.39 Å)
+   3  ALA 38 A   O      PAH:O2P         3.01 Å  via HOH 730 + HOH 444 (3.01 + 2.89 + 2.56 Å)
+   4  ASP 246 A  OD2    PAH:O2          3.03 Å  via HOH 653 (3.03 + 2.79 Å)
+   5  GLU 295 A  OE1    PAH:O3          3.05 Å  via HOH 653 (2.66 + 3.05 Å)
+   6  GLU 168 A  OE1    PAH:N3          3.26 Å  via HOH 525 (3.26 + 3.26 Å)
+   7  GLN 167 A  NE2    PAH:N3          3.36 Å  via HOH 768 (2.96 + 3.36 Å)
+   8  SER 39 A   OG     PAH:N3          3.38 Å  via HOH 768 (2.96 + 3.38 Å)
+   9  ASP 321 A  OD1    PAH:O3P         3.39 Å  via HOH 674 + HOH 668 (2.53 + 2.96 + 3.39 Å)
+  10  ASP 320 A  OD2    PAH:O3P         3.42 Å  via HOH 674 + HOH 668 (2.53 + 2.96 + 3.42 Å)
 
-RESIDUES (14)
+RESIDUES (15)
 ------------------------------------------------------------------------------
   Residue    Contacts   Closest  Exposed  Types
   ASP 246 A         4    2.24 Å  yes      hydrogen bond, metal, water bridge
+  ASP 320 A         3    2.19 Å  -        hydrogen bond, metal, water bridge
   GLU 168 A         3    2.66 Å  yes      hydrogen bond, water bridge
   SER 375 A         3    2.82 Å  yes      hydrogen bond, water bridge
   GLY 37 A          2    2.12 Å  -        hydrogen bond, metal
-  ASP 320 A         2    2.19 Å  -        hydrogen bond, metal
   GLU 295 A         2    2.24 Å  yes      metal, water bridge
   ARG 374 A         2    2.98 Å  -        hydrogen bond, ionic
   SER 39 A          2    3.06 Å  yes      hydrogen bond, water bridge
   GLN 167 A         2    3.10 Å  yes      hydrogen bond, water bridge
   LYS 345 A         2    3.21 Å  -        hydrogen bond, ionic
   GLU 211 A         1    2.99 Å  yes      water bridge
+  ALA 38 A          1    3.01 Å  -        water bridge
   LYS 396 A         1    3.05 Å  -        hydrogen bond
-  ASP 321 A         1    3.48 Å  yes      water bridge
+  ASP 321 A         1    3.39 Å  yes      water bridge
   HIS 373 A         1    5.35 Å  -        alkyl-π
 
 ==============================================================================

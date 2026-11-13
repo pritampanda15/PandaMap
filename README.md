@@ -367,6 +367,8 @@ Detection:
   --strict-halogens       Restrict halogen bonds to Cl/Br/I (see below)
   --strict-hbond-geometry Also apply the heavy-atom angular proxy to
                           structures without explicit hydrogens
+  --water-distance-only   Accept water bridges on distances alone (no angle
+                          test at the water)
 
 Other:
   --debug                 Print the full traceback when an error occurs
@@ -490,7 +492,7 @@ structure allows, angles:
 | Interaction | Criterion | Reference |
 |---|---|---|
 | Hydrogen bond | 2.5–3.5 Å, D–H···A ≥ 100° | PLIP; Auffinger 2004 |
-| Water bridge | ligand N/O ··· water ··· protein N/O, both 2.5–3.5 Å, angle at the water 71–140° | PLIP |
+| Water bridge | ligand N/O ··· water ··· protein N/O, or through two waters (ligand ··· water ··· water ··· protein); every leg 2.5–3.5 Å, angle at each water 71–140° (`--water-distance-only` drops the angle test) | PLIP |
 | π–π stacking | 5.5 Å (atom–atom) | McGaughey 1998 |
 | Hydrophobic | 4.0 Å | Bissantz 2010 |
 | Ionic / salt bridge | 5.5 Å | Kumar & Nussinov 1999 |
@@ -586,6 +588,17 @@ penalty for rotatable bonds:
 same number (also under the old key `dG_estimated`).
 
 ## What's new
+
+### 4.4.1
+
+- **Two-water bridges**: a ligand linked to a residue through two waters
+  (ligand ··· water ··· water ··· protein) is now reported as a water bridge,
+  with both waters named, for example `via HOH 6 + HOH 88`.
+- **`--water-distance-only`** (`water_angle_check=False` in Python) accepts
+  water bridges on hydrogen-bond distances alone, which suits placed or
+  3D-RISM waters. The default keeps the PLIP angle test.
+- New example: [`example/water_bridge`](example/water_bridge), a complex with
+  3D-RISM waters, analysed with and without the angle test.
 
 ### 4.4
 

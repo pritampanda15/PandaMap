@@ -33,7 +33,7 @@ check_for_updates_in_background()
 
 __all__ = ["SimpleLigandStructure", "HybridProtLigMapper", "analyze_trajectory",
            "analyze_batch", "list_ligands", "render_contacts_3d"]
-__version__ = "4.4.0"  # fallback when the package metadata is unavailable
+__version__ = "4.4.1"  # fallback when the package metadata is unavailable
 try:
     __version__ = version("pandamap")
 except Exception:

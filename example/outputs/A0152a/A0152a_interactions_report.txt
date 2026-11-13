@@ -1,5 +1,5 @@
 ==============================================================================
-  PandaMap Interaction Report                                 PandaMap 4.4.0
+  PandaMap Interaction Report                                 PandaMap 4.4.1
 ==============================================================================
 
   Structure      A0152a.pdb

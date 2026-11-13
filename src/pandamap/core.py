@@ -116,7 +116,8 @@ class HybridProtLigMapper:
     """
     
     def __init__(self, structure_file, ligand_resname=None, strict_halogens=False,
-                 strict_hbond_geometry=False, ligand_chain=None, ligand_resnum=None):
+                 strict_hbond_geometry=False, ligand_chain=None, ligand_resnum=None,
+                 water_angle_check=True):
         """
         Initialize with a structure file containing a protein-ligand complex.
 
@@ -138,8 +139,14 @@ class HybridProtLigMapper:
             If True, apply the heavy-atom angular proxy to structures that lack
             explicit hydrogens.  The exact D-H...A criterion is always applied
             when hydrogens are present, independent of this flag.
+        water_angle_check : bool, optional
+            Default True requires the angle at each bridging water to lie in
+            71-140 degrees (PLIP).  False accepts any water bridge whose
+            hydrogen bonds are all 2.5-3.5 A long (distance only, as in
+            WatFinder-style analyses of placed or 3D-RISM waters).
         """
         self.strict_halogens = strict_halogens
+        self.water_angle_check = water_angle_check
         self.strict_hbond_geometry = strict_hbond_geometry
         self.structure_file = structure_file
         self.ligand_resname = ligand_resname
@@ -735,40 +742,63 @@ class HybridProtLigMapper:
                     }
                     all_interactions['metal_coordination'].append(interaction_info)
         
-        # ---- water bridges: ligand N/O ... water ... protein N/O ----------
+        # ---- water bridges: ligand N/O ... water [... water] ... protein N/O
+        def _angle_ok(a, centre, b):
+            u, v = a.get_coord() - centre.get_coord(), b.get_coord() - centre.get_coord()
+            cos = float(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)))
+            omega = math.degrees(math.acos(max(-1.0, min(1.0, cos))))
+            if not self.water_angle_check:
+                return True, omega
+            return WATER_BRIDGE_ANGLE[0] <= omega <= WATER_BRIDGE_ANGLE[1], omega
+
+        def _hbond_range(a, b):
+            return WATER_BRIDGE_MIN <= a - b <= WATER_BRIDGE_MAX
+
+        def _protein_partners(water, previous):
+            """Protein N/O hydrogen-bonded to `water` at an allowed angle."""
+            for prot_atom in ns.search(water.get_coord(), WATER_BRIDGE_MAX):
+                if prot_atom.element in ('N', 'O') and _hbond_range(prot_atom, water):
+                    ok, omega = _angle_ok(previous, water, prot_atom)
+                    if ok:
+                        yield prot_atom, omega
+
+        def _bridge(lig_atom, prot_atom, waters, legs, omega):
+            prot_res = prot_atom.get_parent()
+            self.interacting_residues.add((prot_res.resname, prot_res.id[1]))
+            names = " + ".join(f"{w.get_parent().resname.strip()} {w.get_parent().id[1]}"
+                               for w in waters)
+            all_interactions['water_bridges'].append({
+                'ligand_atom': lig_atom,
+                'protein_atom': prot_atom,
+                'protein_residue': prot_res,
+                # the longest hydrogen bond limits the bridge
+                'distance': max(legs),
+                'distance_protein_water': legs[-1],
+                'distance_ligand_water': legs[0],
+                'angle': omega,
+                'water_residue': waters[0].get_parent(),
+                'water_residues': [w.get_parent() for w in waters],
+                'n_waters': len(waters),
+                'type': f"via {names} (" + " + ".join(f"{d:.2f}" for d in legs) + " Å)",
+            })
+
+        water_ns = NeighborSearch(self.water_atoms) if self.water_atoms else None
         for water in self.water_atoms:
             lig_side = [(a, water - a) for a in self.ligand_atoms
-                        if a.element in ('N', 'O')
-                        and WATER_BRIDGE_MIN <= water - a <= WATER_BRIDGE_MAX]
-            if not lig_side:
-                continue
-            for prot_atom in ns.search(water.get_coord(), WATER_BRIDGE_MAX):
-                d_prot = prot_atom - water
-                if prot_atom.element not in ('N', 'O') or d_prot < WATER_BRIDGE_MIN:
-                    continue
-                prot_res = prot_atom.get_parent()
-                for lig_atom, d_lig in lig_side:
-                    u = lig_atom.get_coord() - water.get_coord()
-                    v = prot_atom.get_coord() - water.get_coord()
-                    cos = float(np.dot(u, v) / (np.linalg.norm(u) * np.linalg.norm(v)))
-                    omega = math.degrees(math.acos(max(-1.0, min(1.0, cos))))
-                    if not WATER_BRIDGE_ANGLE[0] <= omega <= WATER_BRIDGE_ANGLE[1]:
+                        if a.element in ('N', 'O') and _hbond_range(a, water)]
+            for lig_atom, d_lig in lig_side:
+                # one water: ligand ... W ... protein
+                for prot_atom, omega in _protein_partners(water, lig_atom):
+                    _bridge(lig_atom, prot_atom, [water], [d_lig, prot_atom - water], omega)
+                # two waters: ligand ... W1 ... W2 ... protein (each water
+                # obeys the same distance and angle rules)
+                for water2 in water_ns.search(water.get_coord(), WATER_BRIDGE_MAX):
+                    if water2 is water or not _hbond_range(water2, water) \
+                            or not _angle_ok(lig_atom, water, water2)[0]:
                         continue
-                    water_res = water.get_parent()
-                    self.interacting_residues.add((prot_res.resname, prot_res.id[1]))
-                    all_interactions['water_bridges'].append({
-                        'ligand_atom': lig_atom,
-                        'protein_atom': prot_atom,
-                        'protein_residue': prot_res,
-                        # the longer of the two hydrogen bonds limits the bridge
-                        'distance': max(d_prot, d_lig),
-                        'distance_protein_water': d_prot,
-                        'distance_ligand_water': d_lig,
-                        'angle': omega,
-                        'water_residue': water_res,
-                        'type': f"via {water_res.resname.strip()} {water_res.id[1]} "
-                                f"({d_lig:.2f} + {d_prot:.2f} Å)",
-                    })
+                    for prot_atom, omega in _protein_partners(water2, water):
+                        _bridge(lig_atom, prot_atom, [water, water2],
+                                [d_lig, water2 - water, prot_atom - water2], omega)
 
         self.interactions = self._select_contacts(all_interactions)
 

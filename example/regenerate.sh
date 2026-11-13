@@ -21,3 +21,14 @@ run A0152a  LIG   # ligand with a structural zinc site elsewhere in the protein
 
 # Batch mode over the whole folder: two combined tables, no images
 pandamap example/ --outdir example/outputs/batch --diagrams none --quiet
+
+# Water bridges with 3D-RISM waters: PLIP angle test, then distances only
+wb() {  # wb <folder> [extra options]
+  local out="example/water_bridge/$1"; shift
+  rm -rf "$out"; mkdir -p "$out"
+  pandamap example/water_bridge/complex_rism_waters.pdb --ligand UNK --outdir "$out" \
+    --report --plots --csv --json --score --3d --dpi 150 --quiet "$@" \
+    > "$out/complex_rism_waters_interaction_score.txt"
+}
+wb angle_test
+wb distance_only --water-distance-only
