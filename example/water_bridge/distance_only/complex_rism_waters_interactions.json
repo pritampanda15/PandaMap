@@ -1,0 +1,558 @@
+{
+  "pandamap_version": "4.4.1",
+  "structure": "complex_rism_waters.pdb",
+  "ligand": {
+    "name": "UNK",
+    "chain": "Z",
+    "number": 999,
+    "n_heavy_atoms": 25
+  },
+  "units": {
+    "distance": "angstrom",
+    "angle": "degree"
+  },
+  "summary": {
+    "n_interactions": 22,
+    "n_residues": 16,
+    "by_type": {
+      "alkyl_pi": 9,
+      "amide_pi": 1,
+      "cation_pi": 1,
+      "donor_pi": 1,
+      "hydrogen_bonds": 1,
+      "hydrophobic": 4,
+      "pi_pi_stacking": 1,
+      "water_bridges": 4
+    }
+  },
+  "interactions": [
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "PHE",
+        "number": 314,
+        "chain": "A"
+      },
+      "protein_atom": "CZ",
+      "ligand_atom": "C18",
+      "ligand_element": "C",
+      "distance": 3.403,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "LEU",
+        "number": 231,
+        "chain": "B"
+      },
+      "protein_atom": "CD1",
+      "ligand_atom": "C9",
+      "ligand_element": "C",
+      "distance": 3.413,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "MET",
+        "number": 311,
+        "chain": "A"
+      },
+      "protein_atom": "CG",
+      "ligand_atom": "C10",
+      "ligand_element": "C",
+      "distance": 3.507,
+      "solvent_accessible": true
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "PRO",
+        "number": 232,
+        "chain": "B"
+      },
+      "protein_atom": "CA",
+      "ligand_atom": "C14",
+      "ligand_element": "C",
+      "distance": 3.659,
+      "solvent_accessible": true
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "LEU",
+        "number": 310,
+        "chain": "A"
+      },
+      "protein_atom": "CB",
+      "ligand_atom": "C3",
+      "ligand_element": "C",
+      "distance": 3.715,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "MET",
+        "number": 235,
+        "chain": "B"
+      },
+      "protein_atom": "CB",
+      "ligand_atom": "C13",
+      "ligand_element": "C",
+      "distance": 4.445,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "ILE",
+        "number": 227,
+        "chain": "B"
+      },
+      "protein_atom": "CG2",
+      "ligand_atom": "C5",
+      "ligand_element": "C",
+      "distance": 4.518,
+      "solvent_accessible": false
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "MET",
+        "number": 286,
+        "chain": "A"
+      },
+      "protein_atom": "C",
+      "ligand_atom": "C2",
+      "ligand_element": "C",
+      "distance": 4.825,
+      "solvent_accessible": true
+    },
+    {
+      "type": "alkyl_pi",
+      "residue": {
+        "name": "VAL",
+        "number": 315,
+        "chain": "A"
+      },
+      "protein_atom": "CG1",
+      "ligand_atom": "C11",
+      "ligand_element": "C",
+      "distance": 5.016,
+      "solvent_accessible": true
+    },
+    {
+      "type": "amide_pi",
+      "residue": {
+        "name": "GLN",
+        "number": 228,
+        "chain": "B"
+      },
+      "protein_atom": "HA",
+      "ligand_atom": "C6",
+      "ligand_element": "C",
+      "distance": 4.902,
+      "solvent_accessible": true
+    },
+    {
+      "type": "cation_pi",
+      "residue": {
+        "name": "PHE",
+        "number": 314,
+        "chain": "A"
+      },
+      "protein_atom": "CD2",
+      "ligand_atom": "N1",
+      "ligand_element": "N",
+      "distance": 4.015,
+      "solvent_accessible": false
+    },
+    {
+      "type": "donor_pi",
+      "residue": {
+        "name": "ASP",
+        "number": 307,
+        "chain": "A"
+      },
+      "protein_atom": "HA",
+      "ligand_atom": "C4",
+      "ligand_element": "C",
+      "distance": 4.212,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrogen_bonds",
+      "residue": {
+        "name": "THR",
+        "number": 287,
+        "chain": "A"
+      },
+      "protein_atom": "OG1",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.047,
+      "solvent_accessible": true,
+      "angle": 177.2
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "MET",
+        "number": 235,
+        "chain": "B"
+      },
+      "protein_atom": "CB",
+      "ligand_atom": "C17",
+      "ligand_element": "C",
+      "distance": 3.234,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "PRO",
+        "number": 232,
+        "chain": "B"
+      },
+      "protein_atom": "CA",
+      "ligand_atom": "C18",
+      "ligand_element": "C",
+      "distance": 3.623,
+      "solvent_accessible": true
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "LEU",
+        "number": 284,
+        "chain": "A"
+      },
+      "protein_atom": "CD2",
+      "ligand_atom": "C19",
+      "ligand_element": "C",
+      "distance": 3.648,
+      "solvent_accessible": false
+    },
+    {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "LEU",
+        "number": 268,
+        "chain": "B"
+      },
+      "protein_atom": "CD1",
+      "ligand_atom": "C20",
+      "ligand_element": "C",
+      "distance": 3.696,
+      "solvent_accessible": false
+    },
+    {
+      "type": "pi_pi_stacking",
+      "residue": {
+        "name": "PHE",
+        "number": 314,
+        "chain": "A"
+      },
+      "protein_atom": "CE2",
+      "ligand_atom": "C14",
+      "ligand_element": "C",
+      "distance": 3.407,
+      "solvent_accessible": false
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "THR",
+        "number": 287,
+        "chain": "A"
+      },
+      "protein_atom": "OG1",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.039,
+      "solvent_accessible": true,
+      "angle": 85.5,
+      "note": "via HOH 6 + HOH 88 (2.67 + 2.87 + 3.04 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "THR",
+        "number": 288,
+        "chain": "A"
+      },
+      "protein_atom": "OG1",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.289,
+      "solvent_accessible": true,
+      "angle": 90.0,
+      "note": "via HOH 88 + HOH 59 (3.29 + 2.60 + 3.08 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "SER",
+        "number": 290,
+        "chain": "A"
+      },
+      "protein_atom": "OG",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.443,
+      "solvent_accessible": true,
+      "angle": 153.2,
+      "note": "via HOH 88 + HOH 43 (3.29 + 2.74 + 3.44 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "LEU",
+        "number": 284,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "O3",
+      "ligand_element": "O",
+      "distance": 3.447,
+      "solvent_accessible": false,
+      "angle": 126.2,
+      "note": "via HOH 6 (2.67 + 3.45 Å)"
+    }
+  ],
+  "residues": [
+    {
+      "name": "PHE",
+      "number": 314,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 3,
+      "closest_distance": 3.403,
+      "types": [
+        "alkyl_pi",
+        "cation_pi",
+        "pi_pi_stacking"
+      ]
+    },
+    {
+      "name": "THR",
+      "number": 287,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 3.039,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "MET",
+      "number": 235,
+      "chain": "B",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 3.234,
+      "types": [
+        "alkyl_pi",
+        "hydrophobic"
+      ]
+    },
+    {
+      "name": "LEU",
+      "number": 284,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 3.447,
+      "types": [
+        "hydrophobic",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "PRO",
+      "number": 232,
+      "chain": "B",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 3.623,
+      "types": [
+        "alkyl_pi",
+        "hydrophobic"
+      ]
+    },
+    {
+      "name": "THR",
+      "number": 288,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.289,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "LEU",
+      "number": 231,
+      "chain": "B",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.413,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "SER",
+      "number": 290,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.443,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "MET",
+      "number": 311,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.507,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "LEU",
+      "number": 268,
+      "chain": "B",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.696,
+      "types": [
+        "hydrophobic"
+      ]
+    },
+    {
+      "name": "LEU",
+      "number": 310,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.715,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "ASP",
+      "number": 307,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 4.212,
+      "types": [
+        "donor_pi"
+      ]
+    },
+    {
+      "name": "ILE",
+      "number": 227,
+      "chain": "B",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 4.518,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "MET",
+      "number": 286,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 4.825,
+      "types": [
+        "alkyl_pi"
+      ]
+    },
+    {
+      "name": "GLN",
+      "number": 228,
+      "chain": "B",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 4.902,
+      "types": [
+        "amide_pi"
+      ]
+    },
+    {
+      "name": "VAL",
+      "number": 315,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 5.016,
+      "types": [
+        "alkyl_pi"
+      ]
+    }
+  ],
+  "interaction_score": {
+    "score": -0.3799999952316284,
+    "dG_estimated": -0.3799999952316284,
+    "breakdown": {
+      "hydrogen_bonds": {
+        "unique_residues": 1,
+        "weight": -1.2,
+        "contribution_kcal_mol": -0.9100000262260437
+      },
+      "pi_pi_stacking": {
+        "unique_residues": 1,
+        "weight": -0.7,
+        "contribution_kcal_mol": -0.7
+      },
+      "cation_pi": {
+        "unique_residues": 1,
+        "weight": -0.65,
+        "contribution_kcal_mol": -0.6399999856948853
+      },
+      "hydrophobic": {
+        "unique_residues": 4,
+        "weight": -0.3,
+        "contribution_kcal_mol": -0.9200000166893005
+      },
+      "donor_pi": {
+        "unique_residues": 1,
+        "weight": -0.2,
+        "contribution_kcal_mol": -0.12999999523162842
+      },
+      "amide_pi": {
+        "unique_residues": 1,
+        "weight": -0.2,
+        "contribution_kcal_mol": -0.05999999865889549
+      },
+      "alkyl_pi": {
+        "unique_residues": 9,
+        "weight": -0.2,
+        "contribution_kcal_mol": -1.4299999475479126
+      },
+      "rotatable_bond_penalty": {
+        "unique_residues": 3,
+        "weight": 0.5,
+        "contribution_kcal_mol": 1.5
+      }
+    },
+    "calibrated": false,
+    "interpretation": "Empirical interaction score on a kcal/mol scale. It is not calibrated against measured affinities and is not a predicted binding free energy.",
+    "note": "Use it to compare poses or close analogues of the same ligand, not to judge absolute binding strength. For affinities use FEP, MM-GBSA or experiment."
+  }
+}

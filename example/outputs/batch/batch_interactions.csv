@@ -21,12 +21,14 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 1els,PAH,metal_coordination,GLU,295,A,OE2,MN,2.24,True,
 1els,PAH,water_bridges,GLU,211,A,OE2,O2,2.99,True,via HOH 525 (2.99 + 2.70 Å)
 1els,PAH,water_bridges,SER,375,A,OG,O2P,3.01,True,via HOH 730 (3.01 + 2.89 Å)
+1els,PAH,water_bridges,ALA,38,A,O,O2P,3.01,False,via HOH 730 + HOH 444 (3.01 + 2.89 + 2.56 Å)
 1els,PAH,water_bridges,ASP,246,A,OD2,O2,3.03,True,via HOH 653 (3.03 + 2.79 Å)
 1els,PAH,water_bridges,GLU,295,A,OE1,O3,3.05,True,via HOH 653 (2.66 + 3.05 Å)
 1els,PAH,water_bridges,GLU,168,A,OE1,N3,3.26,True,via HOH 525 (3.26 + 3.26 Å)
 1els,PAH,water_bridges,GLN,167,A,NE2,N3,3.36,True,via HOH 768 (2.96 + 3.36 Å)
 1els,PAH,water_bridges,SER,39,A,OG,N3,3.38,True,via HOH 768 (2.96 + 3.38 Å)
-1els,PAH,water_bridges,ASP,321,A,OD1,O3,3.48,True,via HOH 668 (3.48 + 3.39 Å)
+1els,PAH,water_bridges,ASP,321,A,OD1,O3P,3.39,True,via HOH 674 + HOH 668 (2.53 + 2.96 + 3.39 Å)
+1els,PAH,water_bridges,ASP,320,A,OD2,O3P,3.42,False,via HOH 674 + HOH 668 (2.53 + 2.96 + 3.42 Å)
 1m17,AQ4,alkyl_pi,ALA,719,A,CB,C19,3.31,False,
 1m17,AQ4,alkyl_pi,LEU,820,A,CD1,C6,3.52,False,
 1m17,AQ4,alkyl_pi,LEU,694,A,CD1,C13,3.56,False,
@@ -46,7 +48,7 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 1m17,AQ4,ionic,ASP,831,A,OD2,N1,5.43,True,
 1m17,AQ4,pi_cation,LYS,721,A,NZ,C22,3.7,True,protein cation
 1m17,AQ4,water_bridges,THR,766,A,OG1,N3,3.1,True,via HOH 10 (2.78 + 3.10 Å)
-4jmz,HEM,alkyl_pi,LEU,230,A,CD1,CHB,3.58,True,
+4jmz,HEM,alkyl_pi,LEU,230,A,CD1,CHB,3.58,False,
 4jmz,HEM,alkyl_pi,PRO,145,A,CG,C3B,3.75,False,
 4jmz,HEM,alkyl_pi,TRP,51,A,CE2,CMC,3.82,False,
 4jmz,HEM,alkyl_pi,PHE,158,A,CE1,CAB,3.94,False,
@@ -94,9 +96,16 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 4jmz,HEM,pi_pi_stacking,PHE,158,A,CZ,CHC,4.88,False,
 4jmz,HEM,pi_pi_stacking,TYR,187,A,CD2,C3A,5.29,True,
 4jmz,HEM,water_bridges,ARG,48,A,NE,NA,2.77,True,via HOH 707 (2.77 + 2.69 Å)
+4jmz,HEM,water_bridges,GLY,41,A,O,O2D,2.81,True,via HOH 448 + HOH 421 (2.69 + 2.81 + 2.75 Å)
 4jmz,HEM,water_bridges,TRP,51,A,NE1,NB,2.81,False,via HOH 707 (2.81 + 2.79 Å)
 4jmz,HEM,water_bridges,ASP,37,A,OD2,O2D,2.89,True,via HOH 448 (2.69 + 2.89 Å)
+4jmz,HEM,water_bridges,VAL,45,A,N,O2D,2.94,False,via HOH 448 + HOH 421 (2.69 + 2.81 + 2.94 Å)
+4jmz,HEM,water_bridges,ASN,184,A,ND2,O2A,2.99,True,via HOH 431 + HOH 438 (2.78 + 2.83 + 2.99 Å)
+4jmz,HEM,water_bridges,ALA,83,A,O,O2A,3.01,False,via HOH 431 + HOH 496 (2.78 + 2.69 + 3.01 Å)
 4jmz,HEM,water_bridges,HIS,52,A,NE2,NA,3.22,True,via HOH 707 (2.77 + 3.22 Å)
+4jmz,HEM,water_bridges,PRO,145,A,O,NB,3.23,False,via HOH 503 + HOH 709 (3.23 + 2.69 + 2.81 Å)
+4jmz,HEM,water_bridges,GLY,84,A,O,O2A,3.35,True,via HOH 431 + HOH 438 (2.78 + 2.83 + 3.35 Å)
+4jmz,HEM,water_bridges,TYR,36,A,OH,O2D,3.37,True,via HOH 448 + HOH 471 (2.69 + 3.37 + 2.80 Å)
 A0152a,LIG,alkyl_pi,PRO,91,A,CA,C1,3.98,False,
 A0152a,LIG,alkyl_pi,ALA,86,A,CB,C1,4.19,False,
 A0152a,LIG,donor_pi,GLU,88,A,O,C3,2.96,True,

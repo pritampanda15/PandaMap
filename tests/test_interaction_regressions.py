@@ -815,6 +815,36 @@ def test_water_in_a_straight_line_is_not_a_bridge(tmp_path):
     mapper = HybridProtLigMapper(_write(tmp_path, "wl.pdb", straight), ligand_resname="LIG")
     mapper.detect_interactions()
     assert mapper.interactions["water_bridges"] == []
+    # distance-only mode accepts it: both legs are 2.8 A
+    loose = HybridProtLigMapper(_write(tmp_path, "wl.pdb", straight), ligand_resname="LIG",
+                                water_angle_check=False)
+    loose.detect_interactions()
+    (bridge,) = loose.interactions["water_bridges"]
+    assert bridge["angle"] > 170
+
+
+TWO_WATER_BRIDGE = """
+ATOM      1  O   GLY A  10       0.000   0.000   0.000  1.00 20.00           O
+ATOM      2  C   GLY A  10      -1.200   0.300   0.000  1.00 20.00           C
+HETATM    3  O   HOH W   1       2.800   0.000   0.000  1.00 20.00           O
+HETATM    4  O   HOH W   2       3.758   2.631   0.000  1.00 20.00           O
+HETATM    5  N1  LIG B   1       6.558   2.631   0.000  1.00 20.00           N
+HETATM    6  C1  LIG B   1       7.900   3.100   0.000  1.00 20.00           C
+END
+"""
+
+
+def test_bridge_through_two_waters_is_detected(tmp_path):
+    """Ligand ... HOH 2 ... HOH 1 ... GLY O: the ligand is 5.8 A from the
+    nearest water touching the protein, so only a two-water path links them."""
+    mapper = HybridProtLigMapper(_write(tmp_path, "w2.pdb", TWO_WATER_BRIDGE),
+                                 ligand_resname="LIG")
+    mapper.detect_interactions()
+    (bridge,) = mapper.interactions["water_bridges"]
+    assert bridge["n_waters"] == 2
+    assert [w.id[1] for w in bridge["water_residues"]] == [2, 1]
+    assert "via HOH 2 + HOH 1" in bridge["type"]
+    assert bridge["distance"] == pytest.approx(2.8, abs=0.01)
 
 
 def test_score_is_not_presented_as_a_binding_affinity(tmp_path):

@@ -1,5 +1,5 @@
 {
-  "pandamap_version": "4.4.0",
+  "pandamap_version": "4.4.1",
   "structure": "4jmz.pdb",
   "ligand": {
     "name": "HEM",
@@ -12,8 +12,8 @@
     "angle": "degree"
   },
   "summary": {
-    "n_interactions": 51,
-    "n_residues": 23,
+    "n_interactions": 58,
+    "n_residues": 28,
     "by_type": {
       "alkyl_pi": 16,
       "carbon_pi": 2,
@@ -23,7 +23,7 @@
       "ionic": 3,
       "pi_cation": 3,
       "pi_pi_stacking": 4,
-      "water_bridges": 4
+      "water_bridges": 11
     }
   },
   "interactions": [
@@ -38,7 +38,7 @@
       "ligand_atom": "CHB",
       "ligand_element": "C",
       "distance": 3.585,
-      "solvent_accessible": true
+      "solvent_accessible": false
     },
     {
       "type": "alkyl_pi",
@@ -659,6 +659,21 @@
     {
       "type": "water_bridges",
       "residue": {
+        "name": "GLY",
+        "number": 41,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "O2D",
+      "ligand_element": "O",
+      "distance": 2.811,
+      "solvent_accessible": true,
+      "angle": 103.5,
+      "note": "via HOH 448 + HOH 421 (2.69 + 2.81 + 2.75 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
         "name": "TRP",
         "number": 51,
         "chain": "A"
@@ -689,6 +704,51 @@
     {
       "type": "water_bridges",
       "residue": {
+        "name": "VAL",
+        "number": 45,
+        "chain": "A"
+      },
+      "protein_atom": "N",
+      "ligand_atom": "O2D",
+      "ligand_element": "O",
+      "distance": 2.941,
+      "solvent_accessible": false,
+      "angle": 112.2,
+      "note": "via HOH 448 + HOH 421 (2.69 + 2.81 + 2.94 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "ASN",
+        "number": 184,
+        "chain": "A"
+      },
+      "protein_atom": "ND2",
+      "ligand_atom": "O2A",
+      "ligand_element": "O",
+      "distance": 2.993,
+      "solvent_accessible": true,
+      "angle": 79.1,
+      "note": "via HOH 431 + HOH 438 (2.78 + 2.83 + 2.99 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "ALA",
+        "number": 83,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "O2A",
+      "ligand_element": "O",
+      "distance": 3.009,
+      "solvent_accessible": false,
+      "angle": 110.1,
+      "note": "via HOH 431 + HOH 496 (2.78 + 2.69 + 3.01 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
         "name": "HIS",
         "number": 52,
         "chain": "A"
@@ -700,6 +760,51 @@
       "solvent_accessible": true,
       "angle": 136.8,
       "note": "via HOH 707 (2.77 + 3.22 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "PRO",
+        "number": 145,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "NB",
+      "ligand_element": "N",
+      "distance": 3.231,
+      "solvent_accessible": false,
+      "angle": 108.6,
+      "note": "via HOH 503 + HOH 709 (3.23 + 2.69 + 2.81 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "GLY",
+        "number": 84,
+        "chain": "A"
+      },
+      "protein_atom": "O",
+      "ligand_atom": "O2A",
+      "ligand_element": "O",
+      "distance": 3.354,
+      "solvent_accessible": true,
+      "angle": 99.5,
+      "note": "via HOH 431 + HOH 438 (2.78 + 2.83 + 3.35 Å)"
+    },
+    {
+      "type": "water_bridges",
+      "residue": {
+        "name": "TYR",
+        "number": 36,
+        "chain": "A"
+      },
+      "protein_atom": "OH",
+      "ligand_atom": "O2D",
+      "ligand_element": "O",
+      "distance": 3.374,
+      "solvent_accessible": true,
+      "angle": 131.4,
+      "note": "via HOH 448 + HOH 471 (2.69 + 3.37 + 2.80 Å)"
     }
   ],
   "residues": [
@@ -774,24 +879,37 @@
       ]
     },
     {
+      "name": "PRO",
+      "number": 145,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 3,
+      "closest_distance": 3.231,
+      "types": [
+        "alkyl_pi",
+        "hydrophobic",
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "ASN",
+      "number": 184,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 2,
+      "closest_distance": 2.993,
+      "types": [
+        "hydrogen_bonds",
+        "water_bridges"
+      ]
+    },
+    {
       "name": "ALA",
       "number": 174,
       "chain": "A",
       "solvent_accessible": false,
       "n_contacts": 2,
       "closest_distance": 3.432,
-      "types": [
-        "alkyl_pi",
-        "hydrophobic"
-      ]
-    },
-    {
-      "name": "PRO",
-      "number": 145,
-      "chain": "A",
-      "solvent_accessible": false,
-      "n_contacts": 2,
-      "closest_distance": 3.577,
       "types": [
         "alkyl_pi",
         "hydrophobic"
@@ -869,6 +987,17 @@
       ]
     },
     {
+      "name": "GLY",
+      "number": 41,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 2.811,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
       "name": "ASP",
       "number": 37,
       "chain": "A",
@@ -880,14 +1009,25 @@
       ]
     },
     {
-      "name": "ASN",
-      "number": 184,
+      "name": "VAL",
+      "number": 45,
       "chain": "A",
-      "solvent_accessible": true,
+      "solvent_accessible": false,
       "n_contacts": 1,
-      "closest_distance": 3.005,
+      "closest_distance": 2.941,
       "types": [
-        "hydrogen_bonds"
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "ALA",
+      "number": 83,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 1,
+      "closest_distance": 3.009,
+      "types": [
+        "water_bridges"
       ]
     },
     {
@@ -902,10 +1042,32 @@
       ]
     },
     {
+      "name": "GLY",
+      "number": 84,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.354,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
+      "name": "TYR",
+      "number": 36,
+      "chain": "A",
+      "solvent_accessible": true,
+      "n_contacts": 1,
+      "closest_distance": 3.374,
+      "types": [
+        "water_bridges"
+      ]
+    },
+    {
       "name": "LEU",
       "number": 230,
       "chain": "A",
-      "solvent_accessible": true,
+      "solvent_accessible": false,
       "n_contacts": 1,
       "closest_distance": 3.585,
       "types": [

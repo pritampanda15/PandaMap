@@ -126,6 +126,10 @@ def build_parser(version):
         dest='strict_halogens',
         help='Restrict halogen bonds to Cl/Br/I (Auffinger 2004); '
              'by default C-F...O contacts are also reported, as in PLIP')
+    parser.add_argument('--water-distance-only', action='store_false',
+        dest='water_angle_check',
+        help='Accept water bridges on hydrogen-bond distances alone (2.5-3.5 A '
+             'per leg), without the 71-140 degree angle test at each water')
     return parser
 
 
@@ -146,7 +150,8 @@ def _run_batch(args, files, say):
         diagrams=_selected_diagrams(args.diagrams, ['modern']),
         report=args.report, plots=bool(args.plots), json_export=bool(args.json),
         dpi=args.dpi, strict_halogens=args.strict_halogens,
-        strict_hbond_geometry=args.strict_hbond_geometry)
+        strict_hbond_geometry=args.strict_hbond_geometry,
+        water_angle_check=args.water_angle_check)
     failed = [r for r in result['results'] if r['status'] != 'ok']
     say(f"Batch summary saved to: {result['summary_csv']}")
     say(f"All contacts saved to: {result['interactions_csv']}")
@@ -185,7 +190,8 @@ def _run_single(args, structure_file, say):
                                  ligand_chain=args.chain,
                                  ligand_resnum=args.resnum,
                                  strict_halogens=args.strict_halogens,
-                                 strict_hbond_geometry=args.strict_hbond_geometry)
+                                 strict_hbond_geometry=args.strict_hbond_geometry,
+                                 water_angle_check=args.water_angle_check)
     mapper.run_analysis(
         output_file=output_file,
         generate_report=args.report,
