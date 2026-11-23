@@ -33,9 +33,9 @@ wb() {  # wb <folder> [extra options]
 wb angle_test
 wb distance_only --water-distance-only
 
-# The modern diagram of 1M17 in each colour scheme (from PandaMap-Color)
+# The three 1M17 diagrams in each colour scheme (from PandaMap-Color)
 rm -rf example/color_schemes; mkdir -p example/color_schemes
 for scheme in default colorblind monochrome dark publication; do
-  pandamap example/1m17.pdb --ligand AQ4 --diagrams modern --color-scheme "$scheme" \
+  pandamap example/1m17.pdb --ligand AQ4 --diagrams all --color-scheme "$scheme" \
     --output "example/color_schemes/1m17_$scheme.png" --dpi 150 --quiet
 done

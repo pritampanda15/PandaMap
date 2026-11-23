@@ -1622,19 +1622,20 @@ class HybridProtLigMapper:
         show_3d_cues : bool
             Classic style only: depth cues on the ligand.
         color_scheme : str or dict, optional
-            Modern style only: 'default', 'colorblind', 'monochrome', 'dark',
+            All styles: 'default', 'colorblind', 'monochrome', 'dark',
             'publication', or a JSON file of colours (see
             ``pandamap.colorschemes``).
         """
+        from .colorschemes import load_color_scheme
         if style not in DIAGRAM_STYLES:
             raise ValueError(f"Unknown diagram style '{style}'. "
                              f"Use one of: {', '.join(DIAGRAM_STYLES)}.")
         if style == '3d':
             return self.render_contacts_3d(output_file=output_file, dpi=dpi, title=title,
-                                           show_distances=show_distances)
+                                           show_distances=show_distances,
+                                           theme=load_color_scheme(color_scheme))
         if style == 'modern':
             from .diagram import draw_interaction_diagram
-            from .colorschemes import load_color_scheme
             return draw_interaction_diagram(
                 self, output_file=output_file, figsize=figsize or (11, 11.6),
                 dpi=dpi, title=title, show_distances=show_distances,
@@ -1642,13 +1643,25 @@ class HybridProtLigMapper:
                 theme=load_color_scheme(color_scheme))
         return self._visualize_classic(output_file=output_file,
                                        figsize=figsize or (12, 12), dpi=dpi,
-                                       title=title, show_3d_cues=show_3d_cues)
+                                       title=title, show_3d_cues=show_3d_cues,
+                                       theme=load_color_scheme(color_scheme))
 
     def _visualize_classic(self, output_file='protein_ligand_interactions.png',
-                           figsize=(12, 12), dpi=300, title=None, show_3d_cues=True):
-        """The original circular-layout diagram (``style='classic'``)."""
-        # Create figure
-        fig, ax = plt.subplots(figsize=figsize)
+                           figsize=(12, 12), dpi=300, title=None, show_3d_cues=True,
+                           theme=None):
+        """The original circular-layout diagram (``style='classic'``).
+        ``theme`` is a colour scheme (see ``pandamap.colorschemes``)."""
+        theme = theme or {}
+        paper = theme.get('paper', 'white')
+        ink = theme.get('ink', 'black')
+        wash, wash_edge = '#ADD8E6', '#87CEEB'              # ligand and solvent discs
+        if 'solvent_edge' in theme:
+            # a pale tint of the scheme's accent, so the discs stay in the background
+            from matplotlib.colors import to_rgb
+            accent, ground = np.array(to_rgb(theme['solvent_edge'])), np.array(to_rgb(paper))
+            wash, wash_edge = tuple(0.35 * accent + 0.65 * ground), tuple(0.6 * accent + 0.4 * ground)
+        fig, ax = plt.subplots(figsize=figsize, facecolor=paper)
+        ax.set_facecolor(paper)
         
         # Validate solvent accessibility counts
         
@@ -1679,14 +1692,16 @@ class HybridProtLigMapper:
         # Add light blue background for ligand
         ligand_radius = 90
         ligand_pos = (0, 0)
-        ligand_circle = Circle(ligand_pos, ligand_radius, facecolor='#ADD8E6', 
+        ligand_circle = Circle(ligand_pos, ligand_radius, facecolor=wash, 
                             edgecolor='none', alpha=0.4, zorder=1)
         ax.add_patch(ligand_circle)
         
         # Draw the simplified ligand structure
         atom_positions = self.ligand_structure.draw_on_axes(ax, center=ligand_pos, 
                                                         radius=ligand_radius*0.8,
-                                                        show_3d_cues=show_3d_cues)
+                                                        show_3d_cues=show_3d_cues,
+                                                        atom_colours=theme.get('atom_colours'),
+                                                        ink=ink)
         
         # Place interacting residues in a circle around the ligand
         n_residues = len(self.interacting_residues)
@@ -1708,13 +1723,13 @@ class HybridProtLigMapper:
             residue_positions[res_id] = (x, y)
             
             if res_id in self.solvent_accessible:
-                solvent_circle = Circle((x, y), 40, facecolor='#ADD8E6',
-                                        edgecolor='#87CEEB', alpha=0.5, zorder=1)
+                solvent_circle = Circle((x, y), 40, facecolor=wash,
+                                        edgecolor=wash_edge, alpha=0.5, zorder=1)
                 ax.add_patch(solvent_circle)
             
             # Draw residue node as rectangle
             residue_box = Rectangle((x-rect_width/2, y-rect_height/2), rect_width, rect_height,
-                                facecolor='white', edgecolor='black', linewidth=1.5,
+                                facecolor=paper, edgecolor=ink, linewidth=1.5,
                                 zorder=2, alpha=1.0)
             ax.add_patch(residue_box)
             
@@ -1722,8 +1737,8 @@ class HybridProtLigMapper:
             resname, resnum = res_id
             label = f"{resname} {resnum}"
             text = ax.text(x, y, label, ha='center', va='center',
-                        fontsize=11, fontweight='bold', zorder=3)
-            text.set_path_effects([path_effects.withStroke(linewidth=2, foreground='white')])
+                        fontsize=11, fontweight='bold', zorder=3, color=ink)
+            text.set_path_effects([path_effects.withStroke(linewidth=2, foreground=paper)])
 
 
         # Define interaction styles
@@ -1762,6 +1777,10 @@ class HybridProtLigMapper:
             'repulsion': {'color': '#DC143C', 'linestyle': '-', 'linewidth': 1.5,
                     'marker_text': 'R', 'marker_bg': '#FFC0CB', 'name': 'Repulsion'}
         }
+        if theme:
+            for itype, style in interaction_styles.items():
+                style['color'] = theme.get('colours', {}).get(itype, style['color'])
+                style['marker_bg'] = paper
     
 
         # Function to find box edge intersection
@@ -1987,11 +2006,11 @@ class HybridProtLigMapper:
             text = ax.text(x, y, style['marker_text'], ha='center', va='center',
                         fontsize=max(7, 9 - (len(style['marker_text']) - 1) * 0.8),
                         color=style['color'], fontweight='bold', zorder=6)
-            text.set_path_effects([path_effects.withStroke(linewidth=1, foreground='white')])
+            text.set_path_effects([path_effects.withStroke(linewidth=1, foreground=paper)])
 
         # Create legend
         legend_elements = [
-            Rectangle((0, 0), 1, 1, facecolor='white', edgecolor='black',
+            Rectangle((0, 0), 1, 1, facecolor=paper, edgecolor=ink,
                     label='Interacting structural groups')
         ]
         
@@ -2008,21 +2027,21 @@ class HybridProtLigMapper:
         
         # Add directionality to legend
         legend_elements.append(
-            Line2D([0], [0], color='black', linestyle='-', marker='>',
-                markerfacecolor='black', markersize=8, 
+            Line2D([0], [0], color=ink, linestyle='-', marker='>',
+                markerfacecolor=ink, markersize=8, 
                 label='Unidirectional interaction')
         )
         # For bidirectional arrow, use a simpler approach with a diamond symbol
-        bidirectional = Line2D([0], [0], color='black', linestyle='-',
-                            marker='d', markerfacecolor='black',
+        bidirectional = Line2D([0], [0], color=ink, linestyle='-',
+                            marker='d', markerfacecolor=ink,
                             markersize=8, label='Bidirectional interaction')
         legend_elements.append(bidirectional)
         
         # Add solvent accessibility indicator
         if self.solvent_accessible:
             legend_elements.append(
-                Rectangle((0, 0), 1, 1, facecolor='#ADD8E6', alpha=0.5,
-                        edgecolor='#87CEEB', label='Solvent accessible')
+                Rectangle((0, 0), 1, 1, facecolor=wash, alpha=0.5,
+                        edgecolor=wash_edge, label='Solvent accessible')
             )
         
         # Draw legend
@@ -2033,8 +2052,12 @@ class HybridProtLigMapper:
             frameon=True,
             framealpha=0.7,
             fontsize=9,
-            title_fontsize=10
+            title_fontsize=10,
+            facecolor=paper,
+            edgecolor=ink,
+            labelcolor=ink
         )
+        legend.get_title().set_color(ink)
         
         # Set plot limits and appearance
         max_coord = radius + 100
@@ -2045,14 +2068,14 @@ class HybridProtLigMapper:
         
         # Add title
         if title:
-            plt.title(title, fontsize=16)
+            plt.title(title, fontsize=16, color=ink)
         else:
             base_name = os.path.splitext(os.path.basename(self.structure_file))[0]
-            plt.title(f"Protein-Ligand Interactions: {base_name}", fontsize=16)
+            plt.title(f"Protein-Ligand Interactions: {base_name}", fontsize=16, color=ink)
         
         # Save figure
         plt.tight_layout()
-        plt.savefig(output_file, dpi=dpi, bbox_inches='tight')
+        plt.savefig(output_file, dpi=dpi, bbox_inches='tight', facecolor=paper)
         plt.close()
         
         logger.info(f"Interaction diagram saved to {output_file}")

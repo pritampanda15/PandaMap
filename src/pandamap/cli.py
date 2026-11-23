@@ -100,7 +100,7 @@ def build_parser(version):
              "can be given, e.g. --diagrams modern 3d. The first is written to "
              "--output; the others get a _classic / _3d suffix")
     parser.add_argument('--color-scheme', '-c', default=None, metavar='SCHEME',
-        help="Colours of the modern diagram: default, colorblind, monochrome, "
+        help="Colours of the diagrams: default, colorblind, monochrome, "
              "dark, publication, or a JSON file of colours")
     parser.add_argument('--show-nearby', action='store_true',
         help='Also show binding-site residues without a specific interaction '

@@ -61,7 +61,7 @@ def _rotation(tilt_x, tilt_y):
 
 def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6),
                        dpi=300, title=None, tilt=(-10, 6), residue_alpha=0.38,
-                       label_atoms=True, show_distances=True):
+                       label_atoms=True, show_distances=True, theme=None):
     """
     Draw the 3D contact view: solid ligand, transparent contacting residues
     arranged around it, and the contacting atoms highlighted and labelled.
@@ -81,6 +81,9 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         Label the contacting protein and ligand atoms with their atom names.
     show_distances : bool
         Print the real distance on hydrogen bonds.
+    theme : dict, optional
+        Colour scheme (see ``pandamap.colorschemes``); also uses
+        ``stick_colours`` (residue class label -> stick colour).
 
     Returns the path written.
     """
@@ -181,13 +184,28 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         outer = max(outer, far)
         placed[rkey] = {'pos': pos, 'names': names, 'atoms': atoms, 'out': out, 'far': far}
 
+    # ---- colours -------------------------------------------------------------
+    theme = theme or {}
+    atom_colours = {**ATOM_COLOURS, **theme.get('atom_colours', {})}
+    sticks_by_class = {**_STICK_COLOURS, **theme.get('stick_colours', {})}
+    fills = theme.get('residue_fills', {})
+    paper = theme.get('paper', 'white')
+    ink = theme.get('ink', '#212529')
+    carbon = theme.get('ink', _CARBON)
+    muted = theme.get('box_edge', '#495057')
+
+    def colour_of(itype):
+        default = INTERACTION_STYLE.get(itype, (itype, '#495057', '-', '?'))[1]
+        return theme.get('colours', {}).get(itype, default)
+
     # ---- draw ---------------------------------------------------------------
-    fig, ax = plt.subplots(figsize=figsize)
+    fig, ax = plt.subplots(figsize=figsize, facecolor=paper)
+    ax.set_facecolor(paper)
     ax.set_aspect('equal')
     ax.axis('off')
     limit = outer + 3.6
     scale = min(1.0, 21.0 / limit)                # keep text and sticks in proportion
-    halo = [path_effects.withStroke(linewidth=2.6, foreground='white')]
+    halo = [path_effects.withStroke(linewidth=2.6, foreground=paper)]
 
     # residues: transparent sticks in the colour of their class, back to front
     used_classes = []
@@ -198,7 +216,8 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         label, fill = _RESIDUE_CLASS.get(res.resname.strip(), _OTHER_RESIDUE)
         if (label, fill) not in used_classes:
             used_classes.append((label, fill))
-        colour = _STICK_COLOURS[label]
+        fill = fills.get(label, fill)
+        colour = sticks_by_class[label]
         sticks = sorted(_ligand_bonds(data['atoms']),
                         key=lambda b: pos[b[0]][2] + pos[b[1]][2])
         for i, j in sticks:
@@ -207,26 +226,26 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         spot = data['out'] * (data['far'] + 2.0)
         text = f"{res.resname.strip()} {res.id[1]}" + (f" {rkey[0]}" if multi_chain else "")
         ax.text(spot[0], spot[1], text, ha='center', va='center', fontsize=11.5 * scale,
-                fontweight='bold', color='#212529', zorder=9,
+                fontweight='bold', color=ink, zorder=9,
                 bbox=dict(boxstyle='round,pad=0.35', fc=fill, ec=colour, lw=1.4))
 
     # ligand: solid sticks, each half coloured by its atom, back to front
     for i, j in sorted(bonds, key=lambda b: lig[b[0]][2] + lig[b[1]][2]):
         p, q = lig[i], lig[j]
         mid = (p + q) / 2
-        ax.plot([p[0], q[0]], [p[1], q[1]], color='white', lw=7.5 * scale,
+        ax.plot([p[0], q[0]], [p[1], q[1]], color=paper, lw=7.5 * scale,
                 solid_capstyle='round', zorder=5)
         ax.plot([p[0], mid[0]], [p[1], mid[1]], lw=5 * scale, solid_capstyle='round',
-                color=ATOM_COLOURS.get(_element(heavy[i]), _CARBON), zorder=5.1)
+                color=atom_colours.get(_element(heavy[i]), carbon), zorder=5.1)
         ax.plot([mid[0], q[0]], [mid[1], q[1]], lw=5 * scale, solid_capstyle='round',
-                color=ATOM_COLOURS.get(_element(heavy[j]), _CARBON), zorder=5.1)
+                color=atom_colours.get(_element(heavy[j]), carbon), zorder=5.1)
     for i, atom in enumerate(heavy):
         element = _element(atom)
         if element != 'C' or not neighbours[i]:
             ax.text(lig[i][0], lig[i][1], element.capitalize(), ha='center', va='center',
                     fontsize=11 * scale, fontweight='bold', zorder=7.5,
-                    color=ATOM_COLOURS.get(element, _CARBON),
-                    bbox=dict(boxstyle='circle,pad=0.1', fc='white', ec='none'))
+                    color=atom_colours.get(element, carbon),
+                    bbox=dict(boxstyle='circle,pad=0.1', fc=paper, ec='none'))
 
     # contacts: solid contacting atom, line to the ligand atom / ring centre
     used_types = set()
@@ -237,21 +256,21 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
                 continue
             types = sorted(link['types'], key=lambda t: _PRIORITY.get(t, 99))
             used_types.update(types)
-            _, colour, linestyle, _ = INTERACTION_STYLE.get(
-                types[0], (types[0], '#495057', '-', '?'))
+            linestyle = INTERACTION_STYLE.get(types[0], (types[0], '#495057', '-', '?'))[2]
+            colour = colour_of(types[0])
             p = data['pos'][data['names'].index(link['atom_name'])]
             q = link['end']
-            ax.plot([p[0], q[0]], [p[1], q[1]], color='white', lw=4.2 * scale, zorder=6)
+            ax.plot([p[0], q[0]], [p[1], q[1]], color=paper, lw=4.2 * scale, zorder=6)
             ax.plot([p[0], q[0]], [p[1], q[1]], color=colour, ls=linestyle,
                     lw=2.2 * scale, zorder=6.1)
             ax.scatter(p[0], p[1], s=200 * scale ** 2, zorder=7, linewidths=2.2 * scale,
-                       edgecolors=colour, color=ATOM_COLOURS.get(link['element'], '#868e96'))
+                       edgecolors=colour, color=atom_colours.get(link['element'], '#868e96'))
             if label_atoms:
                 side = np.array([-data['out'][1], data['out'][0]])
                 ax.annotate(link['atom_name'].strip(), (p[0], p[1]),
                             xytext=tuple(side * 11 + data['out'] * 4),
                             textcoords='offset points', ha='center', va='center',
-                            fontsize=9 * scale, fontweight='bold', color='#212529',
+                            fontsize=9 * scale, fontweight='bold', color=ink,
                             zorder=8, path_effects=halo)
             if link['external'] is not None:
                 ax.scatter(q[0], q[1], s=330 * scale ** 2, color='#fff3bf',
@@ -260,17 +279,17 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
                         va='center', fontsize=9 * scale, fontweight='bold',
                         color='#7a5c00', zorder=8)
             else:
-                ax.scatter(q[0], q[1], s=55 * scale ** 2, color='white', edgecolors=colour,
+                ax.scatter(q[0], q[1], s=55 * scale ** 2, color=paper, edgecolors=colour,
                            linewidths=1.8 * scale, zorder=7)
                 if label_atoms and link['lig_label'] and not link['lig_label'][:1] in 'NOSPF':
                     ax.annotate(link['lig_label'], (q[0], q[1]), xytext=(6, -10),
                                 textcoords='offset points', fontsize=7.5 * scale,
-                                color='#495057', zorder=8, path_effects=halo)
+                                color=muted, zorder=8, path_effects=halo)
             if show_distances and 'hydrogen_bonds' in types:
                 mid = p + (q - p) * 0.45
                 ax.text(mid[0], mid[1], f"{link['distance']:.1f} Å", ha='center',
                         va='center', fontsize=8.5 * scale, color=colour, zorder=8,
-                        bbox=dict(boxstyle='round,pad=0.15', fc='white', ec='none',
+                        bbox=dict(boxstyle='round,pad=0.15', fc=paper, ec='none',
                                   alpha=0.92))
 
     if not keys:
@@ -284,28 +303,28 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         base = os.path.splitext(os.path.basename(str(mapper.structure_file)))[0]
         ligand = getattr(mapper.ligand_residue, 'resname', '').strip()
         title = f"3D contacts: {base}" + (f" · {ligand}" if ligand else "")
-    ax.set_title(title, fontsize=17, pad=6)
-    handles = [Line2D([0], [0], color=INTERACTION_STYLE[t][1], ls=INTERACTION_STYLE[t][2],
+    ax.set_title(title, fontsize=17, pad=6, color=ink)
+    handles = [Line2D([0], [0], color=colour_of(t), ls=INTERACTION_STYLE[t][2],
                       lw=2.2, label=INTERACTION_STYLE[t][0])
                for t in INTERACTION_STYLE if t in used_types]
     for label, _ in used_classes:
-        handles.append(Line2D([0], [0], color=_STICK_COLOURS[label], lw=5,
+        handles.append(Line2D([0], [0], color=sticks_by_class[label], lw=5,
                               alpha=max(residue_alpha, 0.45), label=label))
     if used_types:
         handles.append(Line2D([0], [0], marker='o', ls='', ms=11, mfc='#868e96',
-                              mec='#212529', mew=1.8, label='Contacting atom'))
+                              mec=ink, mew=1.8, label='Contacting atom'))
     rows = math.ceil(len(handles) / 4) if handles else 0
     bottom = 0.03 + 0.024 * rows
     if handles:
         fig.legend(handles=handles, loc='lower center', ncol=4, frameon=False,
                    fontsize=11, bbox_to_anchor=(0.5, 0.005), handlelength=2.6,
-                   columnspacing=1.6)
+                   columnspacing=1.6, labelcolor=ink)
     if keys:
         fig.text(0.5, bottom + 0.012,
                  'Residues are moved outwards for clarity; printed distances are the real ones.',
                  ha='center', fontsize=9.5, color='#868e96')
     fig.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=bottom + 0.03)
-    fig.savefig(output_file, dpi=dpi, facecolor='white')
+    fig.savefig(output_file, dpi=dpi, facecolor=paper)
     plt.close(fig)
 
     logger.info(f"3D contact view saved to {output_file}")

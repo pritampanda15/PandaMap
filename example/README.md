@@ -140,15 +140,17 @@ Data: [text report](water_bridge/distance_only/complex_rism_waters_interactions_
 
 ## Colour schemes
 
-The 1M17 modern diagram in each built-in colour scheme:
+The three 1M17 diagrams in each built-in colour scheme:
 
 ```bash
-pandamap example/1m17.pdb --ligand AQ4 --diagrams modern --color-scheme dark
+pandamap example/1m17.pdb --ligand AQ4 --color-scheme dark
 ```
 
-| Default | Colorblind | Monochrome | Dark | Publication |
-|:---:|:---:|:---:|:---:|:---:|
-| [<img src="color_schemes/1m17_default.png" width="150">](color_schemes/1m17_default.png) | [<img src="color_schemes/1m17_colorblind.png" width="150">](color_schemes/1m17_colorblind.png) | [<img src="color_schemes/1m17_monochrome.png" width="150">](color_schemes/1m17_monochrome.png) | [<img src="color_schemes/1m17_dark.png" width="150">](color_schemes/1m17_dark.png) | [<img src="color_schemes/1m17_publication.png" width="150">](color_schemes/1m17_publication.png) |
+| | Default | Colorblind | Monochrome | Dark | Publication |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Modern 2D** | [<img src="color_schemes/1m17_default.png" width="130">](color_schemes/1m17_default.png) | [<img src="color_schemes/1m17_colorblind.png" width="130">](color_schemes/1m17_colorblind.png) | [<img src="color_schemes/1m17_monochrome.png" width="130">](color_schemes/1m17_monochrome.png) | [<img src="color_schemes/1m17_dark.png" width="130">](color_schemes/1m17_dark.png) | [<img src="color_schemes/1m17_publication.png" width="130">](color_schemes/1m17_publication.png) |
+| **Classic** | [<img src="color_schemes/1m17_default_classic.png" width="130">](color_schemes/1m17_default_classic.png) | [<img src="color_schemes/1m17_colorblind_classic.png" width="130">](color_schemes/1m17_colorblind_classic.png) | [<img src="color_schemes/1m17_monochrome_classic.png" width="130">](color_schemes/1m17_monochrome_classic.png) | [<img src="color_schemes/1m17_dark_classic.png" width="130">](color_schemes/1m17_dark_classic.png) | [<img src="color_schemes/1m17_publication_classic.png" width="130">](color_schemes/1m17_publication_classic.png) |
+| **3D contacts** | [<img src="color_schemes/1m17_default_3d.png" width="130">](color_schemes/1m17_default_3d.png) | [<img src="color_schemes/1m17_colorblind_3d.png" width="130">](color_schemes/1m17_colorblind_3d.png) | [<img src="color_schemes/1m17_monochrome_3d.png" width="130">](color_schemes/1m17_monochrome_3d.png) | [<img src="color_schemes/1m17_dark_3d.png" width="130">](color_schemes/1m17_dark_3d.png) | [<img src="color_schemes/1m17_publication_3d.png" width="130">](color_schemes/1m17_publication_3d.png) |
 
 ## Batch mode
 

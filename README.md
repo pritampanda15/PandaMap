@@ -166,16 +166,16 @@ not to scale; the printed distances are the real ones.
 
 ### Colour schemes (`--color-scheme`)
 
-The modern diagram comes in five colour schemes, carried over from the
-retired PandaMap-Color package: `default`, `colorblind` (Okabe–Ito),
+All three diagrams (modern, classic and 3D contacts) come in five colour
+schemes, carried over from the retired PandaMap-Color package: `default`, `colorblind` (Okabe–Ito),
 `monochrome`, `dark` and `publication` (Nature palette, as in the summary
 figure).
 
 ```bash
-pandamap complex.pdb --diagrams modern --color-scheme colorblind
+pandamap complex.pdb --color-scheme colorblind
 ```
 
-![The 1M17 diagram in the five colour schemes: default, colorblind, monochrome, dark, publication](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/color_schemes_1m17.png)
+![The 1M17 modern, classic and 3D diagrams (rows) in the five colour schemes (columns): default, colorblind, monochrome, dark, publication](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/color_schemes_1m17.png)
 
 For your own colours, pass a JSON file. Any key you leave out keeps the
 default:
@@ -194,10 +194,13 @@ default:
 pandamap complex.pdb --color-scheme my_colours.json
 ```
 
-Scheme files written for PandaMap-Color (`interaction_styles`,
-`element_colors`, `residue_colors`, `background_color`) work unchanged. In
-Python, pass `color_scheme=` to `run_analysis()` or `visualize()`. The
-classic and 3D diagrams keep their own colours.
+Further keys: `box_edge` and `solvent_edge` (residue outlines; the classic
+diagram tints its discs with `solvent_edge`) and `stick_colours` (residue
+sticks in the 3D view, by residue class). Scheme files written for
+PandaMap-Color (`interaction_styles`, `element_colors`, `residue_colors`,
+`background_color`) work unchanged. In Python, pass `color_scheme=` to
+`run_analysis()` or `visualize()`. The summary figure (`--plots`) keeps its
+journal palette, and the HTML viewer its own colours.
 
 ### Text report (`--report`)
 
@@ -376,7 +379,7 @@ Diagrams:
                           suffix
   --show-nearby           Also show binding-site residues that have no specific
                           interaction (modern diagram)
-  -c, --color-scheme NAME Colours of the modern diagram: default, colorblind,
+  -c, --color-scheme NAME Colours of the diagrams: default, colorblind,
                           monochrome, dark, publication, or a JSON file
   --no-3d-cues            Disable depth cues in the classic diagram
   --dpi DPI               Image resolution (default: 300)
@@ -628,7 +631,7 @@ same number (also under the old key `dG_estimated`).
 
 ### Unreleased
 
-- **Colour schemes** for the modern diagram (`--color-scheme`), merged in from
+- **Colour schemes** for the modern, classic and 3D diagrams (`--color-scheme`), merged in from
   PandaMap-Color: `default`, `colorblind`, `monochrome`, `dark`,
   `publication`, or your own JSON file (PandaMap-Color files are accepted).
 

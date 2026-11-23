@@ -1,14 +1,17 @@
 """
-Colour schemes for the modern 2D interaction diagram (from PandaMap-Color).
+Colour schemes for the diagrams (from PandaMap-Color): the modern 2D
+diagram, the classic diagram and the 3D contact view.
 
-A scheme is a ``theme`` dict for ``draw_interaction_diagram``:
+A scheme is a ``theme`` dict:
 
     colours        interaction type -> line and badge colour
     atom_colours   element (upper case) -> ligand atom label colour
     residue_fills  residue class label -> box fill
     ink            bonds and text
     paper          background, and the fill behind labels and badges
-    box_edge, solvent_edge   residue box outlines
+    box_edge, solvent_edge   residue box outlines (solvent_edge also tints
+                             the classic diagram's ligand and solvent discs)
+    stick_colours  residue class label -> residue stick colour (3D view)
 
 Any key left out falls back to the default design.  Use a built-in name
 (``default``, ``colorblind``, ``monochrome``, ``dark``, ``publication``) or a
@@ -43,6 +46,9 @@ COLOR_SCHEMES = {
         'residue_fills': {'Hydrophobic residue': '#FBF3C6', 'Polar residue': '#DDEFFA',
                           'Positive residue': '#D6E6F2', 'Negative residue': '#FBE3D2',
                           'Other residue': '#F2F2F2'},
+        'stick_colours': {'Hydrophobic residue': '#E69F00', 'Polar residue': '#0072B2',
+                          'Positive residue': '#56B4E9', 'Negative residue': '#D55E00',
+                          'Other residue': '#666666'},
         'solvent_edge': '#0072B2',
     },
     'monochrome': {
@@ -58,6 +64,8 @@ COLOR_SCHEMES = {
         'residue_fills': {'Hydrophobic residue': '#EEEEEE', 'Polar residue': '#FFFFFF',
                           'Positive residue': '#DDDDDD', 'Negative residue': '#CCCCCC',
                           'Other residue': '#F7F7F7'},
+        'stick_colours': {k: '#555555' for k in ('Hydrophobic residue', 'Polar residue',
+                          'Positive residue', 'Negative residue', 'Other residue')},
         'ink': '#000000', 'box_edge': '#333333', 'solvent_edge': '#000000',
     },
     'dark': {
@@ -75,6 +83,9 @@ COLOR_SCHEMES = {
         'residue_fills': {'Hydrophobic residue': '#2F3B24', 'Polar residue': '#22324A',
                           'Positive residue': '#2E2C52', 'Negative residue': '#4A2626',
                           'Other residue': '#2B2F33'},
+        'stick_colours': {'Hydrophobic residue': '#94D82D', 'Polar residue': '#4DABF7',
+                          'Positive residue': '#B197FC', 'Negative residue': '#FF8787',
+                          'Other residue': '#ADB5BD'},
         'ink': '#E9ECEF', 'paper': '#16181B', 'box_edge': '#868E96',
         'solvent_edge': '#4DABF7',
     },
@@ -94,6 +105,9 @@ COLOR_SCHEMES = {
         'residue_fills': {'Hydrophobic residue': '#F2F2F2', 'Polar residue': '#E6F0F5',
                           'Positive residue': '#E8EAF2', 'Negative residue': '#FBEAE7',
                           'Other residue': '#FFFFFF'},
+        'stick_colours': {'Hydrophobic residue': '#7E6148', 'Polar residue': '#3C5488',
+                          'Positive residue': '#8491B4', 'Negative residue': '#E64B35',
+                          'Other residue': '#999999'},
         'ink': '#222222', 'box_edge': '#555555', 'solvent_edge': '#4DBBD5',
         'weight': 'normal',
     },
@@ -108,7 +122,7 @@ _LEGACY_RESIDUES = {'hydrophobic': 'Hydrophobic residue', 'polar': 'Polar residu
 def _from_legacy(data):
     """Translate a PandaMap-Color JSON scheme to theme keys."""
     theme = {k: v for k, v in data.items() if k in (
-        'colours', 'atom_colours', 'residue_fills', 'ink', 'paper',
+        'colours', 'atom_colours', 'residue_fills', 'stick_colours', 'ink', 'paper',
         'box_edge', 'solvent_edge', 'weight')}
     if 'interaction_styles' in data:
         theme.setdefault('colours', {}).update(

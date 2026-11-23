@@ -1046,5 +1046,7 @@ def test_dark_scheme_paints_the_background(tmp_path):
     from PIL import Image
     mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
     mapper.detect_interactions()
-    out = mapper.visualize(str(tmp_path / "dark.png"), dpi=40, color_scheme="dark")
-    assert Image.open(out).convert("RGB").getpixel((2, 2)) == (0x16, 0x18, 0x1B)
+    for style in ("modern", "classic", "3d"):
+        out = mapper.visualize(str(tmp_path / f"dark_{style}.png"), dpi=40,
+                               style=style, color_scheme="dark")
+        assert Image.open(out).convert("RGB").getpixel((2, 2)) == (0x16, 0x18, 0x1B), style
