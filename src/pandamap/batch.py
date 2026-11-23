@@ -28,7 +28,7 @@ def expand_structure_paths(paths):
 
 def analyze_batch(paths, output_dir='pandamap_batch', ligand_resname=None,
                   diagrams=('modern',), report=False, plots=False, json_export=False,
-                  dpi=150, **mapper_options):
+                  dpi=150, color_scheme=None, **mapper_options):
     """
     Analyse several structures and write combined tables.
 
@@ -48,6 +48,8 @@ def analyze_batch(paths, output_dir='pandamap_batch', ligand_resname=None,
     report, plots, json_export : bool
         Also write the text report, the summary figure and the JSON export
         for each structure.
+    color_scheme : str, optional
+        Colour scheme for the modern diagram (see ``pandamap.colorschemes``).
     mapper_options :
         Passed to ``HybridProtLigMapper`` (for example ``strict_halogens``).
 
@@ -82,7 +84,7 @@ def analyze_batch(paths, output_dir='pandamap_batch', ligand_resname=None,
             base = os.path.join(folder, f"{name}_interactions")
             mapper.run_analysis(output_file=base + ".png", diagrams=tuple(diagrams or ()),
                                 generate_report=report, report_file=base + "_report.txt",
-                                dpi=dpi)
+                                dpi=dpi, color_scheme=color_scheme)
             if plots:
                 mapper.generate_interaction_plots(base + "_report.png", dpi=dpi)
             if json_export:

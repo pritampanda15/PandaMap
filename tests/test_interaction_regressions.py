@@ -1022,3 +1022,29 @@ def test_update_notice_wording_and_off_switch(monkeypatch, capsys):
     monkeypatch.setattr(versioning, "_notified", False)
     assert versioning.check_for_updates() == "999.0.0"
     assert "999.0.0 is available" in capsys.readouterr().err
+
+
+# --------------------------------------------------------------------------
+# Colour schemes (ported from PandaMap-Color)
+
+def test_pandamap_color_json_is_translated(tmp_path):
+    from pandamap.colorschemes import load_color_scheme
+    path = tmp_path / "old.json"
+    path.write_text('{"element_colors": {"Cl": "#00ff00"}, '
+                    '"residue_colors": {"polar": "#123456"}, '
+                    '"interaction_styles": {"hydrogen_bonds": {"color": "#abcdef"}}, '
+                    '"background_color": "#000000"}')
+    theme = load_color_scheme(str(path))
+    assert theme == {'atom_colours': {'CL': '#00ff00'},
+                     'residue_fills': {'Polar residue': '#123456'},
+                     'colours': {'hydrogen_bonds': '#abcdef'}, 'paper': '#000000'}
+    with pytest.raises(ValueError):
+        load_color_scheme("neon")
+
+
+def test_dark_scheme_paints_the_background(tmp_path):
+    from PIL import Image
+    mapper = HybridProtLigMapper(_mixed(tmp_path), ligand_resname="LIG")
+    mapper.detect_interactions()
+    out = mapper.visualize(str(tmp_path / "dark.png"), dpi=40, color_scheme="dark")
+    assert Image.open(out).convert("RGB").getpixel((2, 2)) == (0x16, 0x18, 0x1B)

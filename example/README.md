@@ -138,6 +138,18 @@ Four bridges: the two above plus THR 288 and SER 290. Each hydrogen bond is 2.5�
 
 Data: [text report](water_bridge/distance_only/complex_rism_waters_interactions_report.txt) · [summary figure](water_bridge/distance_only/complex_rism_waters_interactions_report.png) · [CSV](water_bridge/distance_only/complex_rism_waters_interactions.csv) · [JSON](water_bridge/distance_only/complex_rism_waters_interactions.json) · [interaction score](water_bridge/distance_only/complex_rism_waters_interaction_score.txt) · [3D viewer (HTML)](water_bridge/distance_only/complex_rism_waters_3d_visualization.html)
 
+## Colour schemes
+
+The 1M17 modern diagram in each built-in colour scheme:
+
+```bash
+pandamap example/1m17.pdb --ligand AQ4 --diagrams modern --color-scheme dark
+```
+
+| Default | Colorblind | Monochrome | Dark | Publication |
+|:---:|:---:|:---:|:---:|:---:|
+| [<img src="color_schemes/1m17_default.png" width="150">](color_schemes/1m17_default.png) | [<img src="color_schemes/1m17_colorblind.png" width="150">](color_schemes/1m17_colorblind.png) | [<img src="color_schemes/1m17_monochrome.png" width="150">](color_schemes/1m17_monochrome.png) | [<img src="color_schemes/1m17_dark.png" width="150">](color_schemes/1m17_dark.png) | [<img src="color_schemes/1m17_publication.png" width="150">](color_schemes/1m17_publication.png) |
+
 ## Batch mode
 
 All five structures in one run, without images:

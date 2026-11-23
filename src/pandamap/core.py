@@ -1602,7 +1602,7 @@ class HybridProtLigMapper:
 
     def visualize(self, output_file='protein_ligand_interactions.png', figsize=None,
                   dpi=300, title=None, show_3d_cues=True, style='modern',
-                  show_distances=True, show_nearby_residues=False):
+                  show_distances=True, show_nearby_residues=False, color_scheme=None):
         """
         Generate a complete 2D visualization of protein-ligand interactions.
 
@@ -1621,6 +1621,10 @@ class HybridProtLigMapper:
             binding-site residues without a specific interaction.
         show_3d_cues : bool
             Classic style only: depth cues on the ligand.
+        color_scheme : str or dict, optional
+            Modern style only: 'default', 'colorblind', 'monochrome', 'dark',
+            'publication', or a JSON file of colours (see
+            ``pandamap.colorschemes``).
         """
         if style not in DIAGRAM_STYLES:
             raise ValueError(f"Unknown diagram style '{style}'. "
@@ -1630,10 +1634,12 @@ class HybridProtLigMapper:
                                            show_distances=show_distances)
         if style == 'modern':
             from .diagram import draw_interaction_diagram
+            from .colorschemes import load_color_scheme
             return draw_interaction_diagram(
                 self, output_file=output_file, figsize=figsize or (11, 11.6),
                 dpi=dpi, title=title, show_distances=show_distances,
-                show_nearby_residues=show_nearby_residues)
+                show_nearby_residues=show_nearby_residues,
+                theme=load_color_scheme(color_scheme))
         return self._visualize_classic(output_file=output_file,
                                        figsize=figsize or (12, 12), dpi=dpi,
                                        title=title, show_3d_cues=show_3d_cues)
@@ -2454,7 +2460,8 @@ class HybridProtLigMapper:
 
     def run_analysis(self, output_file=None, use_dssp=True, generate_report=False,
                      report_file=None, dpi=300, title=None, show_3d_cues=True,
-                     diagrams=DIAGRAM_STYLES, show_nearby_residues=False):
+                     diagrams=DIAGRAM_STYLES, show_nearby_residues=False,
+                     color_scheme=None):
         """
         Run the complete analysis pipeline.
         
@@ -2470,6 +2477,8 @@ class HybridProtLigMapper:
             written to ``output_file``,
             the others next to it with a ``_classic`` / ``_3d`` suffix.  All
             paths are stored in ``self.diagram_files``.
+        color_scheme : str or dict, optional
+            Colour scheme for the modern diagram (see ``visualize``).
         generate_report : bool
             Whether to generate a PLIP-like text report (default: False)
         report_file : str, optional
@@ -2540,7 +2549,8 @@ class HybridProtLigMapper:
                 f"{stem}{_DIAGRAM_SUFFIX.get(style, '_' + style)}{ext}"
             self.diagram_files[style] = self.visualize(
                 output_file=path, dpi=dpi, title=title, show_3d_cues=show_3d_cues,
-                style=style, show_nearby_residues=show_nearby_residues)
+                style=style, show_nearby_residues=show_nearby_residues,
+                color_scheme=color_scheme)
         viz_file = self.diagram_files[diagrams[0]] if diagrams else None
         
         # Generate text report if requested

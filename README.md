@@ -164,6 +164,41 @@ not to scale; the printed distances are the real ones.
 
 ![3D contact view](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/contacts_3d_1m17.png)
 
+### Colour schemes (`--color-scheme`)
+
+The modern diagram comes in five colour schemes, carried over from the
+retired PandaMap-Color package: `default`, `colorblind` (Okabe–Ito),
+`monochrome`, `dark` and `publication` (Nature palette, as in the summary
+figure).
+
+```bash
+pandamap complex.pdb --diagrams modern --color-scheme colorblind
+```
+
+![The 1M17 diagram in the five colour schemes: default, colorblind, monochrome, dark, publication](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/color_schemes_1m17.png)
+
+For your own colours, pass a JSON file. Any key you leave out keeps the
+default:
+
+```json
+{
+  "colours": {"hydrogen_bonds": "#1b7837", "water_bridges": "#2166ac"},
+  "atom_colours": {"N": "#2166ac", "O": "#b2182b"},
+  "residue_fills": {"Hydrophobic residue": "#fff7bc", "Polar residue": "#deebf7"},
+  "ink": "#222222",
+  "paper": "#ffffff"
+}
+```
+
+```bash
+pandamap complex.pdb --color-scheme my_colours.json
+```
+
+Scheme files written for PandaMap-Color (`interaction_styles`,
+`element_colors`, `residue_colors`, `background_color`) work unchanged. In
+Python, pass `color_scheme=` to `run_analysis()` or `visualize()`. The
+classic and 3D diagrams keep their own colours.
+
 ### Text report (`--report`)
 
 A header, a summary, one table per interaction type naming the atoms in
@@ -341,6 +376,8 @@ Diagrams:
                           suffix
   --show-nearby           Also show binding-site residues that have no specific
                           interaction (modern diagram)
+  -c, --color-scheme NAME Colours of the modern diagram: default, colorblind,
+                          monochrome, dark, publication, or a JSON file
   --no-3d-cues            Disable depth cues in the classic diagram
   --dpi DPI               Image resolution (default: 300)
   -t, --title TEXT        Custom diagram title
@@ -588,6 +625,12 @@ penalty for rotatable bonds:
 same number (also under the old key `dG_estimated`).
 
 ## What's new
+
+### Unreleased
+
+- **Colour schemes** for the modern diagram (`--color-scheme`), merged in from
+  PandaMap-Color: `default`, `colorblind`, `monochrome`, `dark`,
+  `publication`, or your own JSON file (PandaMap-Color files are accepted).
 
 ### 4.4.1
 
