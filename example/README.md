@@ -1,6 +1,6 @@
 # PandaMap examples
 
-Five structures (plus a water bridge example) and everything PandaMap 4.4.1 writes for each of them. Use this
+Five structures (plus a water bridge example) and everything PandaMap 4.5 writes for each of them. Use this
 page to see what the outputs look like before running anything, or to check
 that your installation gives the same results.
 

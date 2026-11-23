@@ -40,8 +40,9 @@ pandamap complex.pdb
 
 > **Already have PandaMap installed?** Please use the latest version for
 > improved utilization of PandaMap: `pip install --upgrade pandamap`.
-> Version 4.4 changes which contacts are reported, adds water bridges, new
-> diagrams, JSON and batch mode. See [What's new](#whats-new).
+> Version 4.5 adds colour schemes for all three diagrams; 4.4 changed which
+> contacts are reported and added water bridges, new diagrams, JSON and batch
+> mode. See [What's new](#whats-new).
 
 <p align="center">
   <a href="https://github.com/pritampanda15/PandaMap/blob/main/docs/media/pandamap-4.4.mp4">
@@ -60,6 +61,18 @@ That one command writes three diagrams of the same binding site:
 
 <sub>EGFR kinase with erlotinib (PDB 1M17, ligand AQ4). The file is in `example/`, and the
 [example gallery](https://github.com/pritampanda15/PandaMap/tree/main/example) shows every output for five structures.</sub>
+
+Each diagram comes in five colour schemes, from print-ready to presentation
+dark mode, or in your own colours (`--color-scheme`, see
+[Colour schemes](#colour-schemes---color-scheme)):
+
+<p align="center">
+  <a href="https://github.com/pritampanda15/PandaMap/tree/main/example#colour-schemes">
+    <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/color_schemes_1m17.png" alt="The 1M17 modern, classic and 3D diagrams (rows) in the five colour schemes (columns): default, colorblind, monochrome, dark, publication" width="900">
+  </a>
+  <br>
+  <sub>Rows: modern 2D, classic, 3D contacts. Columns: <code>default</code>, <code>colorblind</code>, <code>monochrome</code>, <code>dark</code>, <code>publication</code>.</sub>
+</p>
 
 ## Contents
 
@@ -108,6 +121,9 @@ pandamap example/1m17.pdb --ligand AQ4 --csv --json --score
 
 # Put everything in one folder, and keep the terminal quiet
 pandamap example/1m17.pdb --ligand AQ4 --report --outdir results --quiet
+
+# The same diagrams in another colour scheme
+pandamap example/1m17.pdb --ligand AQ4 --color-scheme dark
 
 # Batch mode: a folder (or several files) in, two combined tables out
 pandamap example/ --outdir screen --diagrams none
@@ -175,7 +191,9 @@ figure).
 pandamap complex.pdb --color-scheme colorblind
 ```
 
-![The 1M17 modern, classic and 3D diagrams (rows) in the five colour schemes (columns): default, colorblind, monochrome, dark, publication](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/color_schemes_1m17.png)
+The grid at the [top of this page](#readme) shows all three diagrams in
+every scheme; full-size images are in the
+[example gallery](https://github.com/pritampanda15/PandaMap/tree/main/example#colour-schemes).
 
 For your own colours, pass a JSON file. Any key you leave out keeps the
 default:
@@ -209,7 +227,7 @@ contact (closest first), and a per-residue table. Shortened here:
 
 ```
 ==============================================================================
-  PandaMap Interaction Report                                 PandaMap 4.4.0
+  PandaMap Interaction Report                                 PandaMap 4.5.0
 ==============================================================================
 
   Structure      1m17.pdb
@@ -288,7 +306,7 @@ under `interaction_score`.
 
 ```json
 {
-  "pandamap_version": "4.4.0",
+  "pandamap_version": "4.5.0",
   "structure": "1m17.pdb",
   "ligand": {"name": "AQ4", "chain": "A", "number": 999, "n_heavy_atoms": 29},
   "summary": {
@@ -629,7 +647,7 @@ same number (also under the old key `dG_estimated`).
 
 ## What's new
 
-### Unreleased
+### 4.5.0
 
 - **Colour schemes** for the modern, classic and 3D diagrams (`--color-scheme`), merged in from
   PandaMap-Color: `default`, `colorblind`, `monochrome`, `dark`,
