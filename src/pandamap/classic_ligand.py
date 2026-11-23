@@ -268,7 +268,8 @@ class SimpleLigandStructure:
         except Exception:
             return None
 
-    def draw_on_axes(self, ax, center=(0, 0), radius=80, show_3d_cues=True):
+    def draw_on_axes(self, ax, center=(0, 0), radius=80, show_3d_cues=True,
+                     atom_colours=None, ink='black'):
         """
         Draw a more realistic 3D representation of the ligand on the given axes.
         
@@ -282,14 +283,19 @@ class SimpleLigandStructure:
             The approximate radius the molecule should occupy
         show_3d_cues : bool
             Whether to show 3D depth cues (enhanced 3D effect)
+        atom_colours, ink :
+            Colour scheme overrides: element (upper case) -> atom colour, and
+            the colour of bonds and atom outlines.
         """
+        element_colors = {e: (atom_colours or {}).get(e.upper(), c)
+                          for e, c in self.element_colors.items()}
         # Generate 2D coordinates
         coords_2d = self.generate_2d_coords()
         
         if not coords_2d:
             # If we couldn't generate coordinates, draw a simple placeholder
             logger.warning("Warning: Could not generate ligand coordinates. Drawing placeholder.")
-            circle = Circle(center, radius/2, fill=False, edgecolor='black', linestyle='-')
+            circle = Circle(center, radius/2, fill=False, edgecolor=ink, linestyle='-')
             ax.add_patch(circle)
             ax.text(center[0], center[1], "Ligand", ha='center', va='center')
             return {}
@@ -424,7 +430,7 @@ class SimpleLigandStructure:
                     
                     # Draw filled wedge with gradient fill
                     wedge = plt.Polygon(wedge_points, closed=True, 
-                                    facecolor='black', alpha=0.7, zorder=2.5)
+                                    facecolor=ink, alpha=0.7, zorder=2.5)
                     ax.add_patch(wedge)
                     
                 elif z2 > z1:  # atom2 is closer
@@ -441,17 +447,17 @@ class SimpleLigandStructure:
                     
                     # Draw filled wedge
                     wedge = plt.Polygon(wedge_points, closed=True, 
-                                    facecolor='black', alpha=0.7, zorder=2.5)
+                                    facecolor=ink, alpha=0.7, zorder=2.5)
                     ax.add_patch(wedge)
                 else:
                     # Regular bond (in plane)
                     line = Line2D([pos1[0], pos2[0]], [pos1[1], pos2[1]], 
-                                color='black', linewidth=2.0, zorder=2)
+                                color=ink, linewidth=2.0, zorder=2)
                     ax.add_line(line)
             else:
                 # Regular bond
                 line = Line2D([pos1[0], pos2[0]], [pos1[1], pos2[1]], 
-                            color='black', linewidth=2.0, zorder=2)
+                            color=ink, linewidth=2.0, zorder=2)
                 ax.add_line(line)
         
         # Draw atoms with enhanced 3D appearance
@@ -461,7 +467,7 @@ class SimpleLigandStructure:
             atom_positions[atom_id] = pos
             
             element = self.atom_coords[atom_id]['element']
-            base_color = self.element_colors.get(element, 'gray')
+            base_color = element_colors.get(element, 'gray')
             
             # Get the normalized z value (0=back, 1=front)
             z = z_values.get(atom_id, 0.5) if show_3d_cues else 0.5
@@ -498,7 +504,7 @@ class SimpleLigandStructure:
                 ax.add_patch(outline)
                 
                 # Main atom circle
-                atom_circle = Circle(pos, size, facecolor=color, edgecolor='black', 
+                atom_circle = Circle(pos, size, facecolor=color, edgecolor=ink, 
                                     linewidth=1, alpha=1.0, zorder=4)
                 ax.add_patch(atom_circle)
                 
@@ -512,7 +518,7 @@ class SimpleLigandStructure:
                     ax.add_patch(highlight)
             else:
                 # Simple 2D representation
-                atom_circle = Circle(pos, size, facecolor=color, edgecolor='black', 
+                atom_circle = Circle(pos, size, facecolor=color, edgecolor=ink, 
                                 linewidth=1, alpha=0.8, zorder=3)
                 ax.add_patch(atom_circle)
             

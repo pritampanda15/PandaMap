@@ -140,6 +140,9 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         ``colours`` (interaction type -> colour), ``ink``, ``box_fill``,
         ``box_edge``, ``solvent_edge``, ``weight`` and ``atom_colours``.
         A dict describing what was drawn is returned instead of a path.
+        ``theme`` also applies to a saved figure; ``paper`` (background) and
+        ``residue_fills`` (residue class label -> fill) complete a colour
+        scheme - see ``pandamap.colorschemes``.
 
     Returns the path written.
     """
@@ -230,7 +233,9 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
     fs = lambda size: max(theme.get('min_font', 0), size * font)
     weight = theme.get('weight', 'bold')
     ink = theme.get('ink', '#343a40')
-    atom_colours = theme.get('atom_colours', ATOM_COLOURS)
+    atom_colours = {**ATOM_COLOURS, **theme.get('atom_colours', {})}
+    paper = theme.get('paper', 'white')
+    fills = theme.get('residue_fills', {})
 
     def colour_of(itype):
         default = INTERACTION_STYLE.get(itype, (itype, '#495057', '-', '?'))[1]
@@ -262,7 +267,8 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
 
     own_figure = ax is None
     if own_figure:
-        fig, ax = plt.subplots(figsize=figsize)
+        fig, ax = plt.subplots(figsize=figsize, facecolor=paper)
+        ax.set_facecolor(paper)
     ax.set_aspect('equal')
     ax.axis('off')
 
@@ -296,7 +302,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
             ax.text(pts[i][0], pts[i][1], element.capitalize(), ha='center', va='center',
                     fontsize=fs(13), fontweight='bold', zorder=5,
                     color=atom_colours.get(element, ink),
-                    bbox=dict(boxstyle='circle,pad=0.12', fc='white', ec='none'))
+                    bbox=dict(boxstyle='circle,pad=0.12', fc=paper, ec='none'))
 
     for symbol, xy in partners.values():
         ax.text(xy[0], xy[1], symbol, ha='center', va='center', fontsize=fs(11),
@@ -313,6 +319,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         resname, resnum, chain = key
         c = centre[key]
         label, fill = _RESIDUE_CLASS.get(resname, _OTHER_RESIDUE)
+        fill = fills.get(label, fill)
         if (label, fill) not in used_classes:
             used_classes.append((label, fill))
         accessible = (resname, resnum) in solvent
@@ -374,7 +381,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
                 slot += 1
                 ax.text(p[0], p[1], badge, ha='center', va='center',
                         fontsize=fs(9.5), fontweight=weight, color=bcolour, zorder=8,
-                        bbox=dict(boxstyle='circle,pad=0.28', fc='white', ec=bcolour,
+                        bbox=dict(boxstyle='circle,pad=0.28', fc=paper, ec=bcolour,
                                   lw=1.5 * font))
             if show_distances and 'hydrogen_bonds' in by_type:
                 best = min(c_['distance'] for c_ in by_type['hydrogen_bonds'])
@@ -382,7 +389,7 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
                 if np.linalg.norm(p - start) < length - 0.3:
                     ax.text(p[0], p[1], f"{best:.1f} Å", ha='center', va='center',
                             fontsize=fs(8.5), color=colour_of('hydrogen_bonds'),
-                            zorder=8, bbox=dict(boxstyle='round,pad=0.15', fc='white',
+                            zorder=8, bbox=dict(boxstyle='round,pad=0.15', fc=paper,
                                                 ec='none', alpha=0.9))
 
     if not residues:
@@ -396,18 +403,20 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
                 'any_solvent': any_solvent, 'nearby': bool(nearby), 'limit': limit}
 
     # ---- legend: only what is on the plot ----------------------------------
-    handles = [Line2D([0], [0], color=INTERACTION_STYLE[t][1], ls=INTERACTION_STYLE[t][2],
+    box_edge = theme.get('box_edge', '#495057')
+    handles = [Line2D([0], [0], color=colour_of(t), ls=INTERACTION_STYLE[t][2],
                       lw=2, label=INTERACTION_STYLE[t][0])
                for t in INTERACTION_STYLE if t in used_types]
     for label, fill in used_classes:
         handles.append(Line2D([0], [0], marker='s', ls='', ms=13, mfc=fill,
-                              mec='#495057', label=label))
+                              mec=box_edge, label=label))
     if any_solvent:
-        handles.append(Line2D([0], [0], marker='s', ls='', ms=13, mfc='white',
-                              mec=_SOLVENT_EDGE, mew=3, label='Solvent accessible'))
+        handles.append(Line2D([0], [0], marker='s', ls='', ms=13, mfc=paper,
+                              mec=theme.get('solvent_edge', _SOLVENT_EDGE), mew=3,
+                              label='Solvent accessible'))
     if nearby:
-        handles.append(Line2D([0], [0], marker='s', ls='', ms=13, mfc='white',
-                              mec='#495057', label='Nearby, no specific contact'))
+        handles.append(Line2D([0], [0], marker='s', ls='', ms=13, mfc=paper,
+                              mec=box_edge, label='Nearby, no specific contact'))
 
     ax.set_xlim(-limit, limit)
     ax.set_ylim(-limit, limit)
@@ -415,14 +424,14 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         base = os.path.splitext(os.path.basename(str(mapper.structure_file)))[0]
         ligand = getattr(mapper.ligand_residue, 'resname', '').strip()
         title = f"Protein–ligand interactions: {base}" + (f" · {ligand}" if ligand else "")
-    ax.set_title(title, fontsize=17, pad=6)
+    ax.set_title(title, fontsize=17, pad=6, color=theme.get('ink', 'black'))
     rows = math.ceil(len(handles) / 4) if handles else 0
     if handles:
         fig.legend(handles=handles, loc='lower center', ncol=4, frameon=False,
                    fontsize=11, bbox_to_anchor=(0.5, 0.005), handlelength=2.6,
-                   columnspacing=1.6)
+                   columnspacing=1.6, labelcolor=theme.get('ink', 'black'))
     fig.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.03 + 0.024 * rows)
-    fig.savefig(output_file, dpi=dpi, facecolor='white')
+    fig.savefig(output_file, dpi=dpi, facecolor=paper)
     plt.close(fig)
 
     logger.info(f"Interaction diagram saved to {output_file}")

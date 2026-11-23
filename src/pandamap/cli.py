@@ -11,6 +11,7 @@ import threading
 from pandamap.core import HybridProtLigMapper, list_ligands
 from pandamap.create_3d_view import create_pandamap_3d_viz
 from pandamap.batch import analyze_batch, expand_structure_paths
+from pandamap.colorschemes import load_color_scheme
 
 
 def _make_console_safe():
@@ -98,6 +99,9 @@ def build_parser(version):
              "Default: all for one structure, modern in batch mode. Several "
              "can be given, e.g. --diagrams modern 3d. The first is written to "
              "--output; the others get a _classic / _3d suffix")
+    parser.add_argument('--color-scheme', '-c', default=None, metavar='SCHEME',
+        help="Colours of the diagrams: default, colorblind, monochrome, "
+             "dark, publication, or a JSON file of colours")
     parser.add_argument('--show-nearby', action='store_true',
         help='Also show binding-site residues without a specific interaction '
              '(modern diagram)')
@@ -149,7 +153,8 @@ def _run_batch(args, files, say):
         files, output_dir=outdir, ligand_resname=args.ligand,
         diagrams=_selected_diagrams(args.diagrams, ['modern']),
         report=args.report, plots=bool(args.plots), json_export=bool(args.json),
-        dpi=args.dpi, strict_halogens=args.strict_halogens,
+        dpi=args.dpi, color_scheme=args.color_scheme,
+        strict_halogens=args.strict_halogens,
         strict_hbond_geometry=args.strict_hbond_geometry,
         water_angle_check=args.water_angle_check)
     failed = [r for r in result['results'] if r['status'] != 'ok']
@@ -200,7 +205,8 @@ def _run_single(args, structure_file, say):
         title=args.title,
         show_3d_cues=not args.no_3d_cues,
         diagrams=diagrams,
-        show_nearby_residues=args.show_nearby
+        show_nearby_residues=args.show_nearby,
+        color_scheme=args.color_scheme
     )
 
     if mapper.diagram_files:
@@ -272,6 +278,7 @@ def main():
         return 1
 
     try:
+        load_color_scheme(args.color_scheme)        # a bad name fails before the analysis
         files = expand_structure_paths(args.structures)
         batch = len(args.structures) > 1 or os.path.isdir(args.structures[0])
         if batch and not files:

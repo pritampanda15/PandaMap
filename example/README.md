@@ -1,6 +1,6 @@
 # PandaMap examples
 
-Five structures (plus a water bridge example) and everything PandaMap 4.4.1 writes for each of them. Use this
+Five structures (plus a water bridge example) and everything PandaMap 4.5 writes for each of them. Use this
 page to see what the outputs look like before running anything, or to check
 that your installation gives the same results.
 
@@ -137,6 +137,20 @@ Four bridges: the two above plus THR 288 and SER 290. Each hydrogen bond is 2.5�
 | [<img src="water_bridge/distance_only/complex_rism_waters_interactions.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions.png) | [<img src="water_bridge/distance_only/complex_rism_waters_interactions_classic.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions_classic.png) | [<img src="water_bridge/distance_only/complex_rism_waters_interactions_3d.png" width="260">](water_bridge/distance_only/complex_rism_waters_interactions_3d.png) |
 
 Data: [text report](water_bridge/distance_only/complex_rism_waters_interactions_report.txt) · [summary figure](water_bridge/distance_only/complex_rism_waters_interactions_report.png) · [CSV](water_bridge/distance_only/complex_rism_waters_interactions.csv) · [JSON](water_bridge/distance_only/complex_rism_waters_interactions.json) · [interaction score](water_bridge/distance_only/complex_rism_waters_interaction_score.txt) · [3D viewer (HTML)](water_bridge/distance_only/complex_rism_waters_3d_visualization.html)
+
+## Colour schemes
+
+The three 1M17 diagrams in each built-in colour scheme:
+
+```bash
+pandamap example/1m17.pdb --ligand AQ4 --color-scheme dark
+```
+
+| | Default | Colorblind | Monochrome | Dark | Publication |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Modern 2D** | [<img src="color_schemes/1m17_default.png" width="130">](color_schemes/1m17_default.png) | [<img src="color_schemes/1m17_colorblind.png" width="130">](color_schemes/1m17_colorblind.png) | [<img src="color_schemes/1m17_monochrome.png" width="130">](color_schemes/1m17_monochrome.png) | [<img src="color_schemes/1m17_dark.png" width="130">](color_schemes/1m17_dark.png) | [<img src="color_schemes/1m17_publication.png" width="130">](color_schemes/1m17_publication.png) |
+| **Classic** | [<img src="color_schemes/1m17_default_classic.png" width="130">](color_schemes/1m17_default_classic.png) | [<img src="color_schemes/1m17_colorblind_classic.png" width="130">](color_schemes/1m17_colorblind_classic.png) | [<img src="color_schemes/1m17_monochrome_classic.png" width="130">](color_schemes/1m17_monochrome_classic.png) | [<img src="color_schemes/1m17_dark_classic.png" width="130">](color_schemes/1m17_dark_classic.png) | [<img src="color_schemes/1m17_publication_classic.png" width="130">](color_schemes/1m17_publication_classic.png) |
+| **3D contacts** | [<img src="color_schemes/1m17_default_3d.png" width="130">](color_schemes/1m17_default_3d.png) | [<img src="color_schemes/1m17_colorblind_3d.png" width="130">](color_schemes/1m17_colorblind_3d.png) | [<img src="color_schemes/1m17_monochrome_3d.png" width="130">](color_schemes/1m17_monochrome_3d.png) | [<img src="color_schemes/1m17_dark_3d.png" width="130">](color_schemes/1m17_dark_3d.png) | [<img src="color_schemes/1m17_publication_3d.png" width="130">](color_schemes/1m17_publication_3d.png) |
 
 ## Batch mode
 
