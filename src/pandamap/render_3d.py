@@ -303,7 +303,7 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
         base = os.path.splitext(os.path.basename(str(mapper.structure_file)))[0]
         ligand = getattr(mapper.ligand_residue, 'resname', '').strip()
         title = f"3D contacts: {base}" + (f" · {ligand}" if ligand else "")
-    ax.set_title(title, fontsize=17, pad=6, color=ink)
+    ax.set_title(title, fontsize=17, pad=6, color=theme.get('ink', 'black'))
     handles = [Line2D([0], [0], color=colour_of(t), ls=INTERACTION_STYLE[t][2],
                       lw=2.2, label=INTERACTION_STYLE[t][0])
                for t in INTERACTION_STYLE if t in used_types]
@@ -318,7 +318,7 @@ def render_contacts_3d(mapper, output_file='contacts_3d.png', figsize=(11, 11.6)
     if handles:
         fig.legend(handles=handles, loc='lower center', ncol=4, frameon=False,
                    fontsize=11, bbox_to_anchor=(0.5, 0.005), handlelength=2.6,
-                   columnspacing=1.6, labelcolor=ink)
+                   columnspacing=1.6, labelcolor=theme.get('ink', 'black'))
     if keys:
         fig.text(0.5, bottom + 0.012,
                  'Residues are moved outwards for clarity; printed distances are the real ones.',

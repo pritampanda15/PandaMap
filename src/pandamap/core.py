@@ -2054,7 +2054,7 @@ class HybridProtLigMapper:
             fontsize=9,
             title_fontsize=10,
             facecolor=paper,
-            edgecolor=ink,
+            edgecolor=theme.get('ink', '0.8'),    # matplotlib's default frame grey
             labelcolor=ink
         )
         legend.get_title().set_color(ink)

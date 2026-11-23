@@ -424,12 +424,12 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         base = os.path.splitext(os.path.basename(str(mapper.structure_file)))[0]
         ligand = getattr(mapper.ligand_residue, 'resname', '').strip()
         title = f"Protein–ligand interactions: {base}" + (f" · {ligand}" if ligand else "")
-    ax.set_title(title, fontsize=17, pad=6, color=ink)
+    ax.set_title(title, fontsize=17, pad=6, color=theme.get('ink', 'black'))
     rows = math.ceil(len(handles) / 4) if handles else 0
     if handles:
         fig.legend(handles=handles, loc='lower center', ncol=4, frameon=False,
                    fontsize=11, bbox_to_anchor=(0.5, 0.005), handlelength=2.6,
-                   columnspacing=1.6, labelcolor=ink)
+                   columnspacing=1.6, labelcolor=theme.get('ink', 'black'))
     fig.subplots_adjust(left=0.01, right=0.99, top=0.95, bottom=0.03 + 0.024 * rows)
     fig.savefig(output_file, dpi=dpi, facecolor=paper)
     plt.close(fig)
