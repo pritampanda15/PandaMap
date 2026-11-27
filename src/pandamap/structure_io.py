@@ -13,28 +13,51 @@ from Bio.PDB import PDBParser, MMCIFParser
 logger = logging.getLogger("pandamap")
 
 
+# AutoDock4 / PDBQT atom types -> standard 1- or 2-letter PDB element symbols.
+_PDBQT_ELEMENT_MAP = {
+    'A': 'C', 'C': 'C', 'N': 'N', 'NA': 'N', 'NS': 'N', 'O': 'O', 'OA': 'O',
+    'OS': 'O', 'S': 'S', 'SA': 'S', 'H': 'H', 'HD': 'H', 'HS': 'H', 'P': 'P',
+    'F': 'F', 'CL': 'CL', 'BR': 'BR', 'I': 'I', 'SI': 'SI', 'B': 'B',
+    'FE': 'FE', 'ZN': 'ZN', 'MG': 'MG', 'MN': 'MN', 'CA': 'CA', 'CU': 'CU',
+    'CO': 'CO', 'NI': 'NI', 'NA+': 'NA', 'K': 'K', 'LI': 'LI', 'SE': 'SE',
+}
+
+
+def _pdbqt_line_to_pdb(line):
+    """Convert one PDBQT ATOM/HETATM line to valid PDB while preserving element."""
+    raw = line.rstrip('\r\n')
+    ad_type = raw[76:].strip().upper() if len(raw) > 76 else ''
+    elem = _PDBQT_ELEMENT_MAP.get(ad_type, '')
+    if not elem and ad_type:
+        # Fallback for two-letter element types not listed above
+        alpha = ''.join(ch for ch in ad_type if ch.isalpha())
+        elem = alpha[:2] if len(alpha) >= 2 else alpha
+    body = raw[:66].ljust(76)
+    if elem:
+        return f"{body}{elem:>2}\n"
+    return raw[:66] + '\n'
+
+
 def parse_pdbqt(pdbqt_file):
     """
-    Convert PDBQT to PDB format by stripping the charge and atom type information.
+    Convert PDBQT to PDB format by stripping AutoDock charges/torsion records
+    while preserving element symbols and multi-pose MODEL/ENDMDL boundaries.
     Returns a temporary file path to the converted PDB.
     """
-    # Create a temporary file for the PDB output
     temp_pdb = tempfile.NamedTemporaryFile(suffix='.pdb', delete=False)
     temp_pdb_path = temp_pdb.name
     temp_pdb.close()
-    
-    # Read the PDBQT file and write a modified version without charges and types
-    with open(pdbqt_file, 'r') as f_pdbqt, open(temp_pdb_path, 'w', encoding='utf-8') as f_pdb:
+
+    with open(pdbqt_file, 'r', encoding='utf-8', errors='replace') as f_pdbqt, \
+            open(temp_pdb_path, 'w', encoding='utf-8') as f_pdb:
         for line in f_pdbqt:
             if line.startswith(('ATOM', 'HETATM')):
-                # Keep the PDB format portion, remove the PDBQT-specific part
-                # PDB format: columns 1-66 are standard PDB format
-                # PDBQT adds charge and atom type in columns 67+
-                f_pdb.write(line[:66] + '\n')
-            elif not line.startswith(('REMARK', 'MODEL', 'ENDMDL', 'TORSDOF')):
-                # Copy most other lines except PDBQT-specific ones
+                f_pdb.write(_pdbqt_line_to_pdb(line))
+            elif line.startswith(('MODEL', 'ENDMDL', 'TER', 'END')):
                 f_pdb.write(line)
-    
+            elif not line.startswith(('REMARK', 'TORSDOF', 'ROOT', 'ENDROOT', 'BRANCH', 'ENDBRANCH')):
+                f_pdb.write(line)
+
     return temp_pdb_path
 
 class MultiFormatParser:

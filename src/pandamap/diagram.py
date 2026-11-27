@@ -211,15 +211,31 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
 
     nearby = []
     if show_nearby_residues:
-        shown = {(k[0], k[1]) for k in residues}
-        for res_id in sorted(mapper.interacting_residues):
-            residue = mapper.protein_residues.get(res_id)
-            if res_id in shown or residue is None:
-                continue
+        shown = set(residues)
+        by_chain = getattr(mapper, '_protein_residues_by_chain', None)
+        if by_chain:
+            nearby_candidates = [
+                (chain_id, rname, rnum, res)
+                for (chain_id, rname, rnum), res in sorted(by_chain.items())
+                if ((rname, rnum) in mapper.interacting_residues
+                    or (res.resname, rnum) in mapper.interacting_residues)
+                and (rname, rnum, chain_id) not in shown
+            ]
+        else:
+            shown_2 = {(k[0], k[1]) for k in residues}
+            nearby_candidates = []
+            for res_id in sorted(mapper.interacting_residues):
+                residue = mapper.protein_residues.get(res_id)
+                if res_id in shown_2 or residue is None:
+                    continue
+                nearby_candidates.append(
+                    (residue.get_parent().id, res_id[0].strip(), res_id[1], residue)
+                )
+        for chain_id, rname, rnum, residue in nearby_candidates:
             xyz = np.array([a.coord for a in residue])
             dist = np.linalg.norm(xyz[:, None, :] - heavy_xyz[None, :, :], axis=2)
             v = pts[int(np.unravel_index(dist.argmin(), dist.shape)[1])]
-            nearby.append((res_id[0].strip(), res_id[1], residue.get_parent().id))
+            nearby.append((rname, rnum, chain_id))
             preferred.append(math.atan2(v[1], v[0]))
     everyone = residues + nearby
 
@@ -322,7 +338,10 @@ def draw_interaction_diagram(mapper, output_file='protein_ligand_interactions.pn
         fill = fills.get(label, fill)
         if (label, fill) not in used_classes:
             used_classes.append((label, fill))
-        accessible = (resname, resnum) in solvent
+        if hasattr(mapper, 'is_residue_solvent_accessible'):
+            accessible = mapper.is_residue_solvent_accessible((chain, resname, resnum))
+        else:
+            accessible = (resname, resnum) in solvent
         any_solvent = any_solvent or accessible
         ax.add_patch(FancyBboxPatch(
             (c[0] - _BOX_W / 2, c[1] - _BOX_H / 2), _BOX_W, _BOX_H,

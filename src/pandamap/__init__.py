@@ -21,6 +21,7 @@ from importlib.metadata import version
 
 from .core import (SimpleLigandStructure, HybridProtLigMapper,
                    analyze_trajectory, list_ligands)
+from .trajectory import analyze_md_trajectory
 from .render_3d import render_contacts_3d
 from .batch import analyze_batch
 
@@ -32,7 +33,7 @@ logging.getLogger("pandamap").addHandler(logging.NullHandler())
 check_for_updates_in_background()
 
 __all__ = ["SimpleLigandStructure", "HybridProtLigMapper", "analyze_trajectory",
-           "analyze_batch", "list_ligands", "render_contacts_3d"]
+           "analyze_md_trajectory", "analyze_batch", "list_ligands", "render_contacts_3d"]
 __version__ = "4.5.0"  # fallback when the package metadata is unavailable
 try:
     __version__ = version("pandamap")

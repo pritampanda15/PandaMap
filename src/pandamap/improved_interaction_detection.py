@@ -65,6 +65,7 @@ def filter_interactions(interactions, thresholds):
             pi for pi in interactions['pi_pi_stacking']
             if (thresholds['min_dist'] < pi['distance'] < thresholds['pi_stacking'] and
                 (
+                    'angle' not in pi or 'offset' not in pi or
                     # Parallel stacking (angle between ring normals < 30°)
                     (pi['angle'] < ANGLE_CUTOFFS['pi_stack_parallel'] and 
                      pi['offset'] < OFFSET_CUTOFFS['pi_stack']) or
@@ -80,7 +81,7 @@ def filter_interactions(interactions, thresholds):
         filtered['carbon_pi'] = [
             pic for pic in interactions['carbon_pi']
             if (thresholds['min_dist'] < pic['distance'] < thresholds['pi_cation'] and
-                pic['offset'] < OFFSET_CUTOFFS['pi_cation'])
+                ('offset' not in pic or pic['offset'] < OFFSET_CUTOFFS['pi_cation']))
         ]
         
     # Filter ionic interactions (salt bridges)
@@ -102,16 +103,18 @@ def filter_interactions(interactions, thresholds):
         filtered['halogen_bonds'] = [
             hal for hal in interactions['halogen_bonds']
             if (thresholds['min_dist'] < hal['distance'] < thresholds['halogen'] and
-                abs(hal['don_angle'] - ANGLE_CUTOFFS['halogen_donor']) < ANGLE_CUTOFFS['halogen_angle_dev'] and
-                abs(hal['acc_angle'] - ANGLE_CUTOFFS['halogen_acceptor']) < ANGLE_CUTOFFS['halogen_angle_dev'])
+                ('don_angle' not in hal or abs(hal['don_angle'] - ANGLE_CUTOFFS['halogen_donor']) < ANGLE_CUTOFFS['halogen_angle_dev']) and
+                ('acc_angle' not in hal or abs(hal['acc_angle'] - ANGLE_CUTOFFS['halogen_acceptor']) < ANGLE_CUTOFFS['halogen_angle_dev']))
         ]
         
     # Filter water bridges
     if 'water_bridges' in interactions:
         filtered['water_bridges'] = [
             wb for wb in interactions['water_bridges']
-            if (thresholds['min_dist'] < wb['distance_aw'] < thresholds['water_bridge'] and
-                thresholds['min_dist'] < wb['distance_dw'] < thresholds['water_bridge'])
+            if (
+                thresholds['min_dist'] < wb.get('distance_aw', wb.get('distance_protein_water', wb['distance'])) <= thresholds['water_bridge'] and
+                thresholds['min_dist'] < wb.get('distance_dw', wb.get('distance_ligand_water', wb['distance'])) <= thresholds['water_bridge']
+            )
         ]
     
     # Filter alkyl-pi interactions
@@ -126,7 +129,7 @@ def filter_interactions(interactions, thresholds):
         filtered['pi_cation'] = [
             pc for pc in interactions['pi_cation']
             if thresholds['min_dist'] < pc['distance'] < thresholds['pi_cation'] and
-            pc['offset'] < OFFSET_CUTOFFS['pi_cation']
+            ('offset' not in pc or pc['offset'] < OFFSET_CUTOFFS['pi_cation'])
         ]
     
     # Filter attractive charge interactions
@@ -155,7 +158,14 @@ def refine_hydrophobic_interactions(interactions):
     # Group by protein residue
     by_residue = defaultdict(list)
     for interaction in interactions:
-        res_id = (interaction['restype'], interaction['resnr'], interaction['reschain'])
+        res = interaction.get('protein_residue')
+        if res is not None:
+            parent = res.get_parent() if hasattr(res, 'get_parent') else None
+            res_id = (res.resname, res.id[1], parent.id if parent is not None else '')
+        else:
+            res_id = (interaction.get('restype', 'UNK'),
+                      interaction.get('resnr', 0),
+                      interaction.get('reschain', ''))
         by_residue[res_id].append(interaction)
     
     # Keep only the closest interaction for each residue
@@ -167,7 +177,11 @@ def refine_hydrophobic_interactions(interactions):
     # Group by ligand atom to find clusters
     by_ligand_atom = defaultdict(list)
     for interaction in refined:
-        lig_atom_id = interaction['ligatom_orig_idx']
+        lig_atom = interaction.get('ligand_atom')
+        if lig_atom is not None:
+            lig_atom_id = id(lig_atom)
+        else:
+            lig_atom_id = interaction.get('ligatom_orig_idx', id(interaction))
         by_ligand_atom[lig_atom_id].append(interaction)
     
     # For each ligand atom, keep only the closest interaction
@@ -480,10 +494,14 @@ def add_interaction_detection_methods(cls):
         # First, use the original method to get all potential interactions
         self.detect_interactions(h_bond_cutoff, pi_stack_cutoff, hydrophobic_cutoff)
         
-        # Convert namedtuples to dictionaries for easier processing
+        # Convert records to plain dictionaries without crashing on dict items
         interactions = {}
         for itype, ilist in self.interactions.items():
-            interactions[itype] = [i._asdict() if hasattr(i, '_asdict') else vars(i) for i in ilist]
+            interactions[itype] = [
+                i._asdict() if hasattr(i, '_asdict')
+                else (dict(i) if isinstance(i, dict) else vars(i))
+                for i in ilist
+            ]
         
         # Apply improved filtering
         detector = ImprovedInteractionDetection()
@@ -493,8 +511,7 @@ def add_interaction_detection_methods(cls):
         for itype, ilist in filtered.items():
             if itype in self.interactions:
                 # Convert back to namedtuples if needed
-                if ilist and hasattr(self.interactions[itype][0], '_fields'):
-                    fields = self.interactions[itype][0]._fields
+                if ilist and self.interactions[itype] and hasattr(self.interactions[itype][0], '_fields'):
                     namedtuple_type = type(self.interactions[itype][0])
                     self.interactions[itype] = [namedtuple_type(**item) for item in ilist]
                 else:
@@ -505,19 +522,24 @@ def add_interaction_detection_methods(cls):
     def generate_interaction_report(self, output_file=None):
         """Generate a PLIP-like text report for the interactions."""
         aromatic = {'PHE', 'TYR', 'TRP', 'HIS'}
-        self.interactions['pi_pi_stacking'] = [i for i in self.interactions['pi_pi_stacking'] 
-                                         if i['protein_residue'].resname in aromatic]
-    
-        # Remove salt bridges for non-charged residues
         charged = {'ASP', 'GLU', 'LYS', 'ARG', 'HIS'}
-        self.interactions['salt_bridge'] = [i for i in self.interactions['salt_bridge'] 
-                                      if i['protein_residue'].resname in charged]
-        self.interactions['ionic'] = [i for i in self.interactions['ionic'] 
-                                if i['protein_residue'].resname in charged]
-    
-        # Remove covalent bonds with distances > 2.1Å
-        self.interactions['covalent'] = [i for i in self.interactions['covalent'] 
-                                   if i['distance'] < 2.1]
+        source_interactions = dict(self.interactions)
+        source_interactions['pi_pi_stacking'] = [
+            i for i in source_interactions.get('pi_pi_stacking', [])
+            if i['protein_residue'].resname in aromatic
+        ]
+        source_interactions['salt_bridge'] = [
+            i for i in source_interactions.get('salt_bridge', [])
+            if i['protein_residue'].resname in charged
+        ]
+        source_interactions['ionic'] = [
+            i for i in source_interactions.get('ionic', [])
+            if i['protein_residue'].resname in charged
+        ]
+        source_interactions['covalent'] = [
+            i for i in source_interactions.get('covalent', [])
+            if i['distance'] < 2.1
+        ]
         
         # Prepare ligand info
         if hasattr(self, 'ligand_residue') and self.ligand_residue:
@@ -557,7 +579,7 @@ def add_interaction_detection_methods(cls):
         interacting_chains = set()
         interacting_res = set()
         
-        for itype, interactions_list in self.interactions.items():
+        for itype, interactions_list in source_interactions.items():
             processed_interactions[itype] = []
             
             for interaction in interactions_list:
@@ -609,6 +631,8 @@ def add_interaction_detection_methods(cls):
                             interaction_data['angle'] = interaction['angle']
                     if isinstance(interaction, dict) and 'type' in interaction:
                         interaction_data['type'] = interaction['type']
+                    if isinstance(interaction, dict) and interaction.get('halogen_element'):
+                        interaction_data['halogen_element'] = interaction['halogen_element']
 
                     # Atom names, so the report says which atoms are in contact
                     if isinstance(interaction, dict):
@@ -635,35 +659,6 @@ def add_interaction_detection_methods(cls):
             pass
 
         # Update ligand info with collected data
-        ligand_info['interacting_chains'] = list(interacting_chains) if interacting_chains else []
-        ligand_info['interacting_res'] = list(interacting_res) if interacting_res else []
-        
-        # Get interacting residues from the interacting_residues set
-        try:
-            if hasattr(self, 'interacting_residues') and self.interacting_residues:
-                for res_id in self.interacting_residues:
-                    if isinstance(res_id, tuple) and len(res_id) == 2:
-                        restype, resnr = res_id
-                        if res_id in self.protein_residues:
-                            res = self.protein_residues[res_id]
-                            if hasattr(res, 'get_parent') and callable(res.get_parent):
-                                parent = res.get_parent()
-                                if parent and hasattr(parent, 'id'):
-                                    chain = parent.id
-                                    # Create a sample interaction entry for each residue
-                                    #for itype in processed_interactions:
-                                        #processed_interactions[itype].append({
-                                            #'restype': restype,
-                                            #'resnr': resnr,
-                                            #'reschain': chain,
-                                            #'distance': 3.5  # Use a reasonable default distance
-                                        #})
-                                    #interacting_res.add(f"{resnr}{chain}")
-                                    #interacting_chains.add(chain)
-        except Exception as e:
-            logger.warning(f"Error processing interacting_residues set: {str(e)}")
-        
-        # Update ligand info with final data
         ligand_info['interacting_chains'] = list(interacting_chains) if interacting_chains else []
         ligand_info['interacting_res'] = list(interacting_res) if interacting_res else []
         
@@ -847,4 +842,5 @@ def add_interaction_detection_methods(cls):
     # Add methods to the class
     setattr(cls, 'detect_interactions_improved', detect_interactions_improved)
     setattr(cls, 'generate_interaction_report', generate_interaction_report)
+    setattr(cls, 'generate_enhanced_interaction_report', generate_enhanced_interaction_report)
     return cls

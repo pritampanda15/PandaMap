@@ -48,22 +48,21 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 1m17,AQ4,ionic,ASP,831,A,OD2,N1,5.43,True,
 1m17,AQ4,pi_cation,LYS,721,A,NZ,C22,3.7,True,protein cation
 1m17,AQ4,water_bridges,THR,766,A,OG1,N3,3.1,True,via HOH 10 (2.78 + 3.10 Å)
-4jmz,HEM,alkyl_pi,LEU,230,A,CD1,CHB,3.58,False,
+4jmz,HEM,alkyl_pi,TRP,51,A,CD1,C3C,3.3,False,
 4jmz,HEM,alkyl_pi,PRO,145,A,CG,C3B,3.75,False,
-4jmz,HEM,alkyl_pi,TRP,51,A,CE2,CMC,3.82,False,
+4jmz,HEM,alkyl_pi,HIS,175,A,CD2,C4C,3.84,True,
 4jmz,HEM,alkyl_pi,PHE,158,A,CE1,CAB,3.94,False,
 4jmz,HEM,alkyl_pi,HIS,181,A,CE1,CGD,3.94,True,
-4jmz,HEM,alkyl_pi,ALA,174,A,CB,CHD,3.97,False,
 4jmz,HEM,alkyl_pi,TYR,187,A,CD2,CMA,3.98,True,
 4jmz,HEM,alkyl_pi,PHE,264,A,CE2,CBC,4.02,False,
 4jmz,HEM,alkyl_pi,PHE,260,A,CE1,CBC,4.1,False,
-4jmz,HEM,alkyl_pi,ALA,147,A,CB,CHB,4.56,False,
-4jmz,HEM,alkyl_pi,LEU,171,A,C,C2C,4.68,False,
-4jmz,HEM,alkyl_pi,VAL,47,A,CG1,CHD,4.69,False,
+4jmz,HEM,alkyl_pi,LEU,230,A,CD1,C1B,4.17,False,
 4jmz,HEM,alkyl_pi,PRO,44,A,C,C2D,4.93,False,
-4jmz,HEM,alkyl_pi,MET,172,A,CA,C2C,5.03,False,
+4jmz,HEM,alkyl_pi,ALA,174,A,CB,C1D,4.94,False,
+4jmz,HEM,alkyl_pi,ALA,147,A,CB,C2B,4.96,False,
+4jmz,HEM,alkyl_pi,MET,172,A,CE,C3B,5.14,False,
 4jmz,HEM,alkyl_pi,LEU,177,A,CB,C2D,5.16,False,
-4jmz,HEM,alkyl_pi,HIS,175,A,CE1,CAB,5.32,True,
+4jmz,HEM,alkyl_pi,VAL,47,A,CG1,C2D,5.21,False,
 4jmz,HEM,carbon_pi,TRP,51,A,NE1,C1C,3.13,False,
 4jmz,HEM,carbon_pi,HIS,181,A,ND1,CGA,3.49,True,
 4jmz,HEM,donor_pi,ASP,146,A,O,C2B,4.81,True,
@@ -83,18 +82,18 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 4jmz,HEM,hydrophobic,ALA,174,A,CB,CAC,3.43,False,
 4jmz,HEM,hydrophobic,PRO,145,A,CG,CAB,3.58,False,
 4jmz,HEM,hydrophobic,ALA,147,A,CA,CMB,3.58,False,
+4jmz,HEM,hydrophobic,LEU,230,A,CD1,CHB,3.58,False,
 4jmz,HEM,hydrophobic,LEU,171,A,CB,CMC,3.85,False,
 4jmz,HEM,hydrophobic,PRO,44,A,C,CMD,4.0,False,
 4jmz,HEM,ionic,HIS,181,A,ND1,O2A,2.68,True,
 4jmz,HEM,ionic,LYS,179,A,N,O2D,3.04,True,
 4jmz,HEM,ionic,ARG,48,A,NH2,O2A,4.75,True,
-4jmz,HEM,pi_cation,ARG,48,A,NH1,C4A,3.31,True,protein cation
 4jmz,HEM,pi_cation,HIS,175,A,NE2,C4B,3.56,True,protein cation
+4jmz,HEM,pi_cation,ARG,48,A,NE,C4D,3.65,True,protein cation
 4jmz,HEM,pi_cation,LYS,179,A,N,C3D,5.47,True,protein cation
-4jmz,HEM,pi_pi_stacking,TRP,51,A,CD1,C3C,3.3,False,
 4jmz,HEM,pi_pi_stacking,HIS,175,A,CE1,C4B,3.51,True,
-4jmz,HEM,pi_pi_stacking,PHE,158,A,CZ,CHC,4.88,False,
-4jmz,HEM,pi_pi_stacking,TYR,187,A,CD2,C3A,5.29,True,
+4jmz,HEM,pi_pi_stacking,TRP,51,A,CZ2,C4B,3.99,False,
+4jmz,HEM,pi_pi_stacking,PHE,158,A,CZ,C3B,5.26,False,
 4jmz,HEM,water_bridges,ARG,48,A,NE,NA,2.77,True,via HOH 707 (2.77 + 2.69 Å)
 4jmz,HEM,water_bridges,GLY,41,A,O,O2D,2.81,True,via HOH 448 + HOH 421 (2.69 + 2.81 + 2.75 Å)
 4jmz,HEM,water_bridges,TRP,51,A,NE1,NB,2.81,False,via HOH 707 (2.81 + 2.79 Å)
@@ -106,11 +105,11 @@ structure,ligand,interaction_type,protein_residue,protein_resnum,protein_chain,p
 4jmz,HEM,water_bridges,PRO,145,A,O,NB,3.23,False,via HOH 503 + HOH 709 (3.23 + 2.69 + 2.81 Å)
 4jmz,HEM,water_bridges,GLY,84,A,O,O2A,3.35,True,via HOH 431 + HOH 438 (2.78 + 2.83 + 3.35 Å)
 4jmz,HEM,water_bridges,TYR,36,A,OH,O2D,3.37,True,via HOH 448 + HOH 471 (2.69 + 3.37 + 2.80 Å)
-A0152a,LIG,alkyl_pi,PRO,91,A,CA,C1,3.98,False,
-A0152a,LIG,alkyl_pi,ALA,86,A,CB,C1,4.19,False,
+A0152a,LIG,alkyl_pi,PRO,91,A,CD,C7,4.04,False,
 A0152a,LIG,donor_pi,GLU,88,A,O,C3,2.96,True,
 A0152a,LIG,hydrophobic,TYR,89,A,C,C4,3.41,False,
 A0152a,LIG,hydrophobic,TYR,90,A,C,C2,3.61,True,
+A0152a,LIG,hydrophobic,PRO,91,A,CA,C1,3.98,False,
 A0152a,LIG,ionic,GLU,88,A,O,N,5.0,True,
 complex,PFL,alkyl_pi,PHE,289,C,CZ,C12,3.73,False,
 complex,PFL,alkyl_pi,MET,286,C,CG,C2,3.89,False,

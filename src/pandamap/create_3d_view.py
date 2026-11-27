@@ -80,13 +80,34 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     ligand_resname = getattr(mapper.ligand_residue, 'resname', 'UNK')
     js_residues, js_solvent, js_interactions, interaction_data = [], [], [], []
 
-    for res_id in mapper.interacting_residues:
-        residue = mapper.protein_residues.get(res_id)
-        if residue is None:
-            continue
-        res_num = str(residue.id[1])
-        chain_id = getattr(residue.get_parent(), 'id', 'A')
-        resname = residue.get_resname()
+    # Style chain-distinct contacting/nearby residues cleanly
+    residue_entries = []
+    seen_res_keys = set()
+    for hits in mapper.interactions.values():
+        for hit in hits:
+            res = hit.get('protein_residue')
+            if res is None:
+                continue
+            parent = res.get_parent() if hasattr(res, 'get_parent') else None
+            cid = getattr(parent, 'id', 'A')
+            rkey = (cid, res.resname.strip(), res.id[1])
+            if rkey not in seen_res_keys:
+                seen_res_keys.add(rkey)
+                residue_entries.append((rkey, res))
+    if not residue_entries:
+        for res_id in mapper.interacting_residues:
+            res = mapper.protein_residues.get(res_id)
+            if res is None:
+                continue
+            cid = getattr(res.get_parent(), 'id', 'A')
+            rkey = (cid, res.resname.strip(), res.id[1])
+            if rkey not in seen_res_keys:
+                seen_res_keys.add(rkey)
+                residue_entries.append((rkey, res))
+
+    for rkey, residue in residue_entries:
+        chain_id, resname, res_num_int = rkey
+        res_num = str(res_num_int)
         tint = _RESIDUE_TINT[_RESIDUE_CLASS.get(resname.strip(), _OTHER_RESIDUE)[0]]
 
         js_residues.append(f"""
@@ -106,7 +127,10 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         }}
     }});""")
 
-        if show_surface and res_id in mapper.solvent_accessible:
+        is_exposed = (mapper.is_residue_solvent_accessible(rkey)
+                      if hasattr(mapper, 'is_residue_solvent_accessible')
+                      else (resname, res_num_int) in mapper.solvent_accessible)
+        if show_surface and is_exposed:
             js_solvent.append(f"""
     viewer.addSurface($3Dmol.VDW, {{opacity: 0.4, color: 'white'}}, {{chain: '{chain_id}', resi: {res_num}}});""")
 
@@ -116,6 +140,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
             continue
         color = interaction_colors[itype]
         is_dashed = INTERACTION_STYLE[itype][2] != '-'
+        max_len = 11.0 if itype == 'water_bridges' else 6.0
         for interaction in interactions:
             pa = interaction.get('protein_atom')
             la = interaction.get('ligand_atom')
@@ -130,11 +155,12 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
             if prot_coords is None or lig_coords is None:
                 continue
 
-            prot_coords = list(prot_coords)
-            lig_coords = list(lig_coords)
-            length = round(np.linalg.norm(np.array(prot_coords) - np.array(lig_coords)), 2)
-            if length > 5.0:
+            prot_coords = [float(x) for x in prot_coords]
+            lig_coords = [float(x) for x in lig_coords]
+            direct_len = round(float(np.linalg.norm(np.array(prot_coords) - np.array(lig_coords))), 2)
+            if direct_len > max_len:
                 continue
+            length = round(float(interaction.get('distance', direct_len)), 2)
             label = INTERACTION_STYLE[itype][0]
             drawn_types.add(itype)
             mid_x, mid_y, mid_z = [(p + l) / 2 for p, l in zip(prot_coords, lig_coords)]
@@ -142,6 +168,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
             # the protein atom that makes the contact: solid, labelled sphere
             prot_res = interaction.get('protein_residue')
             atom_name = pa.get_name().strip()
+            lig_atom_name = la.get_name().strip() if hasattr(la, 'get_name') else str(la)
             res_label = (f"{prot_res.get_resname().strip()} {prot_res.id[1]}"
                          if prot_res is not None else "")
             js_interactions.append(f"""
@@ -160,12 +187,31 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         backgroundOpacity: 0.6, inFront: true
     }});""")
 
-            js_interactions.append(f"""
+            # For water bridges, route cylinders through bridging water oxygen(s)
+            water_coords = []
+            if itype == 'water_bridges':
+                for wres in interaction.get('water_residues') or (
+                        [interaction['water_residue']] if interaction.get('water_residue') is not None else []):
+                    for watom in wres.get_atoms():
+                        if (getattr(watom, 'element', '') or '').strip().upper() == 'O':
+                            water_coords.append([float(x) for x in watom.get_coord()])
+                            break
+            path_pts = [lig_coords] + water_coords + [prot_coords]
+            for p_start, p_end in zip(path_pts, path_pts[1:]):
+                js_interactions.append(f"""
     viewer.addCylinder({{
-        start: {{x: {prot_coords[0]}, y: {prot_coords[1]}, z: {prot_coords[2]}}},
-        end: {{x: {lig_coords[0]}, y: {lig_coords[1]}, z: {lig_coords[2]}}},
+        start: {{x: {p_start[0]}, y: {p_start[1]}, z: {p_start[2]}}},
+        end: {{x: {p_end[0]}, y: {p_end[1]}, z: {p_end[2]}}},
         radius: 0.1, color: '{color}', dashed: {str(is_dashed).lower()}
-    }});
+    }});""")
+            for wc in water_coords:
+                js_interactions.append(f"""
+    viewer.addSphere({{
+        center: {{x: {wc[0]}, y: {wc[1]}, z: {wc[2]}}},
+        radius: 0.35, color: '{color}', opacity: 0.9
+    }});""")
+
+            js_interactions.append(f"""
     viewer.addSphere({{
         center: {{x: {mid_x}, y: {mid_y}, z: {mid_z}}},
         radius: 0.15,
@@ -179,7 +225,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
         alpha: 0,
         clickable: true,
         callback: function() {{
-            showTooltip("Ligand: {ligand_resname} {interaction['ligand_atom']}", {{x: {lig_coords[0]}, y: {lig_coords[1]}, z: {lig_coords[2]}}});
+            showTooltip("Ligand: {ligand_resname} {lig_atom_name}", {{x: {lig_coords[0]}, y: {lig_coords[1]}, z: {lig_coords[2]}}});
         }}
     }});
     viewer.addSphere({{
@@ -247,7 +293,7 @@ def create_pandamap_3d_viz(mapper, output_file, width=800, height=600, show_surf
     <button onclick='viewer.zoomTo(); viewer.render();'>Reset View</button>
     <button onclick="exportImage();">Export PNG</button>
     <button onclick='clearSelection();'>Clear Selection</button>
-    <button onclick='viewer.setStyle({{hetflag: true}}, {{stick: {{colorscheme: "elementColors", radius: 0.3}}}}); viewer.zoomTo({{hetflag: true}}); viewer.render();'>Show Ligand</button>
+    <button onclick="selectLigand('{ligand_resname}');">Show Ligand</button>
 
 
   </div>

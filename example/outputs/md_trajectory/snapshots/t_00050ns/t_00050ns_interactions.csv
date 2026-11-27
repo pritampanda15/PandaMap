@@ -1,0 +1,12 @@
+interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
+alkyl_pi,ILE,234,A,CD,C11,C,3.69,False,
+alkyl_pi,ALA,711,A,CB,C4,C,3.83,False,
+alkyl_pi,ILE,718,A,CG1,C11,C,4.71,False,
+alkyl_pi,ILE,230,A,CG2,C16,C,4.96,False,
+alkyl_pi,LEU,231,A,C,C15,C,4.99,False,
+alkyl_pi,ALA,707,A,C,C19,C,5.49,False,
+cation_pi,PHE,714,A,CD2,N,N,4.86,True,
+hydrophobic,PHE,714,A,CB,C12,C,3.63,True,
+hydrophobic,VAL,708,A,CG1,C1,C,3.7,True,
+pi_pi_stacking,PHE,714,A,CD2,C14,C,3.91,True,
+water_bridges,TRP,704,A,O,O2,O,2.79,True,

@@ -1,0 +1,19 @@
+{
+  "engine": "pandamap-engine-rust",
+  "n_frames": 675,
+  "elapsed_sec": 1.080448,
+  "frames_per_sec": 624.7,
+  "ligand": {"name": "LIG", "chain": "A", "resnum": 857, "n_atoms": 42},
+  "summary_csv": "example/outputs/md_trajectory/trajectory_summary.csv",
+  "occupancy_csv": "example/outputs/md_trajectory/residue_occupancy.csv",
+  "fingerprints_csv": "example/outputs/md_trajectory/trajectory_fingerprints.csv",
+  "snapshots": [
+    {"frame_idx": 0, "step": 0, "time_ps": 0.000, "time_ns": 0.000000, "label": "t_00000ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00000ns/t_00000ns.pdb", "score": 1.38, "n_interactions": 14},
+    {"frame_idx": 100, "step": 5000000, "time_ps": 10000.000, "time_ns": 10.000000, "label": "t_00010ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00010ns/t_00010ns.pdb", "score": 0.12, "n_interactions": 18},
+    {"frame_idx": 200, "step": 10000000, "time_ps": 20000.000, "time_ns": 20.000000, "label": "t_00020ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00020ns/t_00020ns.pdb", "score": 1.32, "n_interactions": 17},
+    {"frame_idx": 300, "step": 15000000, "time_ps": 30000.000, "time_ns": 30.000000, "label": "t_00030ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00030ns/t_00030ns.pdb", "score": 0.93, "n_interactions": 20},
+    {"frame_idx": 400, "step": 20000000, "time_ps": 40000.000, "time_ns": 40.000000, "label": "t_00040ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00040ns/t_00040ns.pdb", "score": 1.24, "n_interactions": 12},
+    {"frame_idx": 500, "step": 25000000, "time_ps": 50000.000, "time_ns": 50.000000, "label": "t_00050ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00050ns/t_00050ns.pdb", "score": 1.93, "n_interactions": 11},
+    {"frame_idx": 600, "step": 30000000, "time_ps": 60000.000, "time_ns": 60.000000, "label": "t_00060ns", "pdb_path": "example/outputs/md_trajectory/snapshots/t_00060ns/t_00060ns.pdb", "score": -0.15, "n_interactions": 12}
+  ]
+}

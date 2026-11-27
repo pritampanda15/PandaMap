@@ -31,6 +31,7 @@ requires-python = ">=3.8"
 fancy = ["rich>=13.0"]
 viz = ["py3Dmol"]  # For 3Dmol.js HTML generation
 full = ["rich>=13.0", "py3Dmol"]
+dev = ["pytest>=7.0", "pillow"]
 
 
 [project.urls]
@@ -39,4 +40,7 @@ full = ["rich>=13.0", "py3Dmol"]
 
 [project.scripts]
 pandamap = "pandamap.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
 

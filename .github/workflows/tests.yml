@@ -19,8 +19,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+      - name: Build and test Rust trajectory engine
+        run: |
+          cargo test --manifest-path rust/pandamap-engine/Cargo.toml
+          cargo build --release --manifest-path rust/pandamap-engine/Cargo.toml
       - name: Install
-        run: python -m pip install --upgrade pip && python -m pip install . pytest
+        run: python -m pip install --upgrade pip && python -m pip install . pytest pillow
       - name: Run tests
         env:
           PANDAMAP_NO_UPDATE_CHECK: "1"

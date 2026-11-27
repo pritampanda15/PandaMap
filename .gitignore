@@ -95,3 +95,14 @@ temp_pandadock/
 # Log files
 *.log
 test/
+
+# Rust build artifacts
+rust/*/target/
+src/pandamap/bin/
+
+# Large MD trajectory inputs and intermediate snapshot PDBs
+*.xtc
+*.tpr
+example/step5_input.gro
+example/outputs/md_trajectory/snapshots/*/*.pdb
+

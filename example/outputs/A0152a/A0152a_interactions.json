@@ -13,11 +13,11 @@
   },
   "summary": {
     "n_interactions": 6,
-    "n_residues": 5,
+    "n_residues": 4,
     "by_type": {
-      "alkyl_pi": 2,
+      "alkyl_pi": 1,
       "donor_pi": 1,
-      "hydrophobic": 2,
+      "hydrophobic": 3,
       "ionic": 1
     }
   },
@@ -29,23 +29,10 @@
         "number": 91,
         "chain": "A"
       },
-      "protein_atom": "CA",
-      "ligand_atom": "C1",
+      "protein_atom": "CD",
+      "ligand_atom": "C7",
       "ligand_element": "C",
-      "distance": 3.981,
-      "solvent_accessible": false
-    },
-    {
-      "type": "alkyl_pi",
-      "residue": {
-        "name": "ALA",
-        "number": 86,
-        "chain": "A"
-      },
-      "protein_atom": "CB",
-      "ligand_atom": "C1",
-      "ligand_element": "C",
-      "distance": 4.193,
+      "distance": 4.043,
       "solvent_accessible": false
     },
     {
@@ -88,6 +75,19 @@
       "solvent_accessible": true
     },
     {
+      "type": "hydrophobic",
+      "residue": {
+        "name": "PRO",
+        "number": 91,
+        "chain": "A"
+      },
+      "protein_atom": "CA",
+      "ligand_atom": "C1",
+      "ligand_element": "C",
+      "distance": 3.981,
+      "solvent_accessible": false
+    },
+    {
       "type": "ionic",
       "residue": {
         "name": "GLU",
@@ -115,6 +115,18 @@
       ]
     },
     {
+      "name": "PRO",
+      "number": 91,
+      "chain": "A",
+      "solvent_accessible": false,
+      "n_contacts": 2,
+      "closest_distance": 3.981,
+      "types": [
+        "alkyl_pi",
+        "hydrophobic"
+      ]
+    },
+    {
       "name": "TYR",
       "number": 89,
       "chain": "A",
@@ -135,33 +147,11 @@
       "types": [
         "hydrophobic"
       ]
-    },
-    {
-      "name": "PRO",
-      "number": 91,
-      "chain": "A",
-      "solvent_accessible": false,
-      "n_contacts": 1,
-      "closest_distance": 3.981,
-      "types": [
-        "alkyl_pi"
-      ]
-    },
-    {
-      "name": "ALA",
-      "number": 86,
-      "chain": "A",
-      "solvent_accessible": false,
-      "n_contacts": 1,
-      "closest_distance": 4.193,
-      "types": [
-        "alkyl_pi"
-      ]
     }
   ],
   "interaction_score": {
-    "score": 1.340000033378601,
-    "dG_estimated": 1.340000033378601,
+    "score": 1.5099999904632568,
+    "dG_estimated": 1.5099999904632568,
     "breakdown": {
       "ionic": {
         "unique_residues": 1,
@@ -169,9 +159,9 @@
         "contribution_kcal_mol": -0.44999998807907104
       },
       "hydrophobic": {
-        "unique_residues": 2,
+        "unique_residues": 3,
         "weight": -0.3,
-        "contribution_kcal_mol": -0.5299999713897705
+        "contribution_kcal_mol": -0.550000011920929
       },
       "donor_pi": {
         "unique_residues": 1,
@@ -179,9 +169,9 @@
         "contribution_kcal_mol": -0.2
       },
       "alkyl_pi": {
-        "unique_residues": 2,
+        "unique_residues": 1,
         "weight": -0.2,
-        "contribution_kcal_mol": -0.3700000047683716
+        "contribution_kcal_mol": -0.1899999976158142
       }
     },
     "calibrated": false,

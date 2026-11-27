@@ -11,11 +11,9 @@ import math
 from collections import defaultdict
 import tempfile
 import subprocess
-from Bio.PDB import PDBParser, MMCIFParser
+from Bio.PDB import PDBParser, MMCIFParser, NeighborSearch, PDBIO
 import numpy as np
-import subprocess
 from Bio.PDB.DSSP import DSSP
-from Bio.PDB import PDBIO
 # Set matplotlib backend to 'Agg' BEFORE importing pyplot
 import matplotlib
 matplotlib.use('Agg')  # This must come before any pyplot import
@@ -26,10 +24,6 @@ from matplotlib.patches import Circle, FancyArrowPatch, Wedge, Rectangle, Polygo
 from matplotlib.lines import Line2D
 import matplotlib.patheffects as path_effects
 from .improved_interaction_detection import add_interaction_detection_methods
-
-
-# BioPython imports
-from Bio.PDB import PDBParser, NeighborSearch
 
 logger = logging.getLogger("pandamap")
 
@@ -169,6 +163,7 @@ class HybridProtLigMapper:
         self.protein_atoms = []
         self.ligand_atoms = []
         self.protein_residues = {}
+        self._protein_residues_by_chain = {}
         self.ligand_residue = None
         
         # Store atom information including metals
@@ -193,7 +188,7 @@ class HybridProtLigMapper:
                         # BioPython returns PDB element symbols upper-cased
                         # ('BR', 'CL'), so normalise before comparing or Br/Cl/I
                         # are silently dropped and only F is ever detected.
-                        if atom.element.strip().capitalize() in HALOGEN_ELEMENTS:
+                        if (atom.element or '').strip().capitalize() in HALOGEN_ELEMENTS:
                             self.halogen_atoms.append(atom)
                     if self.ligand_residue is None:
                         self.ligand_residue = residue
@@ -203,14 +198,19 @@ class HybridProtLigMapper:
                         a for a in residue if (a.element or '').strip().upper() == 'O')
                 else:
                     # Check for metal ions (typically single-atom HETATM residues)
-                    if len(list(residue.get_atoms())) == 1:
-                        atom = next(residue.get_atoms())
-                        if atom.element in ['MG', 'ZN', 'CA', 'FE', 'MN', 'CU', 'NA', 'K', 'LI', 'CO', 'NI']:
+                    res_atoms = list(residue.get_atoms())
+                    if len(res_atoms) == 1:
+                        atom = res_atoms[0]
+                        if (atom.element or '').strip().upper() in {
+                            'MG', 'ZN', 'CA', 'FE', 'MN', 'CU', 'NA', 'K', 'LI', 'CO', 'NI'
+                        }:
                             self.metal_atoms.append(atom)
                     
             else:  # Standard residues (protein)
+                chain_id = residue.get_parent().id if residue.get_parent() is not None else ''
                 res_id = (residue.resname, residue.id[1])
                 self.protein_residues[res_id] = residue
+                self._protein_residues_by_chain[(chain_id, residue.resname.strip(), residue.id[1])] = residue
                 for atom in residue:
                     self.protein_atoms.append(atom)
         
@@ -241,18 +241,67 @@ class HybridProtLigMapper:
         
         # Will store residues that interact with the ligand
         self.interacting_residues = set()
+        self.contacting_residues = set()
         
         # Store interaction directionality (protein->ligand, ligand->protein, or both)
         self.interaction_direction = {}
         
         # For solvent accessibility information (simplified)
         self.solvent_accessible = set()
+        self._solvent_accessible_chains = set()
         
         # Create the simple ligand structure
         self.ligand_structure = SimpleLigandStructure(self.ligand_atoms)
 
-        # Pre-compute ligand ring atoms for accurate pi-system detection
+        # Pre-compute ligand ring atoms and planar aromatic ring atoms
         self.ligand_ring_atoms = self.ligand_structure.detect_rings()
+        self.ligand_aromatic_atoms = self._detect_ligand_aromatic_atoms()
+
+    def _detect_ligand_aromatic_atoms(self):
+        """Return atom IDs of ligand atoms belonging to planar aromatic rings."""
+        from .ligand2d import element_of, find_bonds, find_rings, _is_aromatic
+        heavy = [a for a in self.ligand_atoms if element_of(a) != 'H']
+        if len(heavy) < 5:
+            return set()
+        xyz = np.array([a.get_coord() for a in heavy], dtype=float)
+        bonds = find_bonds(heavy)
+        neighbours = defaultdict(list)
+        for i, j in bonds:
+            neighbours[i].append(j)
+            neighbours[j].append(i)
+        rings = find_rings(len(heavy), neighbours)
+        aromatic_ids = set()
+        for ring in rings:
+            if _is_aromatic(ring, heavy, xyz, neighbours):
+                for idx in ring:
+                    aromatic_ids.add(heavy[idx].get_id())
+        return aromatic_ids
+
+    def is_residue_solvent_accessible(self, residue_or_key, chain=None):
+        """Chain-aware solvent-accessibility check with 2-tuple fallback."""
+        if hasattr(residue_or_key, 'resname') and hasattr(residue_or_key, 'id'):
+            resname = residue_or_key.resname.strip()
+            resnum = residue_or_key.id[1]
+            parent = residue_or_key.get_parent() if hasattr(residue_or_key, 'get_parent') else None
+            chain_id = parent.id if parent is not None else (chain or '')
+        elif isinstance(residue_or_key, tuple) and len(residue_or_key) == 3:
+            chain_id, resname, resnum = residue_or_key
+            resname = str(resname).strip()
+        elif isinstance(residue_or_key, tuple) and len(residue_or_key) == 2:
+            resname, resnum = residue_or_key
+            resname = str(resname).strip()
+            chain_id = chain or ''
+        else:
+            return False
+
+        if self._solvent_accessible_chains and chain_id != '':
+            if (chain_id, resname, resnum) in self._solvent_accessible_chains:
+                return True
+            # If the caller manually mutated self.solvent_accessible, respect it
+            # only when no chain-keyed entry exists for this residue number.
+            if any(rn == resname and num == resnum for _, rn, num in self._solvent_accessible_chains):
+                return False
+        return (resname, resnum) in self.solvent_accessible
 
     def _attached_hydrogens(self, heavy_atom, max_dist=1.3):
         """Explicit hydrogens covalently attached to a heavy atom, if any."""
@@ -438,9 +487,12 @@ class HybridProtLigMapper:
             is_lig_pos_charged = self._is_ligand_cation(lig_atom)
             is_lig_neg_charged = self._is_ligand_anion(lig_atom)
             
-            # Ligand aromaticity: use pre-computed ring membership (exact cycle detection)
-            is_lig_aromatic = (lig_atom.element == 'C' and
-                               lig_atom.get_id() in self.ligand_ring_atoms)
+            # Ligand aromaticity: planar aromatic ring carbon membership (excludes
+            # non-planar sp3 rings such as cyclohexane/piperidine while keeping
+            # alkyl-pi/hydrophobic carbon-pair deduplication consistent)
+            lig_el = (lig_atom.element or '').strip().upper()
+            is_lig_aromatic = (lig_el == 'C' and
+                               lig_atom.get_id() in self.ligand_aromatic_atoms)
             
             for prot_atom in nearby_atoms:
                 prot_res = prot_atom.get_parent()
@@ -725,12 +777,10 @@ class HybridProtLigMapper:
             # protein (e.g. a zinc finger 30 A away) is not an interaction.
             if min(metal_atom - lig_atom for lig_atom in self.ligand_atoms) > METAL_LIGAND_CUTOFF:
                 continue
-            for prot_atom in self.protein_atoms:
+            for prot_atom in ns.search(metal_atom.get_coord(), metal_coord_cutoff):
                 prot_res = prot_atom.get_parent()
-                distance_squared = sum((a-b)**2 for a, b in zip(metal_atom.get_coord(), prot_atom.get_coord()))
-                
-                if distance_squared <= metal_coord_cutoff**2 and is_metal_coordinator(prot_atom):
-                    distance = math.sqrt(distance_squared)
+                distance = float(metal_atom - prot_atom)
+                if distance <= metal_coord_cutoff and is_metal_coordinator(prot_atom):
                     res_id = (prot_res.resname, prot_res.id[1])
                     self.interacting_residues.add(res_id)
                     
@@ -801,6 +851,14 @@ class HybridProtLigMapper:
                                 [d_lig, water2 - water, prot_atom - water2], omega)
 
         self.interactions = self._select_contacts(all_interactions)
+        self.contacting_residues = set()
+        for hits in self.interactions.values():
+            for hit in hits:
+                res = hit.get('protein_residue')
+                if res is not None:
+                    parent = res.get_parent()
+                    chain_id = parent.id if parent is not None else ''
+                    self.contacting_residues.add((chain_id, res.resname.strip(), res.id[1]))
 
     # Types where each distinct atom pair is a separate, directional contact:
     # a residue can make two hydrogen bonds, or coordinate a metal twice.
@@ -876,123 +934,106 @@ class HybridProtLigMapper:
             Maximum percentage of interacting residues that can be solvent accessible (default: 0.5)
         """
         self.solvent_accessible = set()
+        self._solvent_accessible_chains = set()
 
         # Define which residues are typically surface-exposed
         likely_exposed = {'ARG', 'LYS', 'ASP', 'GLU', 'ASN', 'GLN', 'HIS', 'SER', 'THR', 'TYR'}
         likely_buried = {'ALA', 'VAL', 'LEU', 'ILE', 'MET', 'PHE', 'TRP', 'CYS', 'PRO'}
 
         # First get all protein atoms (including non-interacting ones)
-        all_protein_atoms = []
-        for residue in self.model.get_residues():
-            if residue.id[0] == ' ':  # Standard amino acid
-                for atom in residue:
-                    all_protein_atoms.append(atom)
-        
+        all_protein_atoms = list(self.protein_atoms)
+        if not all_protein_atoms:
+            return self.solvent_accessible
+
+        prot_ns = NeighborSearch(all_protein_atoms)
+
         # Calculate protein center
-        protein_center = np.zeros(3)
-        for atom in all_protein_atoms:
-            protein_center += atom.get_coord()
-        protein_center /= len(all_protein_atoms) if all_protein_atoms else 1
-        
+        all_coords = np.array([a.get_coord() for a in all_protein_atoms], dtype=float)
+        protein_center = all_coords.mean(axis=0)
+
+        # Evaluate each chain-distinct residue represented in interacting_residues
+        target_entries = []
+        seen_chain_keys = set()
+        for chain_key, residue in self._protein_residues_by_chain.items():
+            _, rname, rnum = chain_key
+            if (rname, rnum) in self.interacting_residues or (residue.resname, rnum) in self.interacting_residues:
+                target_entries.append((chain_key, residue))
+                seen_chain_keys.add(chain_key)
+        if not target_entries:
+            for res_id in sorted(self.interacting_residues):
+                residue = self.protein_residues.get(res_id)
+                if residue is not None:
+                    chain_id = residue.get_parent().id if residue.get_parent() is not None else ''
+                    target_entries.append(((chain_id, residue.resname.strip(), residue.id[1]), residue))
+
         # Store exposure scores for all residues to sort later
         exposure_scores = {}
-        
-        # For each interacting residue, estimate accessibility
-        for res_id in self.interacting_residues:
-            residue = self.protein_residues.get(res_id)
-            if residue is None:
-                continue
-            
-            # Calculate residue center
-            residue_center = np.zeros(3)
+
+        for chain_key, residue in target_entries:
             residue_atoms = list(residue.get_atoms())
-            for atom in residue_atoms:
-                residue_center += atom.get_coord()
-            residue_center /= len(residue_atoms) if residue_atoms else 1
-            
-            # Calculate vector from protein center to residue center
-            direction = residue_center - protein_center
-            direction_length = np.linalg.norm(direction)
-            if direction_length > 0:
-                direction = direction / direction_length
-            
-            # Count exposed atoms
+            if not residue_atoms:
+                continue
+            residue_center = np.mean([a.get_coord() for a in residue_atoms], axis=0)
+            direction_length = float(np.linalg.norm(residue_center - protein_center))
+
             exposed_atoms = 0
             total_atoms = len(residue_atoms)
-            
+
             for atom in residue_atoms:
                 atom_coord = atom.get_coord()
-                
-                # Check if atom is on the protein surface
-                is_exposed = True
                 nearby_atom_count = 0
-                
-                for other_atom in all_protein_atoms:
+                is_exposed = True
+                for other_atom in prot_ns.search(atom_coord, 3.0):
                     if other_atom.get_parent() == residue:
-                        continue  # Skip atoms in same residue
-                    
-                    distance = np.linalg.norm(atom_coord - other_atom.get_coord())
-                    
-                    # Simple distance threshold for exposure
-                    if distance < 3.0:
-                        nearby_atom_count += 1
-                    
-                    # If more than 8 atoms are nearby (instead of 12), consider it buried
+                        continue
+                    nearby_atom_count += 1
                     if nearby_atom_count > 8:
                         is_exposed = False
                         break
-                
                 if is_exposed:
                     exposed_atoms += 1
-            
-            # Calculate exposure ratio
-            exposure_ratio = exposed_atoms / total_atoms if total_atoms > 0 else 0
-            
-            # Calculate more strict surface bias
+
+            exposure_ratio = exposed_atoms / total_atoms if total_atoms > 0 else 0.0
+
             if residue.resname in likely_exposed:
-                surface_bias = 1.5  # More bias for typically exposed residues
+                surface_bias = 1.5
             elif residue.resname in likely_buried:
-                surface_bias = 0.6  # Much lower bias for typically buried residues
+                surface_bias = 0.6
             else:
                 surface_bias = 1.0
-                
-            # Calculate distance from surface bias
-            # Residues further from center are more likely exposed
+
             distance_from_center_ratio = min(direction_length / 15.0, 1.0)
-            
-            # Combined score for exposure - more weight on actual exposure ratio
             exposure_score = (exposure_ratio * 2.0 + surface_bias + distance_from_center_ratio) / 4.0
-            
-            # Store score for later ranking
-            exposure_scores[res_id] = exposure_score
-            
+            exposure_scores[chain_key] = exposure_score
+
             if exposure_score > exposure_threshold:
-                self.solvent_accessible.add(res_id)
+                self._solvent_accessible_chains.add(chain_key)
 
-        # Enforce min/max constraints
-        min_expected = max(1, int(len(self.interacting_residues) * 0.1))
-        max_expected = min(int(len(self.interacting_residues) * max_percent),
-                           len(self.interacting_residues) - 1)
+        n_targets = len(target_entries)
+        if n_targets > 0:
+            min_expected = max(1, int(n_targets * 0.1)) if n_targets > 1 else 0
+            max_expected = min(int(n_targets * max_percent), max(0, n_targets - 1))
 
-        if len(self.solvent_accessible) < min_expected:
-            remaining = sorted(
-                [(r, exposure_scores.get(r, 0.0)) for r in self.interacting_residues
-                 if r not in self.solvent_accessible],
-                key=lambda x: (x[1], x[0]), reverse=True
-            )
-            for res_id, _ in remaining:
-                if len(self.solvent_accessible) >= min_expected:
-                    break
-                self.solvent_accessible.add(res_id)
+            if len(self._solvent_accessible_chains) < min_expected:
+                remaining = sorted(
+                    [(k, exposure_scores.get(k, 0.0)) for k, _ in target_entries
+                     if k not in self._solvent_accessible_chains],
+                    key=lambda x: (x[1], x[0]), reverse=True
+                )
+                for chain_key, _ in remaining:
+                    if len(self._solvent_accessible_chains) >= min_expected:
+                        break
+                    self._solvent_accessible_chains.add(chain_key)
 
-        if len(self.solvent_accessible) > max_expected:
-            to_evaluate = sorted(
-                [(r, exposure_scores.get(r, 0.0)) for r in self.solvent_accessible],
-                key=lambda x: (x[1], x[0])
-            )
-            for res_id, _ in to_evaluate[:len(self.solvent_accessible) - max_expected]:
-                self.solvent_accessible.discard(res_id)
+            if len(self._solvent_accessible_chains) > max_expected:
+                to_evaluate = sorted(
+                    [(k, exposure_scores.get(k, 0.0)) for k in self._solvent_accessible_chains],
+                    key=lambda x: (x[1], x[0])
+                )
+                for chain_key, _ in to_evaluate[:len(self._solvent_accessible_chains) - max_expected]:
+                    self._solvent_accessible_chains.discard(chain_key)
 
+        self.solvent_accessible = {(rn, num) for _, rn, num in self._solvent_accessible_chains}
         return self.solvent_accessible
 
     def calculate_enhanced_solvent_accessibility(self, probe_radius=1.4, exposure_threshold=0.15):
@@ -1141,6 +1182,7 @@ class HybridProtLigMapper:
                     pass
                 
                 # Process DSSP results
+                self._solvent_accessible_chains = set()
                 for (chain_id, res_id), dssp_data in dssp.property_dict.items():
                     resname = dssp_data[0]
                     resnum = res_id[1]
@@ -1149,9 +1191,10 @@ class HybridProtLigMapper:
                     # Get relative solvent accessibility (0-1)
                     rsa = dssp_data[3]  # Relative accessibility
                     
-                    # Consider residues with >15% accessibility as solvent accessible
-                    if rsa > 0.25 and res_key in self.interacting_residues:
+                    # Consider residues with >25% accessibility as solvent accessible
+                    if isinstance(rsa, (int, float)) and rsa > 0.25 and res_key in self.interacting_residues:
                         self.solvent_accessible.add(res_key)
+                        self._solvent_accessible_chains.add((chain_id, resname.strip(), resnum))
                         
         except Exception as e:
             logger.warning(f"Warning: DSSP calculation failed. Falling back to geometric estimation. Error: {str(e)}")
@@ -1241,68 +1284,49 @@ class HybridProtLigMapper:
             Radius of solvent probe in Angstroms (default: 1.4)
         """
         self.solvent_accessible = set()
-        
-        # First get all protein atoms (including non-interacting ones)
-        all_protein_atoms = []
-        for residue in self.model.get_residues():
-            if residue.id[0] == ' ':  # Standard amino acid
-                for atom in residue:
-                    all_protein_atoms.append(atom)
-        
-        # For each interacting residue, estimate accessibility
-        for res_id in self.interacting_residues:
-            residue = self.protein_residues.get(res_id)
-            if residue is None:
-                continue
-                
-            # Count how many atoms are exposed
+        self._solvent_accessible_chains = set()
+
+        all_protein_atoms = list(self.protein_atoms)
+        if not all_protein_atoms:
+            return self.solvent_accessible
+
+        prot_ns = NeighborSearch(all_protein_atoms)
+        target_entries = [
+            (chain_key, residue)
+            for chain_key, residue in self._protein_residues_by_chain.items()
+            if (chain_key[1], chain_key[2]) in self.interacting_residues
+            or (residue.resname, residue.id[1]) in self.interacting_residues
+        ]
+
+        for chain_key, residue in target_entries:
             exposed_atoms = 0
-            total_atoms = 0
             residue_atoms = list(residue.get_atoms())
-            
+            total_atoms = len(residue_atoms)
+
             for atom in residue_atoms:
-                total_atoms += 1
                 atom_coord = atom.get_coord()
-                
-                # Get atom radius (approximated)
-                atom_radius = 1.8  # Default carbon radius
-                if atom.element == 'O':
-                    atom_radius = 1.4
-                elif atom.element == 'N':
-                    atom_radius = 1.5
-                elif atom.element == 'S':
-                    atom_radius = 1.8
-                
-                # Check if atom is buried by other protein atoms
+                atom_radius = {'O': 1.4, 'N': 1.5, 'S': 1.8}.get(atom.element, 1.8)
+                cutoff = atom_radius + 1.8 + probe_radius
                 is_exposed = True
                 nearby_atom_count = 0
-                
-                for other_atom in all_protein_atoms:
+                for other_atom in prot_ns.search(atom_coord, cutoff):
                     if other_atom.get_parent() == residue:
-                        continue  # Skip atoms in same residue
-                    
-                    distance = np.linalg.norm(atom_coord - other_atom.get_coord())
-                    other_radius = 1.8  # Default
-                    
-                    if distance < (atom_radius + other_radius + probe_radius):
-                        nearby_atom_count += 1
-                        if nearby_atom_count > 15:  # If too many atoms are nearby, consider it buried
-                            is_exposed = False
-                            break
-                
+                        continue
+                    nearby_atom_count += 1
+                    if nearby_atom_count > 15:
+                        is_exposed = False
+                        break
                 if is_exposed:
                     exposed_atoms += 1
-            
-            # Consider residue accessible if >20% of its atoms are exposed
+
             exposure_ratio = exposed_atoms / total_atoms if total_atoms > 0 else 0
             if exposure_ratio > 0.2:
-                self.solvent_accessible.add(res_id)
-        
+                self._solvent_accessible_chains.add(chain_key)
+
+        self.solvent_accessible = {(rn, num) for _, rn, num in self._solvent_accessible_chains}
+
         # Check if reasonable number are marked accessible
-        if len(self.solvent_accessible) < max(2, len(self.interacting_residues) // 4):
-            # If too few, drop to the tier-3 geometric estimator.  (Calling
-            # estimate_solvent_accessibility() here would recurse, since that
-            # method now delegates to this one.)
+        if len(self._solvent_accessible_chains) < max(2, len(target_entries) // 4):
             return self.calculate_realistic_solvent_accessibility()
 
         return self.solvent_accessible
@@ -1474,22 +1498,35 @@ class HybridProtLigMapper:
                     cmd = [executable_path, "--format=rsa", pdb_path]
                     result = subprocess.run(cmd, capture_output=True, text=True)
                     
-                    # Parse the RSA output
+                    # Parse the RSA output:
+                    # FreeSASA --format=rsa emits:
+                    #   RES <resname> <chain> <resnum> <abs_all> <rel_all> ...
+                    # (or without <chain> when chain ID is blank)
                     self.solvent_accessible = set()
+                    self._solvent_accessible_chains = set()
                     
-                    for line in result.stdout.split('\n'):
+                    for line in result.stdout.splitlines():
                         if line.startswith("RES"):
                             parts = line.split()
-                            if len(parts) >= 5:
+                            if len(parts) >= 6:
                                 resname = parts[1]
-                                resnum = int(parts[2])
-                                rel_sasa = float(parts[4])
+                                try:
+                                    # Standard RSA line with chain column
+                                    chain_id = parts[2]
+                                    resnum = int(parts[3])
+                                    rel_sasa = float(parts[5])
+                                except ValueError:
+                                    # Blank-chain RSA line
+                                    chain_id = ''
+                                    resnum = int(parts[2])
+                                    rel_sasa = float(parts[4])
                                 
                                 # If relative SASA > 20%, consider as accessible
                                 if rel_sasa > 20.0:
                                     res_id = (resname, resnum)
                                     if res_id in self.interacting_residues:
                                         self.solvent_accessible.add(res_id)
+                                        self._solvent_accessible_chains.add((chain_id, resname, resnum))
                     
                     # Cleanup
                     try:
@@ -1703,8 +1740,33 @@ class HybridProtLigMapper:
                                                         atom_colours=theme.get('atom_colours'),
                                                         ink=ink)
         
-        # Place interacting residues in a circle around the ligand
-        n_residues = len(self.interacting_residues)
+        # Place interacting residues in a circle around the ligand.
+        # Use chain-aware keys (chain_id, resname, resnum) from actual contacts
+        # so homodimer residues on different chains never collide.
+        drawn_residues = []
+        seen_drawn = set()
+        for hits in self.interactions.values():
+            for hit in hits:
+                res = hit.get('protein_residue')
+                if res is None:
+                    continue
+                parent = res.get_parent()
+                key = (parent.id if parent is not None else '', res.resname.strip(), res.id[1])
+                if key not in seen_drawn:
+                    seen_drawn.add(key)
+                    drawn_residues.append(key)
+        if not drawn_residues:
+            for rname, rnum in sorted(self.interacting_residues):
+                res = self.protein_residues.get((rname, rnum))
+                chain_id = res.get_parent().id if (res is not None and res.get_parent() is not None) else ''
+                key = (chain_id, rname.strip(), rnum)
+                if key not in seen_drawn:
+                    seen_drawn.add(key)
+                    drawn_residues.append(key)
+        drawn_residues.sort()
+        multi_chain = len({k[0] for k in drawn_residues}) > 1
+
+        n_residues = len(drawn_residues)
         if n_residues == 0:
             logger.warning("Warning: No interacting residues detected.")
             n_residues = 1
@@ -1716,13 +1778,14 @@ class HybridProtLigMapper:
         
         
         # Arrange residues in a circle
-        for i, res_id in enumerate(sorted(self.interacting_residues)):
+        for i, res_key in enumerate(drawn_residues):
+            chain_id, resname, resnum = res_key
             angle = 2 * math.pi * i / n_residues
             x = radius * math.cos(angle)
             y = radius * math.sin(angle)
-            residue_positions[res_id] = (x, y)
+            residue_positions[res_key] = (x, y)
             
-            if res_id in self.solvent_accessible:
+            if self.is_residue_solvent_accessible(res_key):
                 solvent_circle = Circle((x, y), 40, facecolor=wash,
                                         edgecolor=wash_edge, alpha=0.5, zorder=1)
                 ax.add_patch(solvent_circle)
@@ -1734,10 +1797,9 @@ class HybridProtLigMapper:
             ax.add_patch(residue_box)
             
             # Add residue label
-            resname, resnum = res_id
-            label = f"{resname} {resnum}"
+            label = f"{resname} {resnum}" + (f" {chain_id}" if multi_chain else "")
             text = ax.text(x, y, label, ha='center', va='center',
-                        fontsize=11, fontweight='bold', zorder=3, color=ink)
+                        fontsize=10 if multi_chain else 11, fontweight='bold', zorder=3, color=ink)
             text.set_path_effects([path_effects.withStroke(linewidth=2, foreground=paper)])
 
 
@@ -1745,6 +1807,8 @@ class HybridProtLigMapper:
         interaction_styles = {
             'hydrogen_bonds': {'color': 'green', 'linestyle': '-', 'linewidth': 1.5, 
                             'marker_text': 'H', 'marker_bg': '#E0FFE0', 'name': 'Hydrogen Bond'},
+            'water_bridges': {'color': '#0b7285', 'linestyle': '-', 'linewidth': 1.5,
+                            'marker_text': 'W', 'marker_bg': '#E3FAFC', 'name': 'Water Bridge'},
             'carbon_pi': {'color': '#666666', 'linestyle': '--', 'linewidth': 1.5,
                         'marker_text': 'C-π', 'marker_bg': 'white', 'name': 'Carbon-Pi'},
             'pi_pi_stacking': {'color': '#9370DB', 'linestyle': '--', 'linewidth': 1.5,
@@ -1825,13 +1889,15 @@ class HybridProtLigMapper:
 
             for interaction in interactions:
                 res = interaction['protein_residue']
+                parent = res.get_parent()
+                res_key = (parent.id if parent is not None else '', res.resname.strip(), res.id[1])
                 res_id = (res.resname, res.id[1])
                 lig_atom = interaction['ligand_atom']
 
-                if res_id not in residue_positions:
+                if res_key not in residue_positions:
                     continue
 
-                res_pos = residue_positions[res_id]
+                res_pos = residue_positions[res_key]
 
                 # Get ligand atom position
                 if lig_atom.get_id() in atom_positions:
@@ -1853,8 +1919,8 @@ class HybridProtLigMapper:
                 dy = res_pos[1] - lig_pos[1]
                 distance = math.sqrt(dx*dx + dy*dy)
                 base_curvature = 0.08 * (200 / max(distance, 100))
-                line_idx = residue_line_count.get(res_id, 0)
-                residue_line_count[res_id] = line_idx + 1
+                line_idx = residue_line_count.get(res_key, 0)
+                residue_line_count[res_key] = line_idx + 1
                 sign = 1 if line_idx % 2 == 0 else -1
                 offset = ((line_idx + 1) // 2) * 0.15
                 curvature = base_curvature + sign * offset
@@ -1867,7 +1933,7 @@ class HybridProtLigMapper:
                     'style': style,
                     'interaction_type': interaction_type,
                     'res_id': res_id,
-                    'key': f"{interaction_type}_{res_id[0]}_{res_id[1]}",
+                    'key': f"{interaction_type}_{res_key[0]}_{res_key[1]}_{res_key[2]}_{line_idx}",
                     'distance': distance
                 }
                 interaction_lines.append(line_params)
@@ -1924,9 +1990,10 @@ class HybridProtLigMapper:
 
         # Place markers along interaction lines
         marker_positions = {}
-        type_order = {'hydrogen_bonds': 0, 'ionic': 1, 'salt_bridge': 2, 'halogen_bonds': 3,
-                     'metal_coordination': 4, 'pi_pi_stacking': 5, 'cation_pi': 6, 
-                     'carbon_pi': 7, 'donor_pi': 8, 'amide_pi': 9, 'hydrophobic': 10}
+        type_order = {'hydrogen_bonds': 0, 'water_bridges': 1, 'ionic': 2, 'salt_bridge': 3,
+                     'halogen_bonds': 4, 'metal_coordination': 5, 'pi_pi_stacking': 6,
+                     'cation_pi': 7, 'carbon_pi': 8, 'donor_pi': 9, 'amide_pi': 10,
+                     'hydrophobic': 11}
         
         sorted_lines = sorted(interaction_lines,
                             key=lambda x: (type_order.get(x['interaction_type'], 999), x['distance']))
@@ -2215,11 +2282,13 @@ class HybridProtLigMapper:
             if not contacts:
                 continue
 
-            # Deduplicate: keep closest contact per unique residue
+            # Deduplicate: keep closest contact per unique chain-qualified residue
             best_per_residue = {}
             for c in contacts:
                 res = c['protein_residue']
-                res_key = (res.resname, res.id[1])
+                parent = res.get_parent()
+                chain_id = parent.id if parent is not None else ''
+                res_key = (chain_id, res.resname.strip(), res.id[1])
                 d = c['distance']
                 if res_key not in best_per_residue or d < best_per_residue[res_key]:
                     best_per_residue[res_key] = d
@@ -2334,7 +2403,7 @@ class HybridProtLigMapper:
                     'ligand_atom': la.get_name().strip(),
                     'ligand_element': (la.element or '').strip().capitalize(),
                     'distance': round(float(c['distance']), 3),
-                    'solvent_accessible': (res.resname, res.id[1]) in self.solvent_accessible,
+                    'solvent_accessible': self.is_residue_solvent_accessible(res),
                 }
                 if c.get('angle') is not None:
                     entry['angle'] = round(float(c['angle']), 1)
@@ -2438,7 +2507,7 @@ class HybridProtLigMapper:
                     'ligand_atom': la.get_name(),
                     'ligand_element': la.element.strip().capitalize(),
                     'distance_A': round(float(c['distance']), 2),
-                    'solvent_accessible': (res.resname, res.id[1]) in self.solvent_accessible,
+                    'solvent_accessible': self.is_residue_solvent_accessible(res),
                     'halogen_element': c.get('halogen_element', ''),
                 })
 

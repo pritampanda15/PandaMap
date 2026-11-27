@@ -1050,3 +1050,132 @@ def test_dark_scheme_paints_the_background(tmp_path):
         out = mapper.visualize(str(tmp_path / f"dark_{style}.png"), dpi=40,
                                style=style, color_scheme="dark")
         assert Image.open(out).convert("RGB").getpixel((2, 2)) == (0x16, 0x18, 0x1B), style
+
+
+# --------------------------------------------------------------------------
+# Audit fixes: homodimers, water bridges in classic/3D, aromaticity, PDBQT,
+# improved_interaction_detection, trajectory occupancy
+# --------------------------------------------------------------------------
+
+HOMODIMER_COMPLEX = """
+ATOM      1  N   SER A  10       0.000   0.000   0.000  1.00 20.00           N
+ATOM      2  CA  SER A  10      -1.200   0.000   0.000  1.00 20.00           C
+ATOM      3  OG  SER A  10       0.000   2.000   0.000  1.00 20.00           O
+ATOM      4  N   SER B  10       0.000   7.800   0.000  1.00 20.00           N
+ATOM      5  CA  SER B  10      -1.200   7.800   0.000  1.00 20.00           C
+ATOM      6  OG  SER B  10       0.000   5.800   0.000  1.00 20.00           O
+HETATM    7  O1  LIG C   1       0.000   4.800   0.000  1.00 20.00           O
+HETATM    8  O2  LIG C   1       0.000   3.000   0.000  1.00 20.00           O
+HETATM    9  C1  LIG C   1       1.200   3.900   0.000  1.00 20.00           C
+END
+"""
+
+
+def test_homodimer_same_resnum_in_two_chains_both_scored_and_drawn(tmp_path):
+    import matplotlib.pyplot as plt
+    mapper = HybridProtLigMapper(_write(tmp_path, "dimer.pdb", HOMODIMER_COMPLEX),
+                                 ligand_resname="LIG")
+    mapper.detect_interactions()
+    score = mapper.interaction_score()
+    assert score["breakdown"]["hydrogen_bonds"]["unique_residues"] == 2
+    modern_svg = tmp_path / "dimer_modern.svg"
+    classic_png = tmp_path / "dimer_classic.png"
+    with plt.rc_context({"svg.fonttype": "none"}):
+        mapper.visualize(str(modern_svg), style="modern")
+    svg = modern_svg.read_text(encoding="utf-8")
+    assert "SER 10 A" in svg and "SER 10 B" in svg
+    mapper.visualize(str(classic_png), dpi=50, style="classic")
+    assert classic_png.stat().st_size > 1000
+
+
+def test_water_bridge_appears_in_classic_and_3d_viewer(tmp_path):
+    import pandamap.create_3d_view as viewer
+    mapper = HybridProtLigMapper(_write(tmp_path, "wb2.pdb", TWO_WATER_BRIDGE),
+                                 ligand_resname="LIG")
+    mapper.detect_interactions()
+    classic_svg = tmp_path / "wb2_classic.svg"
+    mapper.visualize(str(classic_svg), style="classic")
+    assert "Water Bridge" in classic_svg.read_text(encoding="utf-8")
+
+    html_path = tmp_path / "wb2_3d.html"
+    viewer.create_pandamap_3d_viz(mapper, str(html_path))
+    html = html_path.read_text(encoding="utf-8")
+    assert "Water bridge" in html
+    assert "<Atom" not in html
+    assert "Ligand: LIG N1" in html
+
+
+def test_saturated_cyclohexane_ring_is_not_aromatic(tmp_path):
+    body = """
+    ATOM      1  CG  PHE A  50       0.000   0.000   3.800  1.00 20.00           C
+    ATOM      2  CD1 PHE A  50       1.200   0.700   3.800  1.00 20.00           C
+    ATOM      3  CE1 PHE A  50       1.200   2.100   3.800  1.00 20.00           C
+    ATOM      4  CZ  PHE A  50       0.000   2.800   3.800  1.00 20.00           C
+    ATOM      5  CE2 PHE A  50      -1.200   2.100   3.800  1.00 20.00           C
+    ATOM      6  CD2 PHE A  50      -1.200   0.700   3.800  1.00 20.00           C
+    HETATM    7  C1  CYX B   1       1.530   0.000   0.300  1.00 20.00           C
+    HETATM    8  C2  CYX B   1       0.765   1.325  -0.300  1.00 20.00           C
+    HETATM    9  C3  CYX B   1      -0.765   1.325   0.300  1.00 20.00           C
+    HETATM   10  C4  CYX B   1      -1.530   0.000  -0.300  1.00 20.00           C
+    HETATM   11  C5  CYX B   1      -0.765  -1.325   0.300  1.00 20.00           C
+    HETATM   12  C6  CYX B   1       0.765  -1.325  -0.300  1.00 20.00           C
+    END
+    """
+    mapper = HybridProtLigMapper(_write(tmp_path, "cyx.pdb", body), ligand_resname="CYX")
+    mapper.detect_interactions()
+    assert mapper.ligand_aromatic_atoms == set()
+    assert mapper.interactions["pi_pi_stacking"] == []
+
+
+def test_pdbqt_preserves_models_and_elements(tmp_path):
+    from pandamap.structure_io import MultiFormatParser
+    pdbqt = """
+MODEL 1
+ATOM      1  OG1 THR A 113      12.000  12.000  10.000  1.00 20.00    -0.400 OA
+HETATM    2  BR1 LIG B   1      14.900  12.400  10.000  1.00 20.00     0.050 Br
+HETATM    3  C1  LIG B   1      14.000  13.500  10.000  1.00 20.00     0.000 A
+ENDMDL
+MODEL 2
+ATOM      1  OG1 THR A 113      12.000  12.000  10.000  1.00 20.00    -0.400 OA
+HETATM    2  BR1 LIG B   1      15.200  12.400  10.000  1.00 20.00     0.050 Br
+HETATM    3  C1  LIG B   1      14.300  13.500  10.000  1.00 20.00     0.000 A
+ENDMDL
+"""
+    path = _write(tmp_path, "poses.pdbqt", pdbqt)
+    structure = MultiFormatParser().parse_structure(path)
+    models = list(structure.get_models())
+    assert len(models) == 2
+    mapper = HybridProtLigMapper(path, ligand_resname="LIG")
+    assert any(a.element.strip().upper() == "BR" for a in mapper.halogen_atoms)
+
+
+def test_detect_interactions_improved_and_report_halogen_element(tmp_path):
+    mapper = HybridProtLigMapper(_write(tmp_path, "br_rep.pdb", BROMINE_COMPLEX),
+                                 ligand_resname="LIG")
+    res = mapper.detect_interactions_improved()
+    assert res["halogen_bonds"]
+    report = tmp_path / "br_report.txt"
+    text = mapper.generate_interaction_report(output_file=str(report))
+    assert "Br" in text
+    assert hasattr(mapper, "generate_enhanced_interaction_report")
+
+
+def test_trajectory_occupancy_counts_only_actual_contacts(tmp_path):
+    from pandamap import analyze_trajectory
+    # ALA 20 has only a backbone N at 4.8 A from a ligand C -> within 5.5 A
+    # cutoff, but forms zero specific interactions.
+    body = """
+    ATOM      1  N   THR A 113      10.000  10.000  10.000  1.00 20.00           N
+    ATOM      2  OG1 THR A 113      12.000  12.000  10.000  1.00 20.00           O
+    ATOM      3  N   GLY A  20      18.200  13.500  10.000  1.00 20.00           N
+    HETATM    4  O1  LIG B   1      14.800  12.000  10.000  1.00 20.00           O
+    HETATM    5  C1  LIG B   1      14.000  13.500  10.000  1.00 20.00           C
+    """
+    body_clean = textwrap.dedent(body).strip()
+    two = f"MODEL        1\n{body_clean}\nENDMDL\nMODEL        2\n{body_clean}\nENDMDL\nEND\n"
+    path = tmp_path / "occ.pdb"
+    path.write_text(two)
+    summary = analyze_trajectory(str(path), ligand_resname="LIG",
+                                 output_dir=str(tmp_path / "occ_out"), diagrams=())
+    assert ("THR", 113) in summary["occupancy"]
+    assert ("GLY", 20) not in summary["occupancy"]

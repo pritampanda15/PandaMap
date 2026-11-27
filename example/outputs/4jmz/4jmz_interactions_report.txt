@@ -5,19 +5,19 @@
   Structure      4jmz.pdb
   Ligand         HEM  (chain A, residue 301, 43 heavy atoms)
   Binding site   28 residues in chain A; 13 solvent accessible
-  Interactions   58 contacts of 9 types
+  Interactions   57 contacts of 9 types
 
 SUMMARY
 ------------------------------------------------------------------------------
-  Hydrogen bonds          13  ████████████████████████
+  Hydrogen bonds          13  ██████████████████████████
   Ionic interactions       3  ██████
-  π-π stacking             4  ████████
+  π-π stacking             3  ██████
   π-cation interactions    3  ██████
   Donor-π interactions     1  ██
   Carbon-π interactions    2  ████
-  Alkyl-π interactions    16  ██████████████████████████████
-  Hydrophobic contacts     5  █████████
-  Water bridges           11  █████████████████████
+  Alkyl-π interactions    15  ██████████████████████████████
+  Hydrophobic contacts     6  ████████████
+  Water bridges           11  ██████████████████████
 
 HYDROGEN BONDS (13)
 ------------------------------------------------------------------------------
@@ -43,19 +43,18 @@ IONIC INTERACTIONS (3)
    2  LYS 179 A  N      HEM:O2D         3.04 Å
    3  ARG 48 A   NH2    HEM:O2A         4.75 Å
 
-π-π STACKING (4)
+π-π STACKING (3)
 ------------------------------------------------------------------------------
    #  Residue    Atom   Ligand atom   Distance  Note
-   1  TRP 51 A   CD1    HEM:C3C         3.30 Å
-   2  HIS 175 A  CE1    HEM:C4B         3.51 Å
-   3  PHE 158 A  CZ     HEM:CHC         4.88 Å
-   4  TYR 187 A  CD2    HEM:C3A         5.30 Å
+   1  HIS 175 A  CE1    HEM:C4B         3.51 Å
+   2  TRP 51 A   CZ2    HEM:C4B         3.99 Å
+   3  PHE 158 A  CZ     HEM:C3B         5.26 Å
 
 π-CATION INTERACTIONS (3)
 ------------------------------------------------------------------------------
    #  Residue    Atom   Ligand atom   Distance  Note
-   1  ARG 48 A   NH1    HEM:C4A         3.31 Å  protein cation
-   2  HIS 175 A  NE2    HEM:C4B         3.56 Å  protein cation
+   1  HIS 175 A  NE2    HEM:C4B         3.56 Å  protein cation
+   2  ARG 48 A   NE     HEM:C4D         3.65 Å  protein cation
    3  LYS 179 A  N      HEM:C3D         5.47 Å  protein cation
 
 DONOR-π INTERACTIONS (1)
@@ -69,34 +68,34 @@ CARBON-π INTERACTIONS (2)
    1  TRP 51 A   NE1    HEM:C1C         3.13 Å
    2  HIS 181 A  ND1    HEM:CGA         3.49 Å
 
-ALKYL-π INTERACTIONS (16)
+ALKYL-π INTERACTIONS (15)
 ------------------------------------------------------------------------------
    #  Residue    Atom   Ligand atom   Distance  Note
-   1  LEU 230 A  CD1    HEM:CHB         3.59 Å
+   1  TRP 51 A   CD1    HEM:C3C         3.30 Å
    2  PRO 145 A  CG     HEM:C3B         3.75 Å
-   3  TRP 51 A   CE2    HEM:CMC         3.82 Å
+   3  HIS 175 A  CD2    HEM:C4C         3.84 Å
    4  PHE 158 A  CE1    HEM:CAB         3.94 Å
    5  HIS 181 A  CE1    HEM:CGD         3.94 Å
-   6  ALA 174 A  CB     HEM:CHD         3.97 Å
-   7  TYR 187 A  CD2    HEM:CMA         3.98 Å
-   8  PHE 264 A  CE2    HEM:CBC         4.02 Å
-   9  PHE 260 A  CE1    HEM:CBC         4.10 Å
-  10  ALA 147 A  CB     HEM:CHB         4.56 Å
-  11  LEU 171 A  C      HEM:C2C         4.68 Å
-  12  VAL 47 A   CG1    HEM:CHD         4.69 Å
-  13  PRO 44 A   C      HEM:C2D         4.93 Å
-  14  MET 172 A  CA     HEM:C2C         5.03 Å
-  15  LEU 177 A  CB     HEM:C2D         5.16 Å
-  16  HIS 175 A  CE1    HEM:CAB         5.32 Å
+   6  TYR 187 A  CD2    HEM:CMA         3.98 Å
+   7  PHE 264 A  CE2    HEM:CBC         4.02 Å
+   8  PHE 260 A  CE1    HEM:CBC         4.10 Å
+   9  LEU 230 A  CD1    HEM:C1B         4.17 Å
+  10  PRO 44 A   C      HEM:C2D         4.93 Å
+  11  ALA 174 A  CB     HEM:C1D         4.94 Å
+  12  ALA 147 A  CB     HEM:C2B         4.96 Å
+  13  MET 172 A  CE     HEM:C3B         5.14 Å
+  14  LEU 177 A  CB     HEM:C2D         5.16 Å
+  15  VAL 47 A   CG1    HEM:C2D         5.21 Å
 
-HYDROPHOBIC CONTACTS (5)
+HYDROPHOBIC CONTACTS (6)
 ------------------------------------------------------------------------------
    #  Residue    Atom   Ligand atom   Distance  Note
    1  ALA 174 A  CB     HEM:CAC         3.43 Å
    2  PRO 145 A  CG     HEM:CAB         3.58 Å
    3  ALA 147 A  CA     HEM:CMB         3.58 Å
-   4  LEU 171 A  CB     HEM:CMC         3.85 Å
-   5  PRO 44 A   C      HEM:CMD         4.00 Å
+   4  LEU 230 A  CD1    HEM:CHB         3.59 Å
+   5  LEU 171 A  CB     HEM:CMC         3.85 Å
+   6  PRO 44 A   C      HEM:CMD         4.00 Å
 
 WATER BRIDGES (11)
 ------------------------------------------------------------------------------
@@ -125,9 +124,8 @@ RESIDUES (28)
   ASN 184 A         2    2.99 Å  yes      hydrogen bond, water bridge
   ALA 174 A         2    3.43 Å  -        alkyl-π, hydrophobic
   ALA 147 A         2    3.58 Å  -        alkyl-π, hydrophobic
-  LEU 171 A         2    3.85 Å  -        alkyl-π, hydrophobic
+  LEU 230 A         2    3.59 Å  -        alkyl-π, hydrophobic
   PHE 158 A         2    3.94 Å  -        π-π stacking, alkyl-π
-  TYR 187 A         2    3.98 Å  yes      π-π stacking, alkyl-π
   PRO 44 A          2    4.00 Å  -        alkyl-π, hydrophobic
   SER 185 A         1    2.65 Å  yes      hydrogen bond
   GLY 41 A          1    2.81 Å  yes      water bridge
@@ -137,13 +135,14 @@ RESIDUES (28)
   HIS 52 A          1    3.22 Å  yes      water bridge
   GLY 84 A          1    3.35 Å  yes      water bridge
   TYR 36 A          1    3.37 Å  yes      water bridge
-  LEU 230 A         1    3.59 Å  -        alkyl-π
+  LEU 171 A         1    3.85 Å  -        hydrophobic
+  TYR 187 A         1    3.98 Å  yes      alkyl-π
   PHE 264 A         1    4.02 Å  -        alkyl-π
   PHE 260 A         1    4.10 Å  -        alkyl-π
-  VAL 47 A          1    4.69 Å  -        alkyl-π
   ASP 146 A         1    4.81 Å  yes      donor-π
-  MET 172 A         1    5.03 Å  -        alkyl-π
+  MET 172 A         1    5.14 Å  -        alkyl-π
   LEU 177 A         1    5.16 Å  -        alkyl-π
+  VAL 47 A          1    5.21 Å  -        alkyl-π
 
 ==============================================================================
   Distances are between the named atoms, in Å. Residues are written as

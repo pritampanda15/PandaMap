@@ -48,10 +48,11 @@ _TYPE_ORDER = [t for _, _, members in FAMILIES for t in members]
 
 # typical contact distance per interaction type (A), marked in panel c
 TYPICAL_DISTANCE = {
-    'hydrogen_bonds': 2.9, 'covalent': 1.8, 'metal_coordination': 2.2, 'ionic': 3.5,
-    'salt_bridge': 3.5, 'halogen_bonds': 3.0, 'pi_pi_stacking': 3.8, 'cation_pi': 4.0,
-    'pi_cation': 4.0, 'hydrophobic': 3.5, 'carbon_pi': 4.0, 'donor_pi': 3.5,
-    'amide_pi': 3.5, 'alkyl_pi': 4.0, 'attractive_charge': 3.5, 'repulsion': 3.0,
+    'hydrogen_bonds': 2.9, 'water_bridges': 2.9, 'covalent': 1.8, 'metal_coordination': 2.2,
+    'ionic': 3.5, 'salt_bridge': 3.5, 'halogen_bonds': 3.0, 'pi_pi_stacking': 3.8,
+    'cation_pi': 4.0, 'pi_cation': 4.0, 'hydrophobic': 3.5, 'carbon_pi': 4.0,
+    'donor_pi': 3.5, 'amide_pi': 3.5, 'alkyl_pi': 4.0, 'attractive_charge': 3.5,
+    'repulsion': 3.0,
 }
 
 _RC = {
@@ -123,8 +124,8 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
 
     try:
         affinity = mapper.estimate_binding_affinity()
-    except Exception as exc:              # scoring is optional
-        affinity, affinity_error = None, str(exc)
+    except Exception:                     # scoring is optional
+        affinity = None
 
     with plt.rc_context(_RC):
         fig = plt.figure(figsize=(7.2, 7.7))          # 183 mm wide
@@ -144,7 +145,12 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
                          f"{'s' if len(present['hydrogen_bonds']) != 1 else ''}, closest "
                          f"{r.resname.strip()} {r.id[1]} {hb['protein_atom'].get_name().strip()}"
                          f"–{hb['ligand_atom'].get_name().strip()} at {hb['distance']:.2f} Å")
-        exposed = sum(1 for k in residues if (k[2], k[1]) in solvent)
+        exposed = sum(
+            1 for k in residues
+            if (mapper.is_residue_solvent_accessible((k[0], k[2], k[1]))
+                if hasattr(mapper, 'is_residue_solvent_accessible')
+                else (k[2], k[1]) in solvent)
+        )
         if solvent:
             facts.append(f"{exposed} of {len(residues)} contact residues solvent exposed")
         if affinity:
@@ -226,7 +232,10 @@ def draw_report_figure(mapper, output_file='interaction_report.png', dpi=300):
             for y, t in enumerate(order):
                 if t in residues[key]:
                     ax_d.scatter(x, y, s=20, color=_colour(t), linewidths=0, zorder=3)
-            if (key[2], key[1]) in solvent:
+            is_exp = (mapper.is_residue_solvent_accessible((key[0], key[2], key[1]))
+                      if hasattr(mapper, 'is_residue_solvent_accessible')
+                      else (key[2], key[1]) in solvent)
+            if is_exp:
                 ax_d.scatter(x, n_types, s=16, facecolors='white', edgecolors=EXPOSED,
                              linewidths=0.9, zorder=3)
         ax_d.set_yticks(np.arange(n_types + 1))

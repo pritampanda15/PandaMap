@@ -18,9 +18,9 @@ To regenerate every file here with your installed version, run
 |---|---|---|---:|---:|
 | [`1m17.pdb`](#1m17) | AQ4 | EGFR kinase with erlotinib | 19 | 15 |
 | [`1els.pdb`](#1els) | PAH | Enolase with a phosphonate inhibitor | 30 | 15 |
-| [`4jmz.pdb`](#4jmz) | HEM | Heme in a peroxidase | 58 | 28 |
+| [`4jmz.pdb`](#4jmz) | HEM | Heme in a peroxidase | 57 | 28 |
 | [`complex.pdb`](#complex) | PFL | Propofol at a subunit interface | 13 | 10 |
-| [`A0152a.pdb`](#a0152a) | LIG | Ligand in a protein with a structural zinc site | 6 | 5 |
+| [`A0152a.pdb`](#a0152a) | LIG | Ligand in a protein with a structural zinc site | 6 | 4 |
 
 ## What is in each folder
 
@@ -164,3 +164,21 @@ pandamap example/ --outdir example/outputs/batch --diagrams none
 - [`batch_interactions.csv`](outputs/batch/batch_interactions.csv): one row per contact, with a `structure` column.
 
 Without `--ligand`, batch mode picks the ligand in each file automatically.
+
+## MD trajectory (Rust XTC engine)
+
+Generated from a 67.4 ns explicit-solvent membrane simulation (`step5_input.gro` + `step7_1.xtc`, 686,591 atoms, 675 frames; fingerprinted in ~1.0 s by `pandamap-engine`) with full PandaMap maps rendered every `10ns`:
+
+```bash
+pandamap example/step5_input.gro --traj example/step7_1.xtc \
+    --every 10ns --outdir example/outputs/md_trajectory \
+    --diagrams modern 3d --report --csv --json
+```
+
+[<img src="outputs/md_trajectory/trajectory_timeline.png" width="760">](outputs/md_trajectory/trajectory_timeline.png)
+
+| `t = 0 ns` (Modern 2D) | `t = 30 ns` (Modern 2D) | `t = 60 ns` (Modern 2D) | `t = 0 ns` (3D contacts) |
+|:---:|:---:|:---:|:---:|
+| [<img src="outputs/md_trajectory/snapshots/t_00000ns/t_00000ns_interactions.png" width="200">](outputs/md_trajectory/snapshots/t_00000ns/t_00000ns_interactions.png) | [<img src="outputs/md_trajectory/snapshots/t_00030ns/t_00030ns_interactions.png" width="200">](outputs/md_trajectory/snapshots/t_00030ns/t_00030ns_interactions.png) | [<img src="outputs/md_trajectory/snapshots/t_00060ns/t_00060ns_interactions.png" width="200">](outputs/md_trajectory/snapshots/t_00060ns/t_00060ns_interactions.png) | [<img src="outputs/md_trajectory/snapshots/t_00000ns/t_00000ns_interactions_3d.png" width="200">](outputs/md_trajectory/snapshots/t_00000ns/t_00000ns_interactions_3d.png) |
+
+Data: [trajectory summary CSV](outputs/md_trajectory/trajectory_summary.csv) · [residue occupancy CSV](outputs/md_trajectory/residue_occupancy.csv) · [ML fingerprints CSV](outputs/md_trajectory/trajectory_fingerprints.csv) · [all 10 ns snapshots](outputs/md_trajectory/snapshots)

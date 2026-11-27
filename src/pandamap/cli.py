@@ -6,12 +6,12 @@ import argparse
 import logging
 import os
 import sys
-import threading
 
 from pandamap.core import HybridProtLigMapper, list_ligands
 from pandamap.create_3d_view import create_pandamap_3d_viz
 from pandamap.batch import analyze_batch, expand_structure_paths
 from pandamap.colorschemes import load_color_scheme
+from pandamap.trajectory import analyze_md_trajectory
 
 
 def _make_console_safe():
@@ -134,6 +134,29 @@ def build_parser(version):
         dest='water_angle_check',
         help='Accept water bridges on hydrogen-bond distances alone (2.5-3.5 A '
              'per leg), without the 71-140 degree angle test at each water')
+
+    # MD trajectory / docking ensemble options (Rust engine)
+    parser.add_argument('--traj', '-x', metavar='FILE',
+        help='MD trajectory file (.xtc) to analyse with the input structure as '
+             'topology using PandaMap\'s parallel Rust spatial-hash engine')
+    parser.add_argument('--every', metavar='INTERVAL',
+        help='Generate full PandaMap interaction maps at this simulation time '
+             'interval, e.g. 1ns, 10ns, 500ps (requires --traj or --dt-ps)')
+    parser.add_argument('--stride', type=int, default=None, metavar='N',
+        help='Generate snapshot maps every Nth frame/pose (also activates '
+             'Rust multi-model analysis on multi-MODEL PDB or multi-pose PDBQT)')
+    parser.add_argument('--start', metavar='TIME',
+        help='Start of trajectory time window (e.g. 10ns, 5000ps)')
+    parser.add_argument('--end', metavar='TIME',
+        help='End of trajectory time window (e.g. 100ns, 50000ps)')
+    parser.add_argument('--dt-ps', type=float, default=0.0, metavar='PS',
+        help='Frame timestep in ps for multi-MODEL PDB/PDBQT without timestamps')
+    parser.add_argument('--threads', type=int, default=0, metavar='N',
+        help='Worker threads for the Rust trajectory engine (default: 0 = auto)')
+    parser.add_argument('--no-fingerprints', action='store_true',
+        help='Skip writing trajectory_fingerprints.csv in trajectory mode')
+    parser.add_argument('--no-timeline', action='store_true',
+        help='Skip drawing trajectory_timeline.png in trajectory mode')
     return parser
 
 
@@ -147,10 +170,62 @@ def _selected_diagrams(choice, default):
     return list(dict.fromkeys(choice))
 
 
+def _run_trajectory(args, topology_file, say):
+    if args.traj and not os.path.exists(args.traj):
+        print(f"Error: Trajectory file not found: {args.traj}")
+        return 1
+    outdir = args.outdir or 'pandamap_traj'
+    diagrams = _selected_diagrams(args.diagrams, ['modern'])
+    result = analyze_md_trajectory(
+        topology_file=topology_file,
+        traj_file=args.traj,
+        output_dir=outdir,
+        ligand_resname=args.ligand,
+        ligand_chain=args.chain,
+        ligand_resnum=args.resnum,
+        every=args.every,
+        stride=args.stride,
+        start=args.start,
+        end=args.end,
+        dt_ps=args.dt_ps,
+        diagrams=diagrams,
+        report=args.report,
+        plots=bool(args.plots),
+        csv_export=bool(args.csv),
+        json_export=bool(args.json),
+        use_3d=args.use_3d,
+        offline_3d=args.offline_3d,
+        dpi=args.dpi,
+        color_scheme=args.color_scheme,
+        show_nearby=args.show_nearby,
+        show_3d_cues=not args.no_3d_cues,
+        strict_halogens=args.strict_halogens,
+        strict_hbond_geometry=args.strict_hbond_geometry,
+        water_angle_check=args.water_angle_check,
+        write_fingerprints=not args.no_fingerprints,
+        write_timeline=not args.no_timeline,
+        threads=args.threads,
+    )
+    say(f"Trajectory analysis complete: {result['n_frames']} frames in "
+        f"{result['elapsed_sec']:.3f}s ({result['frames_per_sec']:.0f} frames/s)")
+    say(f"  Summary CSV:      {result['summary_csv']}")
+    say(f"  Occupancy CSV:    {result['occupancy_csv']}")
+    if result['fingerprints_csv']:
+        say(f"  Fingerprints CSV: {result['fingerprints_csv']}")
+    if result['timeline_png']:
+        say(f"  Timeline figure:  {result['timeline_png']}")
+    if result['snapshots']:
+        ok = sum(1 for s in result['snapshots'] if s.get('status') == 'ok')
+        say(f"  Snapshots:        {ok}/{len(result['snapshots'])} rendered under "
+            f"{os.path.join(outdir, 'snapshots')}")
+    return 0
+
+
 def _run_batch(args, files, say):
     outdir = args.outdir or 'pandamap_batch'
     result = analyze_batch(
         files, output_dir=outdir, ligand_resname=args.ligand,
+        ligand_chain=args.chain, ligand_resnum=args.resnum,
         diagrams=_selected_diagrams(args.diagrams, ['modern']),
         report=args.report, plots=bool(args.plots), json_export=bool(args.json),
         dpi=args.dpi, color_scheme=args.color_scheme,
@@ -285,7 +360,13 @@ def main():
             print("Error: no structure files (.pdb, .cif, .mmcif, .pdbqt) found in: "
                   + ", ".join(args.structures))
             return 1
-        if batch and args.list_ligands:
+        is_traj = bool(args.traj or args.every is not None or args.stride is not None)
+        if is_traj:
+            if len(args.structures) != 1 or os.path.isdir(args.structures[0]):
+                print("Error: Trajectory mode expects a single topology file (PDB, GRO or PDBQT).")
+                return 1
+            code = _run_trajectory(args, args.structures[0], say)
+        elif batch and args.list_ligands:
             for path in files:
                 print(f"\n{path}")
                 _run_single(args, path, say)
