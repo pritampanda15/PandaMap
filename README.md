@@ -40,9 +40,10 @@ pandamap complex.pdb
 
 > **Already have PandaMap installed?** Please use the latest version for
 > improved utilization of PandaMap: `pip install --upgrade pandamap`.
-> Version 4.5 adds colour schemes for all three diagrams; 4.4 changed which
-> contacts are reported and added water bridges, new diagrams, JSON and batch
-> mode. See [What's new](#whats-new).
+> Version 4.6 adds the Rust spatial-hash & GROMACS XTC trajectory engine
+> (`--traj`, `--every 1ns`/`10ns`, timeline & ML fingerprints) plus core
+> homodimer/PDBQT/water-bridge fixes; 4.5 added colour schemes for all three
+> diagrams. See [What's new](#whats-new).
 
 <p align="center">
   <a href="https://github.com/pritampanda15/PandaMap/blob/main/docs/media/pandamap-4.4.mp4">
@@ -386,12 +387,12 @@ Outputs written to `--outdir`:
 Example run on a 67.4 ns, 686,591-atom CHARMM-GUI membrane MD trajectory (`step5_input.gro` + `step7_1.xtc`, 675 frames fingerprinted in 1.0 s with snapshots every `10ns`):
 
 <p align="center">
-  <img src="docs/images/md_trajectory_timeline.png" alt="PandaMap MD trajectory timeline showing residue occupancy, contact counts and score over 67.4 ns" width="860">
+  <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/md_trajectory_timeline.png" alt="PandaMap MD trajectory timeline showing residue occupancy, contact counts and score over 67.4 ns" width="860">
 </p>
 
 | `t = 0 ns` (Modern 2D) | `t = 30 ns` (Modern 2D) | `t = 60 ns` (Modern 2D) | `t = 0 ns` (3D contacts) |
 |:---:|:---:|:---:|:---:|
-| <img src="docs/images/md_snapshot_0ns.png" width="210"> | <img src="docs/images/md_snapshot_30ns.png" width="210"> | <img src="docs/images/md_snapshot_60ns.png" width="210"> | <img src="docs/images/md_snapshot_0ns_3d.png" width="210"> |
+| <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/md_snapshot_0ns.png" width="210"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/md_snapshot_30ns.png" width="210"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/md_snapshot_60ns.png" width="210"> | <img src="https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/md_snapshot_0ns_3d.png" width="210"> |
 
 Build the Rust engine once from a source checkout (PandaMap also compiles it automatically on first `--traj` run if `cargo` is on `PATH`):
 
@@ -724,6 +725,12 @@ penalty for rotatable bonds:
 same number (also under the old key `dG_estimated`).
 
 ## What's new
+
+### 4.6.0
+
+- **Rust MD trajectory & docking engine (`rust/pandamap-engine`)**: zero-dependency 3D spatial-hash + multi-core frame engine with a native pure-Rust GROMACS `.xtc` decoder (plus `.gro`, multi-`MODEL` `.pdb`, and multi-pose `.pdbqt`). Fingerprints 10,000 frames in ~0.14 s and real 686k-atom explicit-solvent trajectories in ~1 s.
+- **Interval snapshot rendering & ML outputs**: `--traj/-x`, `--every 1ns`/`10ns`/`500ps`, `--start`/`--end`, and `--stride` write `trajectory_summary.csv`, `residue_occupancy.csv`, ML-ready `trajectory_fingerprints.csv`, a 3-panel `trajectory_timeline.png`, and per-interval PandaMap snapshot directories (`snapshots/t_00000ns/`, …).
+- **Core accuracy & rendering fixes**: chain-aware homodimer scoring/solvent accessibility/diagrams, water bridges in the classic diagram and 3D HTML viewer, planar aromaticity perception (excluding saturated sp³ rings), multi-pose PDBQT `MODEL`/`ENDMDL` + AutoDock4 element preservation, `NeighborSearch`-accelerated solvent accessibility/metal coordination, and FreeSASA RSA parsing.
 
 ### 4.5.0
 
