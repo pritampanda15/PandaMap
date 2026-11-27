@@ -62,11 +62,24 @@ def parse_time_ps(value):
 
 
 def _repo_root():
-    """Return repository root when running from a source checkout, else None."""
+    """Return repository root when running from or inside a source checkout, else None."""
     here = os.path.dirname(os.path.abspath(__file__))
-    candidate = os.path.abspath(os.path.join(here, "..", ".."))
-    if os.path.isfile(os.path.join(candidate, "rust", "pandamap-engine", "Cargo.toml")):
-        return candidate
+    candidates = [
+        os.path.abspath(os.path.join(here, "..", "..")),
+        os.path.abspath(os.getcwd()),
+    ]
+    # Also walk up from cwd (covers running pytest/CLI from a subdirectory of a checkout)
+    cur = os.path.abspath(os.getcwd())
+    for _ in range(4):
+        parent = os.path.dirname(cur)
+        if parent == cur:
+            break
+        candidates.append(parent)
+        cur = parent
+
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, "rust", "pandamap-engine", "Cargo.toml")):
+            return candidate
     return None
 
 
