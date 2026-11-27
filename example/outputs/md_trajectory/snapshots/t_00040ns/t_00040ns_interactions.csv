@@ -1,0 +1,13 @@
+interaction_type,protein_residue,protein_resnum,protein_chain,protein_atom,ligand_atom,ligand_element,distance_A,solvent_accessible,halogen_element
+alkyl_pi,MET,227,A,CB,C18,C,3.76,False,
+alkyl_pi,LEU,231,A,CD1,C17,C,3.86,False,
+alkyl_pi,TYR,220,A,CZ,C20,C,3.93,True,
+alkyl_pi,ILE,706,A,CG2,C15,C,4.0,False,
+alkyl_pi,PRO,228,A,CG,C17,C,4.0,False,
+alkyl_pi,ALA,707,A,CA,C12,C,4.04,False,
+alkyl_pi,ALA,711,A,CA,C11,C,4.18,False,
+amide_pi,GLN,224,A,HE21,C15,C,2.99,True,
+donor_pi,ASP,703,A,O,C14,C,4.97,True,
+pi_pi_stacking,TYR,710,A,CD2,C17,C,3.66,True,
+pi_pi_stacking,TYR,220,A,CZ,C19,C,4.88,True,
+pi_pi_stacking,PHE,714,A,CD1,C10,C,5.3,True,

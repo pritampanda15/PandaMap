@@ -1,0 +1,73 @@
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.5.0
+==============================================================================
+
+  Structure      t_00000ns.pdb
+  Ligand         LIG  (chain A, residue 857, 24 heavy atoms)
+  Binding site   13 residues in chain A; 5 solvent accessible
+  Interactions   14 contacts of 5 types
+
+SUMMARY
+------------------------------------------------------------------------------
+  Hydrogen bonds          1  ███
+  π-π stacking            1  ███
+  Donor-π interactions    1  ███
+  Amide-π interactions    1  ███
+  Alkyl-π interactions   10  ██████████████████████████████
+
+HYDROGEN BONDS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  LEU 223 A  O      LIG:N           3.43 Å
+
+π-π STACKING (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TYR 710 A  CD1    LIG:C9          3.50 Å
+
+DONOR-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 703 A  HB1    LIG:C4          5.03 Å
+
+AMIDE-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLN 224 A  HA     LIG:C19         3.17 Å
+
+ALKYL-π INTERACTIONS (10)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  LEU 223 A  C      LIG:C4          3.44 Å
+   2  PRO 228 A  CA     LIG:C17         3.48 Å
+   3  LEU 231 A  CD1    LIG:C10         3.55 Å
+   4  ALA 707 A  CA     LIG:C8          3.64 Å
+   5  MET 227 A  CB     LIG:C12         3.84 Å
+   6  MET 682 A  C      LIG:C15         4.30 Å
+   7  TYR 220 A  CD2    LIG:C2          4.45 Å
+   8  ILE 706 A  CG2    LIG:C14         4.58 Å
+   9  ILE 232 A  CG1    LIG:C17         5.46 Å
+  10  ALA 711 A  CA     LIG:C9          5.50 Å
+
+RESIDUES (13)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  LEU 223 A         2    3.43 Å  yes      hydrogen bond, alkyl-π
+  GLN 224 A         1    3.17 Å  yes      amide-π
+  PRO 228 A         1    3.48 Å  -        alkyl-π
+  TYR 710 A         1    3.50 Å  yes      π-π stacking
+  LEU 231 A         1    3.55 Å  -        alkyl-π
+  ALA 707 A         1    3.64 Å  -        alkyl-π
+  MET 227 A         1    3.84 Å  -        alkyl-π
+  MET 682 A         1    4.30 Å  -        alkyl-π
+  TYR 220 A         1    4.45 Å  yes      alkyl-π
+  ILE 706 A         1    4.58 Å  -        alkyl-π
+  ASP 703 A         1    5.03 Å  yes      donor-π
+  ILE 232 A         1    5.46 Å  -        alkyl-π
+  ALA 711 A         1    5.50 Å  -        alkyl-π
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

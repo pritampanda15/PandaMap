@@ -79,6 +79,7 @@ dark mode, or in your own colours (`--color-scheme`, see
 - [Installation](#installation)
 - [Quick start](#quick-start)
 - [What you get](#what-you-get)
+- [MD trajectory analysis (Rust engine)](#md-trajectory-analysis-rust-engine)
 - [Choosing the ligand](#choosing-the-ligand)
 - [Command-line reference](#command-line-reference)
 - [Python API](#python-api)
@@ -127,6 +128,10 @@ pandamap example/1m17.pdb --ligand AQ4 --color-scheme dark
 
 # Batch mode: a folder (or several files) in, two combined tables out
 pandamap example/ --outdir screen --diagrams none
+
+# MD trajectory mode (Rust spatial-hash + XTC engine): fingerprint all frames
+# and render full PandaMap interaction maps every 10 ns
+pandamap topol.gro --traj prod.xtc --every 10ns --outdir md_results
 ```
 
 To see the results without running anything, open the
@@ -350,6 +355,50 @@ connection; PandaMap downloads the library once and caches it.
 
 ![Interactive 3D viewer](https://raw.githubusercontent.com/pritampanda15/PandaMap/main/docs/images/viewer_3d_1m17.png)
 
+## MD trajectory analysis (Rust engine)
+
+PandaMap includes a zero-dependency Rust spatial-hash + parallel trajectory engine (`rust/pandamap-engine`) with a built-in GROMACS `.xtc` decoder (no GROMACS, C libraries, or MDAnalysis required). It fingerprints **every frame** across all CPU cores (10,000 frames of 1M17 in ~0.14 s; a 1.6 GB, 686k-atom explicit-solvent membrane trajectory in ~1.0 s) and automatically generates full PandaMap interaction diagrams, reports, CSV, and JSON snapshots at any simulation interval (`--every 10ns`, `--every 1ns`, `--every 500ps`, or `--stride N`).
+
+```bash
+# Fingerprint every frame in Rust + render 2D/3D maps every 10 ns into md_out/
+pandamap topol.gro --traj prod.xtc --every 10ns --outdir md_out \
+    --diagrams modern 3d --report --csv --json
+
+# High-resolution window: every 1 ns between 20 ns and 50 ns, dark theme
+pandamap topol.pdb -x prod.xtc --ligand LIG --every 1ns \
+    --start 20ns --end 50ns --color-scheme dark --outdir md_window
+
+# Pure ML fingerprinting across 100k frames or docking poses (no images)
+pandamap topol.pdb -x prod.xtc --ligand LIG --diagrams none --outdir md_fp
+pandamap docked_poses.pdbqt --stride 1 --diagrams none --outdir docking_fp
+```
+
+Outputs written to `--outdir`:
+
+| File / folder | Contents |
+|---|---|
+| `trajectory_timeline.png` | Three-panel summary: top residue occupancy (%), contacts vs time (ns) with snapshot markers, and interaction score vs time |
+| `trajectory_summary.csv` | Every frame: `frame_idx`, `step`, `time_ps`, `time_ns`, `score`, total contacts, and per-type counts |
+| `residue_occupancy.csv` | Ranked per-residue and per-interaction-type occupancy (%) across the entire trajectory |
+| `trajectory_fingerprints.csv` | ML-ready binary `frame × (residue:interaction_type)` fingerprint matrix |
+| `snapshots/t_00000ns/`, `t_00010ns/`, … | Extracted binding-site snapshot PDB + full PandaMap 2D/3D diagrams, reports, CSV, JSON, and optional `--3d` HTML |
+
+Example run on a 67.4 ns, 686,591-atom CHARMM-GUI membrane MD trajectory (`step5_input.gro` + `step7_1.xtc`, 675 frames fingerprinted in 1.0 s with snapshots every `10ns`):
+
+<p align="center">
+  <img src="docs/images/md_trajectory_timeline.png" alt="PandaMap MD trajectory timeline showing residue occupancy, contact counts and score over 67.4 ns" width="860">
+</p>
+
+| `t = 0 ns` (Modern 2D) | `t = 30 ns` (Modern 2D) | `t = 60 ns` (Modern 2D) | `t = 0 ns` (3D contacts) |
+|:---:|:---:|:---:|:---:|
+| <img src="docs/images/md_snapshot_0ns.png" width="210"> | <img src="docs/images/md_snapshot_30ns.png" width="210"> | <img src="docs/images/md_snapshot_60ns.png" width="210"> | <img src="docs/images/md_snapshot_0ns_3d.png" width="210"> |
+
+Build the Rust engine once from a source checkout (PandaMap also compiles it automatically on first `--traj` run if `cargo` is on `PATH`):
+
+```bash
+cargo build --release --manifest-path rust/pandamap-engine/Cargo.toml
+```
+
 ## Choosing the ligand
 
 - **Automatic.** Without `--ligand`, PandaMap analyses the largest HETATM group
@@ -427,6 +476,20 @@ Detection:
                           structures without explicit hydrogens
   --water-distance-only   Accept water bridges on distances alone (no angle
                           test at the water)
+
+MD trajectory / docking ensemble (Rust engine):
+  -x, --traj FILE         GROMACS XTC trajectory file to analyse with the
+                          structure file as topology (PDB, GRO or PDBQT)
+  --every INTERVAL        Render snapshot maps at a simulation time interval
+                          (e.g. 1ns, 10ns, 500ps)
+  --stride N              Render snapshots every Nth frame/pose (also runs
+                          Rust analysis on multi-MODEL PDB / multi-pose PDBQT)
+  --start TIME            Start of time window (e.g. 10ns, 5000ps)
+  --end TIME              End of time window (e.g. 100ns, 50000ps)
+  --dt-ps PS              Frame timestep in ps for multi-MODEL PDB/PDBQT
+  --threads N             Worker threads for the Rust engine (0 = auto)
+  --no-fingerprints       Skip writing trajectory_fingerprints.csv
+  --no-timeline           Skip drawing trajectory_timeline.png
 
 Other:
   --debug                 Print the full traceback when an error occurs
@@ -521,8 +584,23 @@ print(summary["occupancy"])        # fraction of frames each residue is in conta
 print(summary["summary_csv"])      # per-frame table
 ```
 
-For DCD or XTC trajectories, convert to a multi-model PDB first, for example
-`gmx trjconv -f traj.xtc -s topol.tpr -o frames.pdb`.
+For GROMACS `.xtc` trajectories (or large multi-pose PDBQT / multi-MODEL PDB ensembles), use the Rust-accelerated trajectory API directly—no conversion to multi-MODEL PDB required:
+
+```python
+from pandamap import analyze_md_trajectory
+
+result = analyze_md_trajectory(
+    topology_file="topol.gro",
+    traj_file="prod.xtc",
+    every="10ns",                  # or "1ns", "500ps"
+    output_dir="md_results",
+    diagrams=("modern", "3d"),
+    report=True,
+    json_export=True,
+)
+print(result["n_frames"], f"{result['frames_per_sec']:.0f} frames/s")
+print(result["occupancy_csv"], result["fingerprints_csv"], result["timeline_png"])
+```
 
 Many structures at once (the Python form of [batch mode](#batch-mode)):
 

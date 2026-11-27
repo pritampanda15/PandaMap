@@ -1,0 +1,90 @@
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.5.0
+==============================================================================
+
+  Structure      t_00030ns.pdb
+  Ligand         LIG  (chain A, residue 857, 24 heavy atoms)
+  Binding site   14 residues in chain A; 5 solvent accessible
+  Interactions   20 contacts of 7 types
+
+SUMMARY
+------------------------------------------------------------------------------
+  Ionic interactions      1  ███
+  π-π stacking            2  ███████
+  Donor-π interactions    1  ███
+  Amide-π interactions    1  ███
+  Alkyl-π interactions    9  ██████████████████████████████
+  Hydrophobic contacts    3  ██████████
+  Water bridges           3  ██████████
+
+IONIC INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 703 A  O      LIG:N           5.30 Å
+
+π-π STACKING (2)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TYR 710 A  CG     LIG:C15         3.37 Å
+   2  PHE 714 A  CD2    LIG:C10         5.13 Å
+
+DONOR-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 703 A  HB1    LIG:C4          4.44 Å
+
+AMIDE-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  GLN 224 A  HA     LIG:C19         5.17 Å
+
+ALKYL-π INTERACTIONS (9)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 704 A  CE2    LIG:C1          3.33 Å
+   2  LEU 231 A  CD1    LIG:C18         3.50 Å
+   3  ALA 707 A  CB     LIG:C6          3.80 Å
+   4  PRO 228 A  CG     LIG:C18         4.02 Å
+   5  ILE 706 A  C      LIG:C14         4.24 Å
+   6  ALA 711 A  CA     LIG:C11         4.71 Å
+   7  LEU 223 A  CB     LIG:C4          4.97 Å
+   8  MET 227 A  CE     LIG:C9          5.10 Å
+   9  MET 682 A  CB     LIG:C16         5.45 Å
+
+HYDROPHOBIC CONTACTS (3)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TYR 710 A  CB     LIG:C15         3.25 Å
+   2  LEU 223 A  CD1    LIG:C2          3.66 Å
+   3  ALA 699 A  CB     LIG:C2          3.84 Å
+
+WATER BRIDGES (3)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ASP 703 A  OD2    LIG:O2          3.06 Å  via HOH 36 (2.87 + 3.06 Å)
+   2  LEU 223 A  O      LIG:N           3.23 Å  via HOH 1 (3.23 + 3.03 Å)
+   3  GLN 224 A  NE2    LIG:O2          3.33 Å  via HOH 36 (2.87 + 3.33 Å)
+
+RESIDUES (14)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  ASP 703 A         3    3.06 Å  yes      ionic, donor-π, water bridge
+  LEU 223 A         3    3.23 Å  -        alkyl-π, hydrophobic, water bridge
+  TYR 710 A         2    3.25 Å  yes      π-π stacking, hydrophobic
+  GLN 224 A         2    3.33 Å  yes      amide-π, water bridge
+  TRP 704 A         1    3.33 Å  yes      alkyl-π
+  LEU 231 A         1    3.50 Å  -        alkyl-π
+  ALA 707 A         1    3.80 Å  -        alkyl-π
+  ALA 699 A         1    3.84 Å  -        hydrophobic
+  PRO 228 A         1    4.02 Å  yes      alkyl-π
+  ILE 706 A         1    4.24 Å  -        alkyl-π
+  ALA 711 A         1    4.71 Å  -        alkyl-π
+  MET 227 A         1    5.10 Å  -        alkyl-π
+  PHE 714 A         1    5.13 Å  -        π-π stacking
+  MET 682 A         1    5.45 Å  -        alkyl-π
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================

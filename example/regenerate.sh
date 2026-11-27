@@ -39,3 +39,10 @@ for scheme in default colorblind monochrome dark publication; do
   pandamap example/1m17.pdb --ligand AQ4 --diagrams all --color-scheme "$scheme" \
     --output "example/color_schemes/1m17_$scheme.png" --dpi 150 --quiet
 done
+
+# Real MD trajectory example (Rust spatial-hash + XTC engine, snapshots every 10 ns)
+if [ -f example/step5_input.gro ] && [ -f example/step7_1.xtc ]; then
+  pandamap example/step5_input.gro --traj example/step7_1.xtc \
+    --every 10ns --outdir example/outputs/md_trajectory \
+    --diagrams modern 3d --report --csv --json --dpi 150 --quiet
+fi

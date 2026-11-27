@@ -1,0 +1,65 @@
+==============================================================================
+  PandaMap Interaction Report                                 PandaMap 4.5.0
+==============================================================================
+
+  Structure      t_00060ns.pdb
+  Ligand         LIG  (chain A, residue 857, 24 heavy atoms)
+  Binding site   7 residues in chain A; 3 solvent accessible
+  Interactions   12 contacts of 5 types
+
+SUMMARY
+------------------------------------------------------------------------------
+  π-π stacking             3  ███████████████
+  Cation-π interactions    1  █████
+  Carbon-π interactions    1  █████
+  Alkyl-π interactions     6  ██████████████████████████████
+  Hydrophobic contacts     1  █████
+
+π-π STACKING (3)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 237 A  CZ2    LIG:C19         3.63 Å
+   2  PHE 714 A  CD2    LIG:C15         3.64 Å
+   3  TRP 241 A  CD1    LIG:C10         3.74 Å
+
+CATION-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 237 A  CZ2    LIG:N           3.75 Å
+
+CARBON-π INTERACTIONS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  TRP 241 A  NE1    LIG:C10         3.39 Å
+
+ALKYL-π INTERACTIONS (6)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  ILE 718 A  CB     LIG:C9          3.47 Å
+   2  ALA 711 A  CA     LIG:C15         4.02 Å
+   3  TRP 237 A  CZ2    LIG:C20         4.08 Å
+   4  VAL 238 A  CG2    LIG:C11         4.47 Å
+   5  LEU 717 A  CB     LIG:C10         4.93 Å
+   6  TRP 241 A  CH2    LIG:C1          5.38 Å
+
+HYDROPHOBIC CONTACTS (1)
+------------------------------------------------------------------------------
+   #  Residue    Atom   Ligand atom   Distance  Note
+   1  PHE 714 A  CB     LIG:C10         3.60 Å
+
+RESIDUES (7)
+------------------------------------------------------------------------------
+  Residue    Contacts   Closest  Exposed  Types
+  TRP 241 A         3    3.39 Å  yes      π-π stacking, carbon-π, alkyl-π
+  TRP 237 A         3    3.63 Å  yes      π-π stacking, cation-π, alkyl-π
+  PHE 714 A         2    3.60 Å  -        π-π stacking, hydrophobic
+  ILE 718 A         1    3.47 Å  -        alkyl-π
+  ALA 711 A         1    4.02 Å  -        alkyl-π
+  VAL 238 A         1    4.47 Å  yes      alkyl-π
+  LEU 717 A         1    4.93 Å  -        alkyl-π
+
+==============================================================================
+  Distances are between the named atoms, in Å. Residues are written as
+  NAME NUMBER CHAIN. Exposed = solvent accessible. For a table you can
+  load into other tools, use --csv.
+==============================================================================
